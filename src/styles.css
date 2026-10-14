@@ -1,0 +1,145 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+/* Brand tokens are LINARA web's (LINARA/src/styles.css, LINARA/DESIGN.md), so
+   the console and the household app read as one product (spec D21). Change
+   them there first, then here. Console layout rules: DESIGN.md in this repo. */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --font-sans: "Nunito Sans", ui-sans-serif, system-ui, sans-serif;
+  /* The 13px floor: text-xs is the smallest size. */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.125rem;
+  --font-display: "Literata", ui-serif, Georgia, serif;
+  /* The "linara" logotype only. */
+  --font-wordmark: "Fraunces", ui-serif, Georgia, serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sand: var(--sand);
+  --color-sand-deep: var(--sand-deep);
+  --color-terracotta: var(--terracotta);
+  --color-terracotta-soft: var(--terracotta-soft);
+  --color-terracotta-ink: var(--terracotta-ink);
+  --color-hearth-ink: var(--hearth-ink);
+  --color-pine: var(--pine);
+  --color-pine-deep: var(--pine-deep);
+  --color-card-cream: var(--card-cream);
+  --color-ink: var(--ink);
+  --color-status-done: var(--status-done);
+  --color-status-done-soft: var(--status-done-soft);
+  --color-status-done-ink: var(--status-done-ink);
+  --color-status-late: var(--status-late);
+  --color-status-late-soft: var(--status-late-soft);
+  --color-status-late-ink: var(--status-late-ink);
+  --shadow-soft:
+    0 2px 8px -2px oklch(0.2 0.05 170 / 0.05), 0 1px 3px 0 oklch(0.2 0.05 170 / 0.02),
+    inset 0 1px 0 0 oklch(1 0 0 / 0.8), inset 0 0 0 1px oklch(0 0 0 / 0.02);
+  --shadow-lift:
+    0 12px 32px -8px oklch(0.2 0.05 170 / 0.08), 0 4px 12px -3px oklch(0.2 0.05 170 / 0.05),
+    inset 0 1px 0 0 oklch(1 0 0 / 0.8), inset 0 0 0 1px oklch(0 0 0 / 0.02);
+}
+
+:root {
+  /* 12px base: sections 24, inputs 16, buttons 12. */
+  --radius: 0.75rem;
+
+  --sand: oklch(0.965 0.018 82);
+  --sand-deep: oklch(0.93 0.022 82);
+  --pine: oklch(0.42 0.055 180);
+  --pine-deep: oklch(0.32 0.05 180);
+  --terracotta: oklch(0.73 0.11 55);
+  --terracotta-soft: oklch(0.88 0.055 60);
+  /* Terracotta for text on light surfaces. Plain terracotta never carries words. */
+  --terracotta-ink: oklch(0.52 0.12 48);
+  --hearth-ink: oklch(0.28 0.045 50);
+  --ink: oklch(0.22 0.015 180);
+  --card-cream: oklch(0.99 0.008 82);
+
+  /* Status: `-ink` for text, the bare value for fills, bars and dots only. */
+  --status-done: oklch(0.68 0.14 150);
+  --status-done-soft: oklch(0.95 0.05 150);
+  --status-done-ink: oklch(0.32 0.1 150);
+  --status-late: oklch(0.55 0.18 35);
+  --status-late-soft: oklch(0.93 0.06 35);
+  --status-late-ink: oklch(0.42 0.15 35);
+
+  --background: var(--sand);
+  --foreground: var(--ink);
+  --card: var(--card-cream);
+  --card-foreground: var(--ink);
+  --popover: var(--card-cream);
+  --popover-foreground: var(--ink);
+  --primary: var(--pine);
+  --primary-foreground: oklch(0.98 0.01 82);
+  --secondary: var(--sand-deep);
+  --secondary-foreground: var(--pine-deep);
+  --muted: var(--sand-deep);
+  --muted-foreground: oklch(0.5 0.02 180);
+  --accent: var(--terracotta);
+  --accent-foreground: var(--hearth-ink);
+  --destructive: oklch(0.55 0.18 27);
+  --destructive-foreground: oklch(0.99 0.005 82);
+  --border: oklch(0.88 0.02 82);
+  --input: oklch(0.9 0.02 82);
+  --ring: var(--pine);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  html,
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  h1,
+  h2,
+  h3,
+  .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-muted-foreground);
+}

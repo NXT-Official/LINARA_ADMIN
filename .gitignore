@@ -1,0 +1,45 @@
+# Allowlist. The repository holds only what is needed to build, test and run
+# the console. Everything else (specs, client deliverables, design notes, agent
+# files, local tooling) stays in the local Obsidian vault and is never pushed.
+#
+# To commit a new top-level file or folder, add a `!/name` line below.
+
+/*
+
+# --- App source and assets ---
+!/src/
+!/public/
+!/supabase/
+!/e2e/
+
+# --- Build, tooling and dependency manifests ---
+!/package.json
+!/bun.lock
+!/bunfig.toml
+!/tsconfig.json
+!/vite.config.ts
+!/vitest.config.ts
+!/eslint.config.js
+!/playwright.config.ts
+!/components.json
+
+# --- Repository hygiene ---
+!/.gitignore
+!/.gitattributes
+!/.editorconfig
+!/.prettierrc.json
+!/.prettierignore
+!/.env.example
+!/README.md
+
+# --- Never committed, even inside allowed folders ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.log
+.DS_Store
+Thumbs.db
+# Supabase CLI scratch state (holds the linked project and owner's email).
+supabase/.temp/

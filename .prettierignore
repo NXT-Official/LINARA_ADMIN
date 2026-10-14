@@ -1,0 +1,14 @@
+node_modules
+dist
+.output
+coverage
+bun.lock
+src/routeTree.gen.ts
+
+# Docs get hand-edited constantly (KNOWN_GAPS.md, plan.md, etc.) and their
+# formatting isn't worth gating CI on -- see prettier-guard step in ci.yml.
+*.md
+
+# Vendored design tooling (the Impeccable skill), not app code.
+.claude
+.impeccable

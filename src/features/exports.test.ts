@@ -26,7 +26,14 @@ const exports: Record<string, string> = {
   tickets: toCsv(TICKET_CSV, sample.tickets),
   deletions: toCsv(deletionCsv(now), sample.deletionRequests),
   payouts: toCsv(PAYOUT_CSV, sample.payouts),
-  audit: toCsv(AUDIT_CSV, sample.auditLog),
+  audit: toCsv(
+    AUDIT_CSV,
+    sample.auditLog.map((e) => ({
+      ...e,
+      targetType: e.targetType as string,
+      targetId: e.targetId,
+    })),
+  ),
 };
 
 const forbidden: string[] = [

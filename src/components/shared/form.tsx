@@ -18,6 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toast } from "sonner";
+
 import { sampleToast } from "@/lib/sample-toast";
 
 /** A labelled field. The label sits above, sentence case (LINARA DESIGN.md, Inputs). */
@@ -87,7 +89,14 @@ export function FormDialog({
   children,
   open: openProp,
   onOpenChange,
+  onSubmit,
 }: {
+  /**
+   * The real action. Resolves `{ ok: true }` to close with the `done` toast, or
+   * `{ ok: false, message }` to stay open and show the message. Omitted, the
+   * dialog only confirms with the sample-data toast.
+   */
+  onSubmit?: () => Promise<{ ok: true } | { ok: false; message: string }>;
   /** Omit when a menu item opens the dialog; pass `open` and `onOpenChange` instead. */
   trigger?: ReactNode;
   open?: boolean;
@@ -108,11 +117,31 @@ export function FormDialog({
   };
   const base = useId();
   const id = (name: string) => `${base}-${name}`;
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
 
-  function submit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
-    setOpen(false);
-    sampleToast(done);
+    if (!onSubmit) {
+      setOpen(false);
+      sampleToast(done);
+      return;
+    }
+    setPending(true);
+    setError(null);
+    try {
+      const res = await onSubmit();
+      if (res.ok) {
+        setOpen(false);
+        toast.success(done);
+      } else {
+        setError(res.message);
+      }
+    } catch {
+      setError("Something went wrong on our side. Try again.");
+    } finally {
+      setPending(false);
+    }
   }
 
   return (
@@ -128,6 +157,14 @@ export function FormDialog({
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
           {typeof children === "function" ? children(id) : children}
+          {error ? (
+            <p
+              role="alert"
+              className="rounded-xl bg-status-late-soft px-3 py-2 text-sm text-status-late-ink"
+            >
+              {error}
+            </p>
+          ) : null}
           <DialogFooter className="gap-2 pt-2 sm:gap-0">
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancel
@@ -135,9 +172,9 @@ export function FormDialog({
             <Button
               type="submit"
               variant={destructive ? "destructive" : "default"}
-              disabled={!canSubmit}
+              disabled={!canSubmit || pending}
             >
-              {submitLabel}
+              {pending ? "Working" : submitLabel}
             </Button>
           </DialogFooter>
         </form>

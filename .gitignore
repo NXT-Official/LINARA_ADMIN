@@ -11,6 +11,7 @@
 !/public/
 !/supabase/
 !/e2e/
+!/scripts/
 
 # --- Build, tooling and dependency manifests ---
 !/package.json

@@ -1,20 +1,26 @@
 import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 
 import { DataTable, type Column } from "@/components/shared/data-table";
 import { Field, FormDialog } from "@/components/shared/form";
 import { PageHeader, Surface } from "@/components/shared/page";
+import { EmptyState } from "@/components/shared/states";
 import { StatusChip } from "@/components/shared/status-chip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CodeField } from "@/features/auth/components/code-field";
-import { CURRENT_STAFF_ID } from "@/data/sample";
-import { listStaff } from "@/data/queries";
-import type { StaffMember } from "@/data/types";
 import { formatDate, formatRelativeDay } from "@/lib/format";
 
-/** FR-TM-2: invite by email, two-step code again, every admin told. */
+import { addAdminFn, listAdminsFn, removeAdminFn } from "../team.actions";
+import type { AdminRow } from "../team.handlers.server";
+
+const ADMINS = ["admins"] as const;
+
+/** FR-TM-2: invite by email, with the two-step code again. */
 function AddAdminDialog() {
+  const queryClient = useQueryClient();
+  const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   return (
     <FormDialog
@@ -25,10 +31,19 @@ function AddAdminDialog() {
         </Button>
       }
       title="Add an admin"
-      description="They get an invite link that works for 24 hours, and no access until they set up two-step sign-in. Every admin gets an email about it."
+      description="They get an invite link by email, and no access until they set up two-step sign-in. The change is recorded in the audit log."
       submitLabel="Send invite"
       done="Invite sent"
-      canSubmit={code.length === 6}
+      canSubmit={code.length === 6 && email.includes("@")}
+      onSubmit={async () => {
+        const res = await addAdminFn({ data: { email, code } });
+        setCode("");
+        if (res.ok) {
+          setEmail("");
+          await queryClient.invalidateQueries({ queryKey: ADMINS });
+        }
+        return res;
+      }}
     >
       {(id) => (
         <>
@@ -37,7 +52,14 @@ function AddAdminDialog() {
             htmlFor={id("email")}
             hint="Use an email only for the console, not one they use for a Linara household."
           >
-            <Input id={id("email")} type="email" required autoComplete="off" />
+            <Input
+              id={id("email")}
+              type="email"
+              required
+              autoComplete="off"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
           </Field>
           <CodeField id={id("code")} value={code} onChange={setCode} />
         </>
@@ -47,7 +69,8 @@ function AddAdminDialog() {
 }
 
 /** FR-TM-3: not yourself, not the last admin; ends their sessions at once. */
-function RemoveAdminDialog({ member }: { member: StaffMember }) {
+function RemoveAdminDialog({ member }: { member: AdminRow }) {
+  const queryClient = useQueryClient();
   const [code, setCode] = useState("");
   return (
     <FormDialog
@@ -56,12 +79,18 @@ function RemoveAdminDialog({ member }: { member: StaffMember }) {
           Remove
         </Button>
       }
-      title={`Remove ${member.fullName}`}
-      description={`${member.fullName} is signed out everywhere at once and can't open the console again. Every admin gets an email about it.`}
+      title={`Remove ${member.email}`}
+      description="They're signed out everywhere at once and can't open the console again. The change is recorded in the audit log."
       submitLabel="Remove admin"
       done="Admin removed"
       destructive
       canSubmit={code.length === 6}
+      onSubmit={async () => {
+        const res = await removeAdminFn({ data: { userId: member.userId, code } });
+        setCode("");
+        if (res.ok) await queryClient.invalidateQueries({ queryKey: ADMINS });
+        return res;
+      }}
     >
       {(id) => <CodeField id={id("code")} value={code} onChange={setCode} />}
     </FormDialog>
@@ -69,30 +98,27 @@ function RemoveAdminDialog({ member }: { member: StaffMember }) {
 }
 
 export function TeamPage() {
-  const staff = listStaff();
-  const columns: Column<StaffMember>[] = [
+  const { data, isPending } = useQuery({ queryKey: ADMINS, queryFn: () => listAdminsFn() });
+  const admins = data?.ok ? data.admins : [];
+
+  const columns: Column<AdminRow>[] = [
     {
-      key: "name",
+      key: "email",
       header: "Admin",
       mobile: "primary",
-      cell: (s) => (
-        <div className="min-w-0">
-          <span className="font-semibold text-foreground">
-            {s.fullName}
-            {s.id === CURRENT_STAFF_ID ? (
-              <span className="font-normal text-muted-foreground"> (you)</span>
-            ) : null}
-          </span>
-          <div className="truncate text-xs text-muted-foreground">{s.email}</div>
-        </div>
+      cell: (a) => (
+        <span className="min-w-0 truncate font-semibold text-foreground">
+          {a.email}
+          {a.isYou ? <span className="font-normal text-muted-foreground"> (you)</span> : null}
+        </span>
       ),
     },
     {
       key: "twostep",
       header: "Two-step sign-in",
       mobile: "primary",
-      cell: (s) =>
-        s.twoStepSetUp ? (
+      cell: (a) =>
+        a.twoStepSetUp ? (
           <StatusChip tone="done">Set up</StatusChip>
         ) : (
           <StatusChip tone="attention">Not set up</StatusChip>
@@ -101,16 +127,15 @@ export function TeamPage() {
     {
       key: "seen",
       header: "Last sign-in",
-      cell: (s) => (s.lastSignInAt ? formatRelativeDay(s.lastSignInAt) : "Never"),
+      cell: (a) => (a.lastSignInAt ? formatRelativeDay(a.lastSignInAt) : "Never"),
     },
-    { key: "added", header: "Added", cell: (s) => formatDate(s.addedAt) },
+    { key: "added", header: "Added", cell: (a) => formatDate(a.addedAt) },
     {
       key: "act",
       header: "",
       align: "right",
       mobile: "primary",
-      cell: (s) =>
-        s.id === CURRENT_STAFF_ID || staff.length === 1 ? null : <RemoveAdminDialog member={s} />,
+      cell: (a) => (a.isYou || admins.length === 1 ? null : <RemoveAdminDialog member={a} />),
     },
   ];
 
@@ -123,17 +148,24 @@ export function TeamPage() {
       />
       <Surface flush>
         <div className="pt-2">
-          <DataTable
-            label="Admins"
-            rows={staff}
-            columns={columns}
-            rowKey={(s) => s.id}
-            empty={null}
-          />
+          {data && !data.ok ? (
+            <div className="px-5 pb-5 sm:px-6">
+              <EmptyState title="The admin list didn't load">{data.message}</EmptyState>
+            </div>
+          ) : (
+            <DataTable
+              label="Admins"
+              rows={admins}
+              columns={columns}
+              rowKey={(a) => a.userId}
+              empty={<EmptyState title={isPending ? "Loading admins" : "No admins found"} />}
+            />
+          )}
         </div>
       </Surface>
       <p className="mt-3 px-1 text-xs text-muted-foreground">
-        You can't remove yourself or the last admin.
+        You can't remove yourself or the last admin. Invite links work for an hour; if one runs out,
+        the new admin can use Forgot your password? on the sign-in page to get a fresh link.
       </p>
     </>
   );

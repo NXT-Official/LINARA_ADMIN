@@ -1,20 +1,27 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
-import { DataTable, ListFooter, type Column } from "@/components/shared/data-table";
-import { ListToolbar, SearchField } from "@/components/shared/list-toolbar";
+import { DataTable, type Column } from "@/components/shared/data-table";
+import { ExportCsvButton } from "@/components/shared/export-button";
+import { SelectField } from "@/components/shared/form";
 import { RecordLink } from "@/components/shared/links";
 import { PageHeader, Surface } from "@/components/shared/page";
 import { EmptyState } from "@/components/shared/states";
-import { listAudit, staffById } from "@/data/queries";
-import type { AuditEntry } from "@/data/types";
-import { ExportCsvButton } from "@/components/shared/export-button";
-
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { AUDIT_ACTION_LABEL } from "@/data/labels";
+import { listAdminsFn } from "@/features/team/team.actions";
 import { formatDateTime } from "@/lib/format";
-import { AUDIT_CSV } from "../audit.export";
 
+import { listAuditFn } from "../audit.actions";
+import { AUDIT_CSV } from "../audit.export";
+import type { AuditRow } from "../audit.handlers.server";
 import { actionLabel, targetHref } from "../audit.utils";
 
-const TARGET_LABEL: Record<AuditEntry["targetType"], string> = {
+const ANY = "any";
+
+const TARGET_LABEL: Record<string, string> = {
   user: "User",
   household: "Household",
   ticket: "Ticket",
@@ -22,39 +29,65 @@ const TARGET_LABEL: Record<AuditEntry["targetType"], string> = {
   staff: "Admin",
   payout: "Payout",
   export: "Export",
+  auth: "Sign-in",
 };
 
-export function AuditPage() {
-  const all = listAudit();
-  const [q, setQ] = useState("");
-  const needle = q.trim().toLowerCase();
-  const rows = all.filter(
-    (e) =>
-      !needle ||
-      [staffById(e.actorId)?.fullName, actionLabel(e.action), e.reason, TARGET_LABEL[e.targetType]]
-        .filter(Boolean)
-        .some((v) => v!.toLowerCase().includes(needle)),
+function FilterLabel({ htmlFor, children }: { htmlFor: string; children: string }) {
+  return (
+    <Label htmlFor={htmlFor} className="text-xs font-semibold text-muted-foreground">
+      {children}
+    </Label>
   );
+}
 
-  const columns: Column<AuditEntry>[] = [
+export function AuditPage() {
+  const [actorId, setActorId] = useState(ANY);
+  const [action, setAction] = useState(ANY);
+  const [targetType, setTargetType] = useState(ANY);
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [page, setPage] = useState(0);
+
+  const filters = {
+    page,
+    actorId: actorId === ANY ? undefined : actorId,
+    action: action === ANY ? undefined : action,
+    targetType: targetType === ANY ? undefined : targetType,
+    from: from || undefined,
+    to: to || undefined,
+  };
+  const { data, isPending, isFetching } = useQuery({
+    queryKey: ["audit", filters],
+    queryFn: () => listAuditFn({ data: filters }),
+    // Refetching keeps the current rows on screen, dimmed, instead of flashing empty.
+    placeholderData: (prev) => prev,
+  });
+  const { data: adminData } = useQuery({ queryKey: ["admins"], queryFn: () => listAdminsFn() });
+  const admins = adminData?.ok ? adminData.admins : [];
+  const who = (id: string) => admins.find((a) => a.userId === id)?.email ?? "Former admin";
+
+  const entries = data?.ok ? data.entries : [];
+  const reset =
+    <T,>(set: (v: T) => void) =>
+    (v: T) => {
+      set(v);
+      setPage(0);
+    };
+
+  const columns: Column<AuditRow>[] = [
     {
       key: "what",
       header: "Action",
       mobile: "primary",
       cell: (e) => <span className="font-semibold text-foreground">{actionLabel(e.action)}</span>,
     },
-    {
-      key: "who",
-      header: "By",
-      mobile: "primary",
-      cell: (e) => staffById(e.actorId)?.fullName ?? "An admin",
-    },
+    { key: "who", header: "By", mobile: "primary", cell: (e) => who(e.actorId) },
     {
       key: "target",
       header: "About",
       cell: (e) => {
+        const label = TARGET_LABEL[e.targetType ?? ""] ?? e.targetType ?? "";
         const href = targetHref(e);
-        const label = TARGET_LABEL[e.targetType];
         return href ? <RecordLink to={href}>{label}</RecordLink> : label;
       },
     },
@@ -64,6 +97,7 @@ export function AuditPage() {
       className: "max-w-72",
       cell: (e) =>
         e.reason ? (
+          // Free text typed by an admin: rendered as text, never as HTML (S-15).
           <span className="line-clamp-2">{e.reason}</span>
         ) : (
           <span className="text-muted-foreground">None given</span>
@@ -81,23 +115,106 @@ export function AuditPage() {
       <PageHeader
         title="Audit log"
         description="Every change, reveal and export made in the console. Entries can't be edited or deleted."
-        actions={<ExportCsvButton slug="audit-log" columns={AUDIT_CSV} rows={rows} />}
+        actions={<ExportCsvButton slug="audit-log" columns={AUDIT_CSV} rows={entries} />}
       />
       <Surface flush>
-        <div className="space-y-3 pt-5">
-          <ListToolbar>
-            <SearchField value={q} onChange={setQ} label="Search person, action or reason" />
-          </ListToolbar>
-          <DataTable
-            label="Audit log"
-            rows={rows}
-            columns={columns}
-            rowKey={(e) => e.id}
-            empty={
-              <EmptyState title="No entries match">Clear the search to see everything.</EmptyState>
-            }
-            footer={<ListFooter shown={rows.length} total={rows.length} />}
-          />
+        {/* Filters in one row, scoping everything below (FR-AU-1). */}
+        <div className="grid gap-3 px-5 pt-5 sm:grid-cols-2 sm:px-6 lg:grid-cols-5">
+          <div className="space-y-1.5">
+            <FilterLabel htmlFor="f-who">Person</FilterLabel>
+            <SelectField
+              id="f-who"
+              value={actorId}
+              onChange={reset(setActorId)}
+              options={[
+                { value: ANY, label: "Anyone" },
+                ...admins.map((a) => ({ value: a.userId, label: a.email })),
+              ]}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <FilterLabel htmlFor="f-action">Action</FilterLabel>
+            <SelectField
+              id="f-action"
+              value={action}
+              onChange={reset(setAction)}
+              options={[
+                { value: ANY, label: "Any action" },
+                ...Object.entries(AUDIT_ACTION_LABEL).map(([value, label]) => ({ value, label })),
+              ]}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <FilterLabel htmlFor="f-target">About</FilterLabel>
+            <SelectField
+              id="f-target"
+              value={targetType}
+              onChange={reset(setTargetType)}
+              options={[
+                { value: ANY, label: "Anything" },
+                ...Object.entries(TARGET_LABEL).map(([value, label]) => ({ value, label })),
+              ]}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <FilterLabel htmlFor="f-from">From</FilterLabel>
+            <Input
+              id="f-from"
+              type="date"
+              value={from}
+              onChange={(e) => reset(setFrom)(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <FilterLabel htmlFor="f-to">To</FilterLabel>
+            <Input
+              id="f-to"
+              type="date"
+              value={to}
+              onChange={(e) => reset(setTo)(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className={isFetching && !isPending ? "pt-3 opacity-60" : "pt-3"}>
+          {data && !data.ok ? (
+            <div className="px-5 pb-5 sm:px-6">
+              <EmptyState title="The audit log didn't load">{data.message}</EmptyState>
+            </div>
+          ) : (
+            <DataTable
+              label="Audit log"
+              rows={entries}
+              columns={columns}
+              rowKey={(e) => e.id}
+              empty={
+                <EmptyState title={isPending ? "Loading entries" : "No entries match"}>
+                  {isPending ? null : "Change or clear the filters."}
+                </EmptyState>
+              }
+              footer={
+                <div className="flex items-center justify-between gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={page === 0 || isFetching}
+                    onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  >
+                    Newer
+                  </Button>
+                  <span className="text-xs text-muted-foreground">Page {page + 1}</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!(data?.ok && data.hasMore) || isFetching}
+                    onClick={() => setPage((p) => p + 1)}
+                  >
+                    Older
+                  </Button>
+                </div>
+              }
+            />
+          )}
         </div>
       </Surface>
     </>

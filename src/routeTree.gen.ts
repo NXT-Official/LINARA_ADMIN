@@ -10,7 +10,9 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthedRouteImport } from './routes/_authed'
+import { Route as AcceptInviteRouteImport } from './routes/accept-invite'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
 import { Route as AuthedAiRouteImport } from './routes/_authed/ai'
 import { Route as AuthedAuditRouteImport } from './routes/_authed/audit'
@@ -33,9 +35,19 @@ const AuthedRoute = AuthedRouteImport.update({
   id: '/_authed',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AcceptInviteRoute = AcceptInviteRouteImport.update({
+  id: '/accept-invite',
+  path: '/accept-invite',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
   id: '/forgot-password',
   path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthedIndexRoute = AuthedIndexRouteImport.update({
@@ -127,7 +139,9 @@ const AuthedUsersUserIdRoute = AuthedUsersUserIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
+  '/accept-invite': typeof AcceptInviteRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/ai': typeof AuthedAiRoute
   '/audit': typeof AuthedAuditRoute
   '/deletions': typeof AuthedDeletionsRoute
@@ -146,7 +160,9 @@ export interface FileRoutesByFullPath {
   '/users/': typeof AuthedUsersIndexRoute
 }
 export interface FileRoutesByTo {
+  '/accept-invite': typeof AcceptInviteRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/ai': typeof AuthedAiRoute
   '/audit': typeof AuthedAuditRoute
   '/deletions': typeof AuthedDeletionsRoute
@@ -168,7 +184,9 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authed': typeof AuthedRouteWithChildren
+  '/accept-invite': typeof AcceptInviteRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/_authed/ai': typeof AuthedAiRoute
   '/_authed/audit': typeof AuthedAuditRoute
   '/_authed/deletions': typeof AuthedDeletionsRoute
@@ -191,7 +209,9 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/accept-invite'
     | '/forgot-password'
+    | '/reset-password'
     | '/ai'
     | '/audit'
     | '/deletions'
@@ -210,7 +230,9 @@ export interface FileRouteTypes {
     | '/users/'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/accept-invite'
     | '/forgot-password'
+    | '/reset-password'
     | '/ai'
     | '/audit'
     | '/deletions'
@@ -231,7 +253,9 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/_authed'
+    | '/accept-invite'
     | '/forgot-password'
+    | '/reset-password'
     | '/_authed/ai'
     | '/_authed/audit'
     | '/_authed/deletions'
@@ -253,7 +277,9 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   AuthedRoute: typeof AuthedRouteWithChildren
+  AcceptInviteRoute: typeof AcceptInviteRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   SignInSetUpRoute: typeof SignInSetUpRoute
   SignInTwoStepRoute: typeof SignInTwoStepRoute
   SignInIndexRoute: typeof SignInIndexRoute
@@ -268,11 +294,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/accept-invite': {
+      id: '/accept-invite'
+      path: '/accept-invite'
+      fullPath: '/accept-invite'
+      preLoaderRoute: typeof AcceptInviteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/forgot-password': {
       id: '/forgot-password'
       path: '/forgot-password'
       fullPath: '/forgot-password'
       preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authed/': {
@@ -436,7 +476,9 @@ const AuthedRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   AuthedRoute: AuthedRouteWithChildren,
+  AcceptInviteRoute: AcceptInviteRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   SignInSetUpRoute: SignInSetUpRoute,
   SignInTwoStepRoute: SignInTwoStepRoute,
   SignInIndexRoute: SignInIndexRoute,

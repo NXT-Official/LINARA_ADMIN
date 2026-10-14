@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { ChevronDown, LogOut, Menu } from "lucide-react";
 
@@ -15,8 +16,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
+import { signOutFn } from "@/features/auth/auth.actions";
 import { can } from "@/features/auth/permissions";
-import { currentStaff, listDeletionRequests, listPayouts, listTickets } from "@/data/queries";
+import { listDeletionRequests, listPayouts, listTickets } from "@/data/queries";
+import type { StaffRole } from "@/features/auth/permissions";
 import { cn } from "@/lib/utils";
 
 import { NAV_GROUPS, type NavItem } from "./nav";
@@ -53,9 +56,10 @@ function Brand() {
   );
 }
 
-function NavList({ onNavigate }: { onNavigate?: () => void }) {
+export type ShellStaff = { userId: string; email: string; role: StaffRole };
+
+function NavList({ role, onNavigate }: { role: StaffRole; onNavigate?: () => void }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const role = currentStaff().role;
   const counts = navCounts();
 
   return (
@@ -126,38 +130,42 @@ function NavLink({
   );
 }
 
-function AccountMenu() {
-  const me = currentStaff();
+function AccountMenu({ staff }: { staff: ShellStaff }) {
   const navigate = useNavigate();
-  const initials = me.fullName
-    .split(" ")
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join("");
+  const queryClient = useQueryClient();
+  // Admins have no stored name: the work email identifies them.
+  const local = staff.email.split("@")[0] ?? "";
+  const initials = local.slice(0, 2).toUpperCase() || "A";
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
           className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-full pl-1 pr-2 hover:bg-sand-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:h-11"
-          aria-label={`Account: ${me.fullName}`}
+          aria-label={`Account: ${staff.email}`}
         >
           <span className="grid h-8 w-8 place-items-center rounded-full bg-pine text-xs font-semibold text-primary-foreground">
             {initials}
           </span>
-          <span className="hidden text-sm font-semibold text-foreground sm:inline">
-            {me.fullName.split(" ")[0]}
-          </span>
+          <span className="hidden text-sm font-semibold text-foreground sm:inline">{local}</span>
           <ChevronDown className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-60 rounded-xl">
         <DropdownMenuLabel className="font-normal">
-          <span className="block text-sm font-semibold text-foreground">{me.fullName}</span>
-          <span className="block truncate text-xs text-muted-foreground">{me.email}</span>
+          <span className="block text-xs text-muted-foreground">Signed in as</span>
+          <span className="block truncate text-sm font-semibold text-foreground">
+            {staff.email}
+          </span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => navigate({ to: "/sign-in" })}>
+        <DropdownMenuItem
+          onSelect={async () => {
+            await signOutFn().catch(() => undefined);
+            queryClient.removeQueries({ queryKey: ["console-session"] });
+            navigate({ to: "/sign-in" });
+          }}
+        >
           <LogOut aria-hidden="true" />
           Sign out
         </DropdownMenuItem>
@@ -170,7 +178,7 @@ function AccountMenu() {
  * The console's frame: a sidebar from `lg`, a menu drawer below it (NFR-3), and
  * a header carrying the environment on every screen (NFR-8).
  */
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({ staff, children }: { staff: ShellStaff; children: ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -180,7 +188,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Brand />
         </div>
         <div className="mt-8 flex-1 overflow-y-auto">
-          <NavList />
+          <NavList role={staff.role} />
         </div>
       </aside>
 
@@ -192,7 +200,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Brand />
           </div>
           <div className="mt-8">
-            <NavList onNavigate={() => setMenuOpen(false)} />
+            <NavList role={staff.role} onNavigate={() => setMenuOpen(false)} />
           </div>
         </SheetContent>
       </Sheet>
@@ -216,7 +224,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               Sample data
             </StatusChip>
             <EnvBadge />
-            <AccountMenu />
+            <AccountMenu staff={staff} />
           </div>
         </header>
         <main className="mx-auto w-full max-w-[90rem] flex-1 px-4 py-6 sm:px-6 sm:py-8">

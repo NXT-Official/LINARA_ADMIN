@@ -51,27 +51,30 @@ pass (spec §11).
 
 | Branch        | Deployment       | Database                               | `APP_ENV`     |
 | ------------- | ---------------- | -------------------------------------- | ------------- |
-| `development` | Vercel (dev)     | Development Supabase project           | `development` |
-| `staging`     | Vercel (staging) | Staging Supabase project (not yet created, OQ-10) | `staging`     |
-| `production`  | Vercel (prod)    | Production Supabase project (not yet created, OQ-10) | `production`  |
+| `development` | Vercel (dev)     | Supabase **linara dev**                | `development` |
+| `staging`     | Vercel (staging) | No staging project yet (OQ-10)         | `staging`     |
+| `production`  | Vercel (prod)    | Supabase **linara prod**               | `production`  |
 
 Work lands on `development` and is promoted one way: `development` to
 `staging` to `production`. Each deployment holds only its own environment's
 keys; a production key never goes into a development or staging deployment
 (spec S-8, S-26).
 
-Today there is **one** Supabase project, holding sandbox data, shared with
-LINARA and LINARA_MOBILE. It serves as development until the staging and
-production projects exist.
+The two Supabase projects are shared with LINARA web and LINARA_MOBILE. A
+local `.env` always points at **linara dev**.
 
 | Variable                    | Where it is read                    | Since   |
 | --------------------------- | ----------------------------------- | ------- |
 | `SUPABASE_URL`              | Browser bundle (build time)         | Phase 0 |
 | `SUPABASE_ANON_KEY`         | Browser bundle (build time)         | Phase 0 |
 | `APP_ENV`                   | Browser bundle (build time)         | Phase 0 |
-| `SUPABASE_SERVICE_ROLE_KEY` | Server only, one module (S-11)      | Phase 1 |
 | `HCAPTCHA_SITE_KEY`         | Browser bundle                      | Phase 1 |
+| `SITE_URL`                  | Server only (reset and invite links) | Phase 1 |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server only, one module (S-11)      | Phase 1 |
 | `HCAPTCHA_SECRET`           | Server only                         | Phase 1 |
+
+`.env.example` says where each value comes from. For local development,
+hCaptcha's official test keys are already filled in.
 
 ## Layout
 

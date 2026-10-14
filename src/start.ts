@@ -1,6 +1,14 @@
-import { createStart, createMiddleware } from "@tanstack/react-start";
+import { createCsrfMiddleware, createMiddleware, createStart } from "@tanstack/react-start";
 
+import { isServerFnRequest } from "./lib/csrf";
 import { renderErrorPage } from "./lib/error-page";
+
+// Server functions only answer requests from this site: the browser's
+// Sec-Fetch-Site and Origin headers must say so. Backs up the SameSite=Strict
+// session cookies (D26).
+const csrfMiddleware = createCsrfMiddleware({
+  filter: ({ request }) => isServerFnRequest(request.url),
+});
 
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {
@@ -18,5 +26,5 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
 });
 
 export const startInstance = createStart(() => ({
-  requestMiddleware: [errorMiddleware],
+  requestMiddleware: [errorMiddleware, csrfMiddleware],
 }));

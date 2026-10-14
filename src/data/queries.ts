@@ -2,7 +2,7 @@ import { customerStage } from "@/features/crm/crm-stage";
 import { daysBetween } from "@/lib/format";
 
 import * as sample from "./sample";
-import type { AppUser, Contact, CustomerStage, Household, LeadStage, StaffMember } from "./types";
+import type { AppUser, Contact, CustomerStage, Household, LeadStage } from "./types";
 
 /**
  * What the screens read. Each function becomes a server function behind a
@@ -11,10 +11,6 @@ import type { AppUser, Contact, CustomerStage, Household, LeadStage, StaffMember
  */
 
 export const DELETION_DAYS = 30;
-
-export function currentStaff(): StaffMember {
-  return sample.staff.find((s) => s.id === sample.CURRENT_STAFF_ID)!;
-}
 
 export const listStaff = () => sample.staff;
 export const staffById = (id: string | null) => sample.staff.find((s) => s.id === id) ?? null;

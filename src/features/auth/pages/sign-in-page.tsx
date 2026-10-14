@@ -1,22 +1,41 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-import { AuthLayout, CaptchaSlot } from "../components/auth-layout";
+import { signInFn } from "../auth.actions";
+import { AuthLayout } from "../components/auth-layout";
+import { CaptchaField, type CaptchaFieldHandle } from "../components/captcha-field";
+import { FormError } from "../components/form-error";
 
-export function SignInPage() {
+export function SignInPage({ reason }: { reason?: string }) {
   const navigate = useNavigate();
+  const captcha = useRef<CaptchaFieldHandle>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [token, setToken] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
 
-  function submit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
-    // Phase 1: the server checks the password, the captcha and the console role,
-    // and answers the same way for a wrong password and a non-admin (S-2).
-    navigate({ to: "/sign-in/two-step" });
+    setPending(true);
+    setError(null);
+    try {
+      const res = await signInFn({ data: { email, password, captchaToken: token } });
+      if (res.ok) {
+        navigate({ to: res.next === "two-step" ? "/sign-in/two-step" : "/sign-in/set-up" });
+        return;
+      }
+      setError(res.message);
+    } catch {
+      setError("Something went wrong on our side. Try again.");
+    }
+    // A captcha token works once: get a fresh one for the next try.
+    captcha.current?.reset();
+    setPending(false);
   }
 
   return (
@@ -30,6 +49,11 @@ export function SignInPage() {
       }
     >
       <form onSubmit={submit} className="space-y-4">
+        {reason ? (
+          <p role="status" className="rounded-xl bg-sand-deep px-3 py-2 text-sm text-pine-deep">
+            {reason}
+          </p>
+        ) : null}
         <div className="space-y-1.5">
           <Label htmlFor="email">Work email</Label>
           <Input
@@ -52,9 +76,10 @@ export function SignInPage() {
             onChange={(e) => setPassword(e.target.value)}
           />
         </div>
-        <CaptchaSlot />
-        <Button type="submit" className="w-full">
-          Continue
+        <CaptchaField ref={captcha} onToken={setToken} />
+        <FormError message={error} />
+        <Button type="submit" className="w-full" disabled={!token || pending}>
+          {pending ? "Signing in" : "Continue"}
         </Button>
       </form>
     </AuthLayout>

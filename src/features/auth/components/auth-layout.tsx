@@ -32,19 +32,3 @@ export function AuthLayout({
     </main>
   );
 }
-
-/**
- * Where the hCaptcha widget mounts (S-3). The real widget arrives with
- * sign-in in Phase 1; this holds its size so the layout doesn't jump.
- */
-export function CaptchaSlot() {
-  return (
-    <div
-      className="grid h-[78px] w-full place-items-center rounded-xl border border-dashed border-input bg-sand text-xs text-muted-foreground"
-      role="img"
-      aria-label="Captcha check"
-    >
-      Captcha check
-    </div>
-  );
-}

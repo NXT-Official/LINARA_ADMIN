@@ -105,4 +105,7 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   "crm.contact_linked": "Linked a contact to an account",
   "crm.exported": "Exported contacts",
   "deletion.processed": "Processed a deletion",
+  "auth.signed_in": "Signed in",
+  "auth.signed_out": "Signed out",
+  "export.downloaded": "Downloaded a CSV export",
 };

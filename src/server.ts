@@ -1,5 +1,7 @@
 import "./lib/error-capture";
 
+import { randomBytes } from "node:crypto";
+
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 import { withSecurityHeaders } from "./lib/security-headers";
@@ -59,9 +61,38 @@ async function respond(request: Request, env: unknown, ctx: unknown): Promise<Re
   }
 }
 
+/** Files that may be cached: built assets, icons and robots.txt. Everything else is no-store (S-16). */
+function isStaticAsset(pathname: string): boolean {
+  return (
+    pathname.startsWith("/assets/") || /\.(?:png|ico|svg|txt|webmanifest|woff2?)$/.test(pathname)
+  );
+}
+
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
+    // A fresh nonce per request for the router's own scripts (S-14). It reaches
+    // the router through a request header the browser can't set for us.
+    const nonce = randomBytes(16).toString("base64");
+    const headers = new Headers(request.headers);
+    headers.set("x-csp-nonce", nonce);
+    // Built from parts: Nitro's incoming request isn't a native Request, so
+    // `new Request(request, ...)` can't copy it.
+    const hasBody = request.method !== "GET" && request.method !== "HEAD";
+    const withNonce = new Request(request.url, {
+      method: request.method,
+      headers,
+      body: hasBody ? request.body : undefined,
+      signal: request.signal,
+      // Required by Node when the body is a stream.
+      ...(hasBody ? { duplex: "half" } : {}),
+    } as RequestInit);
+
     // Every response, error pages and redirects too.
-    return withSecurityHeaders(await respond(request, env, ctx));
+    return withSecurityHeaders(await respond(withNonce, env, ctx), {
+      nonce,
+      // Vite's dev server needs inline scripts: report violations there, enforce in builds.
+      reportOnly: import.meta.env.DEV,
+      noStore: !isStaticAsset(new URL(request.url).pathname),
+    });
   },
 };

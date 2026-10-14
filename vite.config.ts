@@ -19,6 +19,8 @@ export default defineConfig(({ mode }) => {
       "process.env.SUPABASE_URL": JSON.stringify(env.SUPABASE_URL),
       "process.env.SUPABASE_ANON_KEY": JSON.stringify(env.SUPABASE_ANON_KEY),
       "process.env.APP_ENV": JSON.stringify(env.APP_ENV),
+      // hCaptcha's site key is public by design; its secret is read on the server only.
+      "process.env.HCAPTCHA_SITE_KEY": JSON.stringify(env.HCAPTCHA_SITE_KEY),
     },
     plugins: [
       tailwindcss(),

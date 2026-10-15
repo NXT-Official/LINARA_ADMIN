@@ -22,6 +22,7 @@ export async function verifyCaptcha(token: string | undefined): Promise<void> {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body,
+      signal: AbortSignal.timeout(5_000),
     });
     const result = (await res.json()) as { success?: boolean };
     if (result.success === true) return;

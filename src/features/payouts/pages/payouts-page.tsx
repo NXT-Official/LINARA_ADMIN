@@ -43,7 +43,10 @@ export function PayoutsPage() {
       key: "amount",
       header: "Amount",
       cell: (p) => (
-        <HiddenValue value={formatPeso(p.amount)} what={`${p.helperName}'s payout amount`} />
+        <HiddenValue
+          what={`${p.helperName}'s payout amount`}
+          reveal={async () => formatPeso(p.amount)}
+        />
       ),
     },
     {

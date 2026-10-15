@@ -1,52 +1,54 @@
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+
 import { HiddenValue } from "@/components/shared/hidden-value";
 import { BackLink, RecordLink } from "@/components/shared/links";
 import { DetailList, PageHeader, Surface } from "@/components/shared/page";
 import { EmptyState } from "@/components/shared/states";
 import { StatusChip } from "@/components/shared/status-chip";
-import { HELPER_STATUS_TONE, STAGE_TONE, TICKET_STATUS_TONE } from "@/components/shared/tones";
-import { Button } from "@/components/ui/button";
+import { HELPER_STATUS_TONE } from "@/components/shared/tones";
+import { HELPER_STATUS_LABEL, USER_KIND_LABEL } from "@/data/labels";
 import { AuditTrail } from "@/features/audit/components/audit-trail";
-import { HELPER_STATUS_LABEL, TICKET_STATUS_LABEL, USER_KIND_LABEL } from "@/data/labels";
-import {
-  contactForUser,
-  deletionDaysLeft,
-  householdsOf,
-  listDeletionRequests,
-  ticketsFor,
-  userById,
-} from "@/data/queries";
-import { formatDate, formatPeso, formatRelativeDay } from "@/lib/format";
+import { payRevealer } from "@/features/pay/pay-reveal";
+import { daysBetween, formatDate, formatRelativeDay } from "@/lib/format";
 
-import { stageLabel } from "@/features/crm/crm.utils";
+import { getUserFn } from "../users.actions";
+import type { UserDetail, UserJob } from "../users.types";
 
-import { SuspendDialog } from "../components/suspend-dialog";
+/** Linara processes a deletion within 30 days of the request (§5.5). */
+const DELETION_DAYS = 30;
 
 export function UserPage({ userId }: { userId: string }) {
-  const user = userById(userId);
-  if (!user) {
+  const { data, isPending } = useQuery({
+    queryKey: ["user", userId],
+    queryFn: () => getUserFn({ data: { userId } }),
+  });
+
+  if (isPending) {
+    return <PageHeader title="Loading user" back={<BackLink to="/users">Users</BackLink>} />;
+  }
+  if (!data?.ok) {
+    const missing = data?.code === "not_found";
     return (
       <>
-        <PageHeader title="User not found" back={<BackLink to="/users">Users</BackLink>} />
+        <PageHeader
+          title={missing ? "User not found" : "The user didn't load"}
+          back={<BackLink to="/users">Users</BackLink>}
+        />
         <Surface>
-          <EmptyState title="There's no user with this address">
-            The account may have been deleted.
+          <EmptyState title={missing ? "There's no user with this address" : "Try again"}>
+            {missing ? "The account may have been deleted." : data?.message}
           </EmptyState>
         </Surface>
       </>
     );
   }
+  return <UserDetailView user={data.user} />;
+}
 
-  const households = householdsOf(user);
-  const contact = contactForUser(user.id);
-  const deletion = listDeletionRequests().find(
-    (d) => d.userId === user.id && d.status === "pending",
-  );
-  const tickets = ticketsFor({ userId: user.id });
-  const suspended = user.status === "suspended";
-  // A helper's jobs, across every household they work in (FR-US-3, FR-US-6).
-  const jobs = households.flatMap((h) =>
-    h.helpers.filter((x) => x.userId === user.id).map((job) => ({ household: h, job })),
-  );
+function UserDetailView({ user }: { user: UserDetail }) {
+  const deletion = user.deletion;
+  const daysLeft = deletion ? DELETION_DAYS - daysBetween(deletion.requestedAt, new Date()) : 0;
 
   return (
     <>
@@ -55,20 +57,9 @@ export function UserPage({ userId }: { userId: string }) {
         title={user.fullName}
         description={
           <span className="inline-flex flex-wrap items-center gap-2">
-            {suspended ? <StatusChip tone="danger">Suspended</StatusChip> : null}
+            {user.suspended ? <StatusChip tone="danger">Suspended</StatusChip> : null}
             <span>{USER_KIND_LABEL[user.kind]}</span>
           </span>
-        }
-        actions={
-          <SuspendDialog
-            name={user.fullName}
-            suspended={suspended}
-            trigger={
-              <Button variant={suspended ? "default" : "outline"}>
-                {suspended ? "Unsuspend" : "Suspend"}
-              </Button>
-            }
-          />
         }
       />
 
@@ -78,12 +69,9 @@ export function UserPage({ userId }: { userId: string }) {
           className="mb-6 rounded-3xl bg-terracotta-soft px-5 py-4 text-sm text-hearth-ink sm:px-6"
         >
           Asked to delete their account {formatRelativeDay(deletion.requestedAt)}.{" "}
-          {deletionDaysLeft(deletion.requestedAt) >= 0
-            ? `${deletionDaysLeft(deletion.requestedAt)} days left to process it.`
-            : `${-deletionDaysLeft(deletion.requestedAt)} days past the deadline.`}{" "}
-          <RecordLink to="/deletions" className="text-hearth-ink underline">
-            Open deletion requests
-          </RecordLink>
+          {daysLeft >= 0
+            ? `${daysLeft} days left to process it.`
+            : `${-daysLeft} days past the deadline.`}
         </div>
       ) : null}
 
@@ -95,77 +83,45 @@ export function UserPage({ userId }: { userId: string }) {
               description="Every household this helper works or worked in."
               flush
             >
-              <ul className="divide-y divide-border pb-2">
-                {jobs.map(({ household, job }) => (
-                  <li key={job.id} className="grid gap-2 px-5 py-4 sm:grid-cols-[1fr_auto] sm:px-6">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <RecordLink to={`/households/${household.id}`}>{household.name}</RecordLink>
-                        <StatusChip tone={HELPER_STATUS_TONE[job.status]}>
-                          {HELPER_STATUS_LABEL[job.status]}
-                        </StatusChip>
-                      </div>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {job.station}, {job.employment}, since {formatDate(job.startedOn)}
-                        {job.endedOn ? `, ended ${formatDate(job.endedOn)}` : ""}
-                      </p>
-                    </div>
-                    <div className="text-sm sm:text-right">
-                      <span className="mr-2 text-xs text-muted-foreground">Monthly wage</span>
-                      <HiddenValue
-                        value={formatPeso(job.monthlyRate)}
-                        what={`${user.fullName}'s wage`}
-                      />
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              {user.jobs.length === 0 ? (
+                <p className="px-5 pb-5 text-sm text-muted-foreground sm:px-6">No jobs yet.</p>
+              ) : (
+                <ul className="divide-y divide-border pb-2">
+                  {user.jobs.map((job) => (
+                    <JobItem key={job.helperId} job={job} name={user.fullName} />
+                  ))}
+                </ul>
+              )}
             </Surface>
           ) : (
             <Surface title="Households" flush>
-              <ul className="divide-y divide-border pb-2">
-                {households.map((h) => (
-                  <li
-                    key={h.id}
-                    className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 sm:px-6"
-                  >
-                    <RecordLink to={`/households/${h.id}`}>{h.name}</RecordLink>
-                    <span className="text-xs text-muted-foreground">
-                      {
-                        USER_KIND_LABEL[
-                          h.managers.find((m) => m.userId === user.id)?.role ?? "co_manager"
-                        ]
-                      }
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              {user.memberships.length === 0 ? (
+                <p className="px-5 pb-5 text-sm text-muted-foreground sm:px-6">
+                  Not in a household.
+                </p>
+              ) : (
+                <ul className="divide-y divide-border pb-2">
+                  {user.memberships.map((m) => (
+                    <li
+                      key={m.householdId}
+                      className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 sm:px-6"
+                    >
+                      <RecordLink to={`/households/${m.householdId}`}>{m.householdName}</RecordLink>
+                      <span className="text-xs text-muted-foreground">
+                        {USER_KIND_LABEL[m.role]}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </Surface>
           )}
 
-          <Surface title="Support tickets" flush>
-            {tickets.length === 0 ? (
-              <p className="px-5 pb-5 text-sm text-muted-foreground sm:px-6">No tickets.</p>
-            ) : (
-              <ul className="divide-y divide-border pb-2">
-                {tickets.map((t) => (
-                  <li
-                    key={t.id}
-                    className="flex items-center justify-between gap-3 px-5 py-3 sm:px-6"
-                  >
-                    <RecordLink to={`/support/${t.id}`} className="min-w-0 truncate">
-                      LIN-{t.ref} {t.subject}
-                    </RecordLink>
-                    <StatusChip tone={TICKET_STATUS_TONE[t.status]}>
-                      {TICKET_STATUS_LABEL[t.status]}
-                    </StatusChip>
-                  </li>
-                ))}
-              </ul>
-            )}
+          <Surface title="Support tickets">
+            <p className="text-sm text-muted-foreground">Arrives with Support (Phase 5).</p>
           </Surface>
 
-          <AuditTrail targetId={user.id} />
+          <AuditTrail targetId={user.userId} />
         </div>
 
         <div className="space-y-6">
@@ -173,29 +129,74 @@ export function UserPage({ userId }: { userId: string }) {
             <DetailList
               items={[
                 { label: "Email", value: user.email },
-                { label: "Phone", value: user.phone, hidden: !user.phone },
                 { label: "Joined", value: formatDate(user.joinedAt) },
                 {
                   label: "Last sign-in",
                   value: user.lastSignInAt ? formatRelativeDay(user.lastSignInAt) : "Never",
                 },
-                { label: "Signed-in devices", value: user.devices },
+                { label: "Devices with notifications", value: user.devices },
               ]}
             />
           </Surface>
-          {contact ? (
-            <Surface title="CRM">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <RecordLink to={`/crm/${contact.id}`}>Open contact</RecordLink>
-                <StatusChip tone={STAGE_TONE[contact.stage]}>{stageLabel(contact)}</StatusChip>
-              </div>
-            </Surface>
-          ) : null}
+          <Surface title="CRM">
+            <p className="text-sm text-muted-foreground">Arrives with the CRM (Phase 3).</p>
+          </Surface>
           <p className="px-1 text-xs text-muted-foreground">
             Profiles and passwords are changed by the user in their own app, not here.
           </p>
         </div>
       </div>
     </>
+  );
+}
+
+function JobItem({ job, name }: { job: UserJob; name: string }) {
+  const pay = useMemo(() => payRevealer(job.helperId), [job.helperId]);
+  const facts = [
+    job.station,
+    job.employment,
+    job.startedOn ? `since ${formatDate(job.startedOn)}` : null,
+    job.endedOn ? `ended ${formatDate(job.endedOn)}` : null,
+  ].filter(Boolean);
+
+  return (
+    <li className="grid gap-3 px-5 py-4 sm:grid-cols-[1fr_auto] sm:px-6">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <RecordLink to={`/households/${job.householdId}`}>{job.householdName}</RecordLink>
+          <StatusChip tone={HELPER_STATUS_TONE[job.status]}>
+            {HELPER_STATUS_LABEL[job.status]}
+          </StatusChip>
+        </div>
+        {facts.length ? (
+          <p className="mt-1 text-xs text-muted-foreground">{facts.join(", ")}</p>
+        ) : null}
+        {job.alsoWorksIn.length ? (
+          <p className="mt-1 text-xs text-muted-foreground">
+            Also works in{" "}
+            {job.alsoWorksIn.map((h, i) => (
+              <span key={h.householdId}>
+                {i > 0 ? ", " : null}
+                <RecordLink to={`/households/${h.householdId}`}>{h.householdName}</RecordLink>
+              </span>
+            ))}
+          </p>
+        ) : null}
+      </div>
+      <dl className="grid gap-1.5 text-sm sm:text-right">
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          <dt className="text-xs text-muted-foreground">Monthly wage</dt>
+          <dd>
+            <HiddenValue what={`${name}'s monthly wage`} reveal={pay.wage} />
+          </dd>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          <dt className="text-xs text-muted-foreground">Payout account</dt>
+          <dd>
+            <HiddenValue what={`${name}'s payout account`} reveal={pay.account} />
+          </dd>
+        </div>
+      </dl>
+    </li>
   );
 }

@@ -9,7 +9,11 @@ import { writeAudit } from "./audit.server";
 /** The audit screen (FR-AU-1, FR-AU-2) and export records (FR-EX-3). */
 
 const PAGE_SIZE = 50; // NFR-7
+const MAX_PAGE = 200; // 10,000 entries back
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const NAME = /^[a-z_.]{1,40}$/;
+const RECORD = /^[A-Za-z0-9_-]{1,64}$/;
 
 async function run<T>(fn: () => Promise<T>): Promise<T | PublicError> {
   try {
@@ -42,6 +46,8 @@ export type ListAuditInput = {
   actorId?: string;
   action?: string;
   targetType?: string;
+  /** One record's history, for its detail page. */
+  targetId?: string;
   /** YYYY-MM-DD, Manila. */
   from?: string;
   to?: string;
@@ -55,6 +61,17 @@ export function listAuditHandler(
     for (const d of [input.from, input.to]) {
       if (d && !DAY.test(d)) throw new ConsoleError("invalid_input", "Pick a valid date.");
     }
+    // A deep page is a slow scan; narrow the dates instead.
+    if (page > MAX_PAGE)
+      throw new ConsoleError("invalid_input", "Narrow the dates to see older entries.");
+    if (
+      (input.actorId && !UUID.test(input.actorId)) ||
+      (input.action && !NAME.test(input.action)) ||
+      (input.targetType && !NAME.test(input.targetType)) ||
+      (input.targetId && !RECORD.test(input.targetId))
+    ) {
+      throw new ConsoleError("invalid_input", "Those filters can't be used.");
+    }
     await requireStaff("audit.view");
 
     // One more row than a page tells us whether there's a next page, without
@@ -65,6 +82,7 @@ export function listAuditHandler(
     if (input.actorId) q = q.eq("actor_user_id", input.actorId);
     if (input.action) q = q.eq("action", input.action);
     if (input.targetType) q = q.eq("target_type", input.targetType);
+    if (input.targetId) q = q.eq("target_id", input.targetId);
     if (input.from) q = q.gte("at", manilaMidnight(input.from));
     if (input.to) q = q.lt("at", manilaMidnight(input.to, 1));
     const start = page * PAGE_SIZE;

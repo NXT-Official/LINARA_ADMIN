@@ -38,6 +38,13 @@ describe("verifyCaptcha (S-3)", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("gives up on a slow hCaptcha instead of holding the request", async () => {
+    respond({ success: true });
+    await verifyCaptcha("tok");
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
   it("fails closed when hCaptcha can't be reached", async () => {
     fetchMock.mockRejectedValue(new Error("network"));
     await expect(verifyCaptcha("tok")).rejects.toMatchObject({ code: "invalid_input" });

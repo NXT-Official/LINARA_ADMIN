@@ -16,7 +16,9 @@ import {
 export const IDLE_LIMIT_MS = 30 * 60_000; // S-5
 export const SESSION_CAP_MS = 12 * 60 * 60_000; // D29
 const REFRESH_MARGIN_S = 60;
-const CALLS_PER_MINUTE = 120; // D30, memory tier
+const CALLS_PER_MINUTE = 120; // D30, memory tier, per admin
+const IP_CALLS_PER_MINUTE = 300; // D30, memory tier, per address (an office shares one)
+const TOO_MANY = "Too many requests. Wait a minute, then try again.";
 
 export type StaffContext = {
   userId: string;
@@ -70,7 +72,7 @@ type Claims = {
   exp?: number;
 };
 
-/** Reads a token's payload WITHOUT verifying it: only for choosing a rate-limit key and refresh timing. */
+/** Reads a token's payload WITHOUT verifying it: only for refresh timing. */
 function peek(token: string): Partial<Claims> {
   try {
     return JSON.parse(Buffer.from(token.split(".")[1] ?? "", "base64url").toString("utf8"));
@@ -92,13 +94,12 @@ export async function requireStaff(
   permission: Permission | null,
   opts: { allowAal1?: boolean } = {},
 ): Promise<StaffContext> {
-  const cookies = readSessionCookies();
-  const limiterKey = cookies
-    ? `fn:${peek(cookies.accessToken).sub ?? "?"}`
-    : `fn-ip:${getRequestIP() ?? "?"}`;
-  if (!memoryLimit(limiterKey, CALLS_PER_MINUTE, 60_000)) {
-    throw new ConsoleError("conflict", "Too many requests. Wait a minute, then try again.");
+  // Per address first: a token's user id can't be trusted until it's verified,
+  // and a refresh below costs an Auth call.
+  if (!memoryLimit(`fn-ip:${getRequestIP() ?? "?"}`, IP_CALLS_PER_MINUTE, 60_000)) {
+    throw new ConsoleError("conflict", TOO_MANY);
   }
+  const cookies = readSessionCookies();
   if (!cookies) throw new ConsoleError("not_signed_in", MESSAGE.signed_out);
 
   let { accessToken, refreshToken } = cookies;
@@ -120,6 +121,9 @@ export async function requireStaff(
   const { data: claimData, error: claimError } = await admin.auth.getClaims(accessToken);
   const claims = claimData?.claims as Claims | undefined;
   if (claimError || !claims?.sub || !claims.session_id) throw signedOut("signed_out");
+  if (!memoryLimit(`fn:${claims.sub}`, CALLS_PER_MINUTE, 60_000)) {
+    throw new ConsoleError("conflict", TOO_MANY);
+  }
 
   const now = new Date();
   let role: StaffRole | null = null;

@@ -52,7 +52,7 @@ test.describe("signed in", () => {
     ]);
     expect(download.suggestedFilename()).toMatch(/^linara-users-\d{4}-\d{2}-\d{2}\.csv$/);
     const csv = readFileSync(await download.path(), "utf8");
-    expect(csv).toContain("user_id,role,status");
+    expect(csv).toContain("user_id,role,suspended");
     expect(csv).not.toContain("@example.com");
   });
 });

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export type Column<T> = {
@@ -124,5 +125,45 @@ export function ListFooter({ shown, total }: { shown: number; total: number }) {
     <p className="text-xs text-muted-foreground">
       {total === 0 ? "No rows" : `Showing 1 to ${shown} of ${total}`}
     </p>
+  );
+}
+
+/**
+ * Previous and next for a server-paged list (NFR-7). There's no total: the
+ * server fetches one extra row to know if there's a next page (D31).
+ */
+export function ListPager({
+  page,
+  hasMore,
+  busy,
+  onPage,
+}: {
+  page: number;
+  hasMore: boolean;
+  busy: boolean;
+  onPage: (page: number) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <Button
+        size="sm"
+        variant="outline"
+        aria-label="Previous page"
+        disabled={page === 0 || busy}
+        onClick={() => onPage(Math.max(0, page - 1))}
+      >
+        Previous
+      </Button>
+      <span className="text-xs text-muted-foreground">Page {page + 1}</span>
+      <Button
+        size="sm"
+        variant="outline"
+        aria-label="Next page"
+        disabled={!hasMore || busy}
+        onClick={() => onPage(page + 1)}
+      >
+        Next
+      </Button>
+    </div>
   );
 }

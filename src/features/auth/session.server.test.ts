@@ -264,4 +264,22 @@ describe("requireStaff", () => {
     await expect(requireStaff(null)).rejects.toMatchObject({ code: "conflict" });
     expect(admin.rpc.mock.calls.length).toBe(callsBefore);
   });
+
+  it("forged tokens can't dodge the limit by changing their user id", async () => {
+    // Unverified, expired tokens with a new `sub` each time: each one would
+    // otherwise cost a Supabase Auth refresh call.
+    anon.refreshSession.mockResolvedValue({ data: { session: null }, error: new Error("bad") });
+    const forged = (i: number) => ({
+      accessToken: token({ sub: `forged-${i}`, exp: 0 }),
+      refreshToken: `r-${i}`,
+    });
+    for (let i = 0; i < 300; i++) {
+      cookies.current = forged(i);
+      await requireStaff(null).catch(() => undefined);
+    }
+    const refreshesBefore = anon.refreshSession.mock.calls.length;
+    cookies.current = forged(300);
+    await expect(requireStaff(null)).rejects.toMatchObject({ code: "conflict" });
+    expect(anon.refreshSession.mock.calls.length).toBe(refreshesBefore);
+  });
 });

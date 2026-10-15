@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+﻿import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const m = vi.hoisted(() => ({
   requireStaff: vi.fn(),
@@ -35,6 +35,8 @@ vi.mock("@/lib/supabase-admin.server", () => ({
 import { ConsoleError } from "@/lib/console-error";
 
 import { listAuditHandler, recordExportHandler } from "./audit.handlers.server";
+
+const ACTOR = "7f0c2a7e-1b2c-4d5e-8f90-123456789abc";
 
 const row = (i: number) => ({
   id: i,
@@ -82,8 +84,8 @@ describe("listAuditHandler (FR-AU-1, D31)", () => {
   });
 
   it("filters by person, action and target", async () => {
-    await listAuditHandler({ page: 0, actorId: "a", action: "staff.added", targetType: "staff" });
-    expect(m.calls).toContainEqual(["eq", ["actor_user_id", "a"]]);
+    await listAuditHandler({ page: 0, actorId: ACTOR, action: "staff.added", targetType: "staff" });
+    expect(m.calls).toContainEqual(["eq", ["actor_user_id", ACTOR]]);
     expect(m.calls).toContainEqual(["eq", ["action", "staff.added"]]);
     expect(m.calls).toContainEqual(["eq", ["target_type", "staff"]]);
   });
@@ -93,6 +95,34 @@ describe("listAuditHandler (FR-AU-1, D31)", () => {
       ok: false,
       code: "invalid_input",
     });
+    expect(m.calls).toEqual([]);
+  });
+
+  it("filters by record", async () => {
+    await listAuditHandler({ page: 0, targetId: ACTOR });
+    expect(m.calls).toContainEqual(["eq", ["target_id", ACTOR]]);
+  });
+
+  it("refuses a malformed record id", async () => {
+    await expect(listAuditHandler({ page: 0, targetId: "a b" })).resolves.toMatchObject({
+      ok: false,
+      code: "invalid_input",
+    });
+    expect(m.calls).toEqual([]);
+  });
+
+  it("refuses malformed filters and far-off pages before querying", async () => {
+    for (const input of [
+      { page: 0, actorId: "not-a-uuid" },
+      { page: 0, action: "x".repeat(200) },
+      { page: 0, targetType: "staff' or 1=1" },
+      { page: 1_000_000 },
+    ]) {
+      await expect(listAuditHandler(input)).resolves.toMatchObject({
+        ok: false,
+        code: "invalid_input",
+      });
+    }
     expect(m.calls).toEqual([]);
   });
 });

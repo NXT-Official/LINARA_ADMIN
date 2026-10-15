@@ -9,7 +9,7 @@ import { PageHeader, Surface } from "@/components/shared/page";
 import { StatusChip } from "@/components/shared/status-chip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { parseCsv } from "@/lib/csv-parse";
+import { decodeCsvBytes, parseCsv } from "@/lib/csv-parse";
 import { cn } from "@/lib/utils";
 
 import { findDuplicatesFn, importLeadsFn } from "../crm.actions";
@@ -62,7 +62,7 @@ export function ImportPage() {
       setError("The file is over 1 MB. Split it into smaller files.");
       return;
     }
-    const parsed = parseCsv(await file.text());
+    const parsed = parseCsv(decodeCsvBytes(await file.arrayBuffer()));
     if (parsed.length < 2) {
       setError("The file has no rows under its header.");
       return;
@@ -202,7 +202,7 @@ export function ImportPage() {
           </Surface>
         ) : null}
 
-        {error ? (
+        {error && !rows ? (
           <p
             role="alert"
             className="rounded-xl bg-status-late-soft px-3 py-2 text-sm text-status-late-ink"
@@ -261,20 +261,30 @@ export function ImportPage() {
                 </tbody>
               </table>
             </div>
-            <div className="flex flex-col gap-3 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-              <p className="text-sm text-muted-foreground">
-                {blocked.length
-                  ? `Fix or leave out the rows with a problem: ${blocked.length === 1 ? "line" : "lines"} ${blocked.map((r) => r.line).join(", ")}.`
-                  : `${included.length} of ${rows.length} rows will be imported.`}
-              </p>
-              <Button
-                disabled={busy || included.length === 0 || blocked.length > 0}
-                onClick={() => void runImport()}
-              >
-                {busy
-                  ? "Importing"
-                  : `Import ${included.length} ${included.length === 1 ? "lead" : "leads"}`}
-              </Button>
+            <div data-testid="import-footer" className="space-y-3 px-5 py-5 sm:px-6">
+              {error ? (
+                <p
+                  role="alert"
+                  className="rounded-xl bg-status-late-soft px-3 py-2 text-sm text-status-late-ink"
+                >
+                  {error}
+                </p>
+              ) : null}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-muted-foreground">
+                  {blocked.length
+                    ? `Fix or leave out the rows with a problem: ${blocked.length === 1 ? "line" : "lines"} ${blocked.map((r) => r.line).join(", ")}.`
+                    : `${included.length} of ${rows.length} rows will be imported.`}
+                </p>
+                <Button
+                  disabled={busy || included.length === 0 || blocked.length > 0}
+                  onClick={() => void runImport()}
+                >
+                  {busy
+                    ? "Importing"
+                    : `Import ${included.length} ${included.length === 1 ? "lead" : "leads"}`}
+                </Button>
+              </div>
             </div>
           </Surface>
         ) : null}

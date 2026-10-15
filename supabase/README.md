@@ -14,6 +14,7 @@ rows are listed in spec D28 and D33. The CRM's write rules are in D34.
 | `004-crm.sql`               | Phase 3a CRM: `crm_contacts`, `crm_activities`, `crm_follow_ups` (RLS on, no app-role access), stage helpers, read functions, and write functions that record each change in the audit log in the same transaction (D34). |
 | `005-crm-fixes.sql`         | Phase 3a review fix: opening one contact reads only that person's homes instead of every household and task. Replaces one function; no table changes. |
 | `006-crm-data.sql`          | Phase 3b: CSV import (all or nothing, with consent basis), duplicate check, nightly lead retention (D35) scheduled with pg_cron as `crm-retention` at 02:15 Manila. Lets a follow-up note be cleared. |
+| `007-crm-export.sql`        | Phase 3b review fix: the export with contact details comes back as one value with its true total, so the API's row cap can't cut it short unnoticed. Adds one function. |
 
 Each file runs in one transaction: it applies completely or not at all.
 

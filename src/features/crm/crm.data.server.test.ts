@@ -155,12 +155,12 @@ describe("findDuplicatesHandler", () => {
 
 describe("exportContactsHandler (FR-CRM-11, S-5, S-18)", () => {
   it("export checks crm.export, then the rate limit, then the code", async () => {
-    m.rpc.mockResolvedValue({ data: [contact(1)], error: null });
+    m.rpc.mockResolvedValue({ data: { total: 1, rows: [contact(1)] }, error: null });
     const res = await exportContactsHandler({ filters: { kind: "lead" }, code: "123456" });
     expect(res).toMatchObject({ ok: true });
     expect(m.requireStaff).toHaveBeenCalledWith("crm.export");
     expect(m.rate).toHaveBeenCalledWith("export", { adminId: ME });
-    expect(m.order).toEqual(["guard", "rate", "code", "rpc:crm_list_contacts", "audit"]);
+    expect(m.order).toEqual(["guard", "rate", "code", "rpc:crm_export_contacts", "audit"]);
     if (res.ok)
       expect(res.rows[0]).toMatchObject({ fullName: "Person 1", email: "p1@example.com" });
   });
@@ -182,7 +182,7 @@ describe("exportContactsHandler (FR-CRM-11, S-5, S-18)", () => {
   });
 
   it("export records the count and filters but not the search text", async () => {
-    m.rpc.mockResolvedValue({ data: [contact(1), contact(2)], error: null });
+    m.rpc.mockResolvedValue({ data: { total: 2, rows: [contact(1), contact(2)] }, error: null });
     await exportContactsHandler({
       filters: { kind: "lead", stage: "new", owner: "mine", search: "Santos" },
       code: "123456",
@@ -203,9 +203,9 @@ describe("exportContactsHandler (FR-CRM-11, S-5, S-18)", () => {
     expect(JSON.stringify(m.audit.mock.calls)).not.toContain("Santos");
   });
 
-  it("export caps at 5,000 rows", async () => {
+  it("export caps at 5,000 rows, judged by the true total", async () => {
     m.rpc.mockResolvedValue({
-      data: Array.from({ length: 5001 }, (_, i) => contact(i)),
+      data: { total: 5001, rows: Array.from({ length: 5000 }, (_, i) => contact(i)) },
       error: null,
     });
     await expect(exportContactsHandler({ filters: {}, code: "123456" })).resolves.toMatchObject({
@@ -213,9 +213,22 @@ describe("exportContactsHandler (FR-CRM-11, S-5, S-18)", () => {
       code: "invalid_input",
     });
     expect(m.rpc).toHaveBeenCalledWith(
-      "crm_list_contacts",
-      expect.objectContaining({ p_limit: 5001, p_offset: 0 }),
+      "crm_export_contacts",
+      expect.objectContaining({ p_max: 5000 }),
     );
+    expect(m.audit).not.toHaveBeenCalled();
+  });
+
+  it("a file shorter than the total never leaves the server", async () => {
+    // e.g. an API row cap cutting the result: the count and the rows must agree.
+    m.rpc.mockResolvedValue({
+      data: { total: 3200, rows: Array.from({ length: 1000 }, (_, i) => contact(i)) },
+      error: null,
+    });
+    await expect(exportContactsHandler({ filters: {}, code: "123456" })).resolves.toMatchObject({
+      ok: false,
+      code: "outside_service",
+    });
     expect(m.audit).not.toHaveBeenCalled();
   });
 

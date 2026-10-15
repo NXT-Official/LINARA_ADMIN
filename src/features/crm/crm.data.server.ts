@@ -129,15 +129,19 @@ export function exportContactsHandler(input: {
     // Personal details leave the console only after the code again (S-5, S-18).
     await requireFreshCode(staff, input.code);
 
-    const data = await call<DbContactRow[]>("crm_list_contacts", {
+    // One JSON value, not a table: the API caps how many table rows it returns
+    // (Max rows), and a silently shorter file would mislead (FR-CRM-11).
+    const data = await call<{ total: number; rows: DbContactRow[] }>("crm_export_contacts", {
       ...filterArgs(filters, staff.userId),
-      p_limit: MAX_EXPORT_ROWS + 1,
-      p_offset: 0,
+      p_max: MAX_EXPORT_ROWS,
       ...stageWindow(),
     });
-    const rows = (data ?? []).map(toContactRow);
-    if (rows.length > MAX_EXPORT_ROWS) {
+    if (data.total > MAX_EXPORT_ROWS) {
       throw bad("More than 5,000 contacts match. Narrow the filters, then export again.");
+    }
+    const rows = (data.rows ?? []).map(toContactRow);
+    if (rows.length !== data.total) {
+      throw new Error(`export returned ${rows.length} of ${data.total} rows`);
     }
 
     // Recorded before the file leaves the server; which filters were on, never the search text.

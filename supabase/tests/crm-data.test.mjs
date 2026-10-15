@@ -54,6 +54,7 @@ for (const file of [
   resolve(REPO, "004-crm.sql"),
   resolve(REPO, "005-crm-fixes.sql"),
   resolve(REPO, "006-crm-data.sql"),
+  resolve(REPO, "007-crm-export.sql"),
 ]) {
   await db.exec(readFileSync(file, "utf8"));
 }
@@ -250,8 +251,37 @@ check(
   jobs,
 );
 
+// --- export with contact details (FR-CRM-11) -------------------------------------------
+// One JSON value: the API caps table results (Max rows), so the file and the
+// count come back together and can be checked against each other.
+const exp = async (max) =>
+  (
+    await svc(
+      `SELECT public.crm_export_contacts(NULL, 'lead', NULL, NULL, NULL, NULL, NULL, $1, $2, 7, 30) AS d`,
+      [max, NOW],
+    )
+  )[0].d;
+const leads = (
+  await q(
+    `SELECT count(*)::int AS n FROM public.crm_contacts WHERE user_id IS NULL AND anonymized_at IS NULL`,
+  )
+)[0].n;
+const full = await exp(5000);
+check(
+  "export returns every matching contact with the total",
+  full.total === leads && full.rows.length === leads && full.rows[0].full_name !== undefined,
+  { leads, total: full.total, rows: full.rows.length },
+);
+const capped = await exp(1);
+check(
+  "export keeps the true total when the rows are capped",
+  capped.total === leads && capped.rows.length === 1,
+  capped,
+);
+
 for (const role of ["anon", "authenticated"]) {
   for (const call of [
+    `crm_export_contacts(NULL, NULL, NULL, NULL, NULL, NULL, NULL, 10, now(), 7, 30)`,
     `crm_find_duplicates('{}', '{}')`,
     `crm_import_leads('${ADMIN}', '[]', 'Signed up at the expo')`,
     `crm_run_retention(now())`,

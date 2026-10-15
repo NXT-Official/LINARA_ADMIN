@@ -47,3 +47,16 @@ export function parseCsv(text: string): string[][] {
   if (cell !== "" || row.length > 0) endRow();
   return rows;
 }
+
+/**
+ * A CSV file's text. Excel's "CSV UTF-8" is UTF-8; its plain "CSV (Comma
+ * delimited)" on Windows is Windows-1252, where ñ is one byte that isn't valid
+ * UTF-8. Reading strictly as UTF-8 first and falling back keeps "Peña" whole.
+ */
+export function decodeCsvBytes(bytes: ArrayBuffer): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return new TextDecoder("windows-1252").decode(bytes);
+  }
+}

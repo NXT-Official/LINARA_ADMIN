@@ -123,7 +123,10 @@ describe("ImportPage (FR-CRM-10, S-24)", () => {
     await toPreview();
     fireEvent.click(screen.getByRole("checkbox", { name: "Include line 3" }));
     fireEvent.click(screen.getByRole("button", { name: "Import 2 leads" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Row 1: Enter a valid email.");
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Row 1: Enter a valid email.");
+    // Next to the button the admin just tapped, not above a long table (phones, NFR-2).
+    expect(screen.getByTestId("import-footer")).toContainElement(alert);
     expect(m.navigate).not.toHaveBeenCalled();
   });
 });

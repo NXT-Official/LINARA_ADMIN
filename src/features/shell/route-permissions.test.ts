@@ -18,7 +18,7 @@ const leaves = (Object.values(router.routesById) as unknown as AnyRoute[]).filte
 );
 describe("every signed-in screen names a permission (spec §7.3, step 2)", () => {
   it("finds the signed-in screens", () => {
-    expect(leaves.length).toBe(14);
+    expect(leaves.length).toBe(16);
   });
 
   it("each one has a known permission", () => {

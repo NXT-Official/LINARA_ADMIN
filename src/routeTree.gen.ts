@@ -24,12 +24,14 @@ import { Route as SignInSetUpRouteImport } from './routes/sign-in/set-up'
 import { Route as SignInTwoStepRouteImport } from './routes/sign-in/two-step'
 import { Route as AuthedCrmIndexRouteImport } from './routes/_authed/crm/index'
 import { Route as AuthedCrmContactIdRouteImport } from './routes/_authed/crm/$contactId'
+import { Route as AuthedCrmImportRouteImport } from './routes/_authed/crm/import'
 import { Route as AuthedHouseholdsIndexRouteImport } from './routes/_authed/households/index'
 import { Route as AuthedHouseholdsHouseholdIdRouteImport } from './routes/_authed/households/$householdId'
 import { Route as AuthedSupportIndexRouteImport } from './routes/_authed/support/index'
 import { Route as AuthedSupportTicketIdRouteImport } from './routes/_authed/support/$ticketId'
 import { Route as AuthedUsersIndexRouteImport } from './routes/_authed/users/index'
 import { Route as AuthedUsersUserIdRouteImport } from './routes/_authed/users/$userId'
+import { Route as AuthedCrmAccountUserIdRouteImport } from './routes/_authed/crm/account.$userId'
 
 const AuthedRoute = AuthedRouteImport.update({
   id: '/_authed',
@@ -105,6 +107,11 @@ const AuthedCrmContactIdRoute = AuthedCrmContactIdRouteImport.update({
   path: '/crm/$contactId',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedCrmImportRoute = AuthedCrmImportRouteImport.update({
+  id: '/crm/import',
+  path: '/crm/import',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedHouseholdsIndexRoute = AuthedHouseholdsIndexRouteImport.update({
   id: '/households/',
   path: '/households/',
@@ -136,6 +143,11 @@ const AuthedUsersUserIdRoute = AuthedUsersUserIdRouteImport.update({
   path: '/users/$userId',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedCrmAccountUserIdRoute = AuthedCrmAccountUserIdRouteImport.update({
+  id: '/crm/account/$userId',
+  path: '/crm/account/$userId',
+  getParentRoute: () => AuthedRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
@@ -151,6 +163,7 @@ export interface FileRoutesByFullPath {
   '/sign-in/two-step': typeof SignInTwoStepRoute
   '/sign-in/': typeof SignInIndexRoute
   '/crm/$contactId': typeof AuthedCrmContactIdRoute
+  '/crm/import': typeof AuthedCrmImportRoute
   '/households/$householdId': typeof AuthedHouseholdsHouseholdIdRoute
   '/support/$ticketId': typeof AuthedSupportTicketIdRoute
   '/users/$userId': typeof AuthedUsersUserIdRoute
@@ -158,6 +171,7 @@ export interface FileRoutesByFullPath {
   '/households/': typeof AuthedHouseholdsIndexRoute
   '/support/': typeof AuthedSupportIndexRoute
   '/users/': typeof AuthedUsersIndexRoute
+  '/crm/account/$userId': typeof AuthedCrmAccountUserIdRoute
 }
 export interface FileRoutesByTo {
   '/accept-invite': typeof AcceptInviteRoute
@@ -173,6 +187,7 @@ export interface FileRoutesByTo {
   '/': typeof AuthedIndexRoute
   '/sign-in': typeof SignInIndexRoute
   '/crm/$contactId': typeof AuthedCrmContactIdRoute
+  '/crm/import': typeof AuthedCrmImportRoute
   '/households/$householdId': typeof AuthedHouseholdsHouseholdIdRoute
   '/support/$ticketId': typeof AuthedSupportTicketIdRoute
   '/users/$userId': typeof AuthedUsersUserIdRoute
@@ -180,6 +195,7 @@ export interface FileRoutesByTo {
   '/households': typeof AuthedHouseholdsIndexRoute
   '/support': typeof AuthedSupportIndexRoute
   '/users': typeof AuthedUsersIndexRoute
+  '/crm/account/$userId': typeof AuthedCrmAccountUserIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -197,6 +213,7 @@ export interface FileRoutesById {
   '/_authed/': typeof AuthedIndexRoute
   '/sign-in/': typeof SignInIndexRoute
   '/_authed/crm/$contactId': typeof AuthedCrmContactIdRoute
+  '/_authed/crm/import': typeof AuthedCrmImportRoute
   '/_authed/households/$householdId': typeof AuthedHouseholdsHouseholdIdRoute
   '/_authed/support/$ticketId': typeof AuthedSupportTicketIdRoute
   '/_authed/users/$userId': typeof AuthedUsersUserIdRoute
@@ -204,6 +221,7 @@ export interface FileRoutesById {
   '/_authed/households/': typeof AuthedHouseholdsIndexRoute
   '/_authed/support/': typeof AuthedSupportIndexRoute
   '/_authed/users/': typeof AuthedUsersIndexRoute
+  '/_authed/crm/account/$userId': typeof AuthedCrmAccountUserIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -221,6 +239,7 @@ export interface FileRouteTypes {
     | '/sign-in/two-step'
     | '/sign-in/'
     | '/crm/$contactId'
+    | '/crm/import'
     | '/households/$householdId'
     | '/support/$ticketId'
     | '/users/$userId'
@@ -228,6 +247,7 @@ export interface FileRouteTypes {
     | '/households/'
     | '/support/'
     | '/users/'
+    | '/crm/account/$userId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/accept-invite'
@@ -243,6 +263,7 @@ export interface FileRouteTypes {
     | '/'
     | '/sign-in'
     | '/crm/$contactId'
+    | '/crm/import'
     | '/households/$householdId'
     | '/support/$ticketId'
     | '/users/$userId'
@@ -250,6 +271,7 @@ export interface FileRouteTypes {
     | '/households'
     | '/support'
     | '/users'
+    | '/crm/account/$userId'
   id:
     | '__root__'
     | '/_authed'
@@ -266,6 +288,7 @@ export interface FileRouteTypes {
     | '/_authed/'
     | '/sign-in/'
     | '/_authed/crm/$contactId'
+    | '/_authed/crm/import'
     | '/_authed/households/$householdId'
     | '/_authed/support/$ticketId'
     | '/_authed/users/$userId'
@@ -273,6 +296,7 @@ export interface FileRouteTypes {
     | '/_authed/households/'
     | '/_authed/support/'
     | '/_authed/users/'
+    | '/_authed/crm/account/$userId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -392,6 +416,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedCrmContactIdRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/crm/import': {
+      id: '/_authed/crm/import'
+      path: '/crm/import'
+      fullPath: '/crm/import'
+      preLoaderRoute: typeof AuthedCrmImportRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/households/': {
       id: '/_authed/households/'
       path: '/households'
@@ -434,6 +465,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedUsersUserIdRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/crm/account/$userId': {
+      id: '/_authed/crm/account/$userId'
+      path: '/crm/account/$userId'
+      fullPath: '/crm/account/$userId'
+      preLoaderRoute: typeof AuthedCrmAccountUserIdRouteImport
+      parentRoute: typeof AuthedRoute
+    }
   }
 }
 
@@ -445,6 +483,7 @@ interface AuthedRouteChildren {
   AuthedTeamRoute: typeof AuthedTeamRoute
   AuthedIndexRoute: typeof AuthedIndexRoute
   AuthedCrmContactIdRoute: typeof AuthedCrmContactIdRoute
+  AuthedCrmImportRoute: typeof AuthedCrmImportRoute
   AuthedHouseholdsHouseholdIdRoute: typeof AuthedHouseholdsHouseholdIdRoute
   AuthedSupportTicketIdRoute: typeof AuthedSupportTicketIdRoute
   AuthedUsersUserIdRoute: typeof AuthedUsersUserIdRoute
@@ -452,6 +491,7 @@ interface AuthedRouteChildren {
   AuthedHouseholdsIndexRoute: typeof AuthedHouseholdsIndexRoute
   AuthedSupportIndexRoute: typeof AuthedSupportIndexRoute
   AuthedUsersIndexRoute: typeof AuthedUsersIndexRoute
+  AuthedCrmAccountUserIdRoute: typeof AuthedCrmAccountUserIdRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
@@ -462,6 +502,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedTeamRoute: AuthedTeamRoute,
   AuthedIndexRoute: AuthedIndexRoute,
   AuthedCrmContactIdRoute: AuthedCrmContactIdRoute,
+  AuthedCrmImportRoute: AuthedCrmImportRoute,
   AuthedHouseholdsHouseholdIdRoute: AuthedHouseholdsHouseholdIdRoute,
   AuthedSupportTicketIdRoute: AuthedSupportTicketIdRoute,
   AuthedUsersUserIdRoute: AuthedUsersUserIdRoute,
@@ -469,6 +510,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedHouseholdsIndexRoute: AuthedHouseholdsIndexRoute,
   AuthedSupportIndexRoute: AuthedSupportIndexRoute,
   AuthedUsersIndexRoute: AuthedUsersIndexRoute,
+  AuthedCrmAccountUserIdRoute: AuthedCrmAccountUserIdRoute,
 }
 
 const AuthedRouteWithChildren =

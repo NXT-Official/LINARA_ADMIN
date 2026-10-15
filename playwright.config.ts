@@ -15,7 +15,10 @@ if (existsSync(".env.e2e")) process.loadEnvFile(".env.e2e");
  *   test admin on linara dev. Without them only the signed-out checks run.
  */
 const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:8081";
-export const AUTH_FILE = "test-results/.auth/admin.json";
+// Outside test-results/, which Playwright empties on every run: the saved session
+// must survive between runs to keep within the 5 sign-ins per 15 minutes (D30).
+// Ignored by git (the root "/*" in .gitignore).
+export const AUTH_FILE = "playwright/.auth/admin.json";
 
 const signedIn = { storageState: AUTH_FILE };
 
@@ -24,6 +27,10 @@ export default defineConfig({
   timeout: 60_000,
   expect: { timeout: 15_000 },
   retries: process.env.CI ? 1 : 0,
+  // Every test is the same admin. Even 3 browsers at once passed the 120 calls a
+  // minute per admin (D30) and the console refused requests mid-test, so the
+  // tests run one at a time, the way one person uses the console.
+  workers: 1,
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
     baseURL,

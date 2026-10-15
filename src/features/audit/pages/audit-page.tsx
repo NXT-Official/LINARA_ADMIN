@@ -29,6 +29,8 @@ const TARGET_LABEL: Record<string, string> = {
   staff: "Admin",
   payout: "Payout",
   export: "Export",
+  import: "Import",
+  helper: "Helper",
   auth: "Sign-in",
 };
 

@@ -89,7 +89,12 @@ function HouseholdDetailView({ household }: { household: HouseholdDetail }) {
                     className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 sm:px-6"
                   >
                     <RecordLink to={`/users/${m.userId}`}>{m.fullName}</RecordLink>
-                    <span className="text-xs text-muted-foreground">{USER_KIND_LABEL[m.role]}</span>
+                    <span className="inline-flex items-center gap-3 text-xs text-muted-foreground">
+                      {USER_KIND_LABEL[m.role]}
+                      <RecordLink to={`/crm/account/${m.userId}`} className="text-xs">
+                        CRM<span className="sr-only">: {m.fullName}</span>
+                      </RecordLink>
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -109,9 +114,6 @@ function HouseholdDetailView({ household }: { household: HouseholdDetail }) {
                 },
               ]}
             />
-          </Surface>
-          <Surface title="CRM">
-            <p className="text-sm text-muted-foreground">Arrives with the CRM (Phase 3).</p>
           </Surface>
         </div>
       </div>

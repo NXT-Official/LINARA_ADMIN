@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import type { HouseholdHelper } from "@/data/types";
 
+// The same cases run against the SQL in supabase/tests/crm.test.mjs, so the two can't drift.
+import cases from "../../../supabase/tests/fixtures/stage-cases.json";
+
 import { customerStage, householdStage } from "./crm-stage";
 
 const now = new Date("2026-10-14T04:00:00Z");
@@ -59,5 +62,15 @@ describe("customerStage", () => {
     const busy = { helpers: [helper("ACTIVE")], lastActivityAt: daysAgo(1) };
     expect(customerStage([idle, busy], now)).toBe("active");
     expect(customerStage([idle], now)).toBe("inactive");
+  });
+});
+
+describe("shared stage cases", () => {
+  it("matches every shared case", () => {
+    for (const c of cases) {
+      const helpers = (c.helpers as HouseholdHelper["status"][]).map(helper);
+      const lastActivityAt = c.idleDays === null ? null : daysAgo(c.idleDays);
+      expect(householdStage({ helpers, lastActivityAt }, now), c.name).toBe(c.expected);
+    }
   });
 });

@@ -1,74 +1,121 @@
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { CalendarPlus, MessageSquarePlus } from "lucide-react";
+import { toast } from "sonner";
 
-import { sampleToast } from "@/lib/sample-toast";
+import { SegmentedFilter } from "@/components/shared/list-toolbar";
 import { BackLink, RecordLink } from "@/components/shared/links";
 import { DetailList, PageHeader, Surface } from "@/components/shared/page";
 import { EmptyState } from "@/components/shared/states";
 import { StatusChip } from "@/components/shared/status-chip";
-import { STAGE_TONE, TICKET_STATUS_TONE } from "@/components/shared/tones";
+import { STAGE_TONE } from "@/components/shared/tones";
 import { Button } from "@/components/ui/button";
-import { CURRENT_STAFF_ID } from "@/data/sample";
 import {
   ACTIVITY_LABEL,
   CUSTOMER_STAGE_LABEL,
+  LEAD_STAGE_LABEL,
   SOURCE_LABEL,
-  TICKET_STATUS_LABEL,
   USER_KIND_LABEL,
 } from "@/data/labels";
-import {
-  contactById,
-  householdsOf,
-  staffById,
-  suggestedLink,
-  ticketsFor,
-  userById,
-} from "@/data/queries";
-import { formatDate, formatDateTime, formatRelativeDay, daysBetween } from "@/lib/format";
+import { AuditTrail } from "@/features/audit/components/audit-trail";
+import { useAdmins } from "@/features/team/use-admins";
+import { daysBetween, formatDate, formatDateTime, formatRelativeDay } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-import { FollowUpDialog, LogActivityDialog } from "../components/crm-dialogs";
-import { householdStage } from "../crm-stage";
-import { stageLabel } from "../crm.utils";
+import {
+  ConfirmDialog,
+  EditContactDialog,
+  FollowUpDialog,
+  LogActivityDialog,
+  MarkLostDialog,
+} from "../components/crm-dialogs";
+import { LinkAccountDialog } from "../components/link-account-dialog";
+import {
+  completeFollowUpFn,
+  deleteLeadFn,
+  getContactFn,
+  linkContactFn,
+  linkSuggestionsFn,
+  setLeadStageFn,
+  unlinkContactFn,
+} from "../crm.actions";
+import { LEAD_STAGES, type ContactDetail, type ContactRef, type LeadStage } from "../crm.types";
+import { contactRef as refOf, stageLabel } from "../crm.utils";
 
-const who = (id: string | null) =>
-  id === CURRENT_STAFF_ID ? "You" : (staffById(id)?.fullName ?? "No one");
+const back = <BackLink to="/crm">CRM</BackLink>;
 
-export function ContactPage({ contactId }: { contactId: string }) {
-  const contact = contactById(contactId);
-  if (!contact) {
+/** One contact (FR-CRM-12): a saved one by id, or a manager not saved yet. */
+export function ContactPage({ contactRef }: { contactRef: ContactRef }) {
+  const { data, isPending } = useQuery({
+    queryKey: ["contact", contactRef],
+    queryFn: () => getContactFn({ data: contactRef }),
+  });
+
+  if (isPending) return <PageHeader title="Loading contact" back={back} />;
+  if (!data?.ok) {
+    const missing = data?.code === "not_found";
     return (
       <>
-        <PageHeader title="Contact not found" back={<BackLink to="/crm">CRM</BackLink>} />
+        <PageHeader title={missing ? "Contact not found" : "The contact didn't load"} back={back} />
         <Surface>
-          <EmptyState title="There's no contact with this address">
-            It may have been deleted. Go back to the CRM to find the person.
+          <EmptyState title={missing ? "There's no contact with this address" : "Try again"}>
+            {missing
+              ? "It may have been deleted. Go back to the CRM to find the person."
+              : data?.message}
           </EmptyState>
         </Surface>
       </>
     );
   }
+  return <ContactView contact={data.contact} />;
+}
 
-  const now = new Date();
-  const user = userById(contact.userId);
-  const match = suggestedLink(contact);
-  const tickets = ticketsFor({ contactId: contact.id, userId: contact.userId ?? undefined });
-  const followUps = [...contact.followUps].sort(
-    (a, b) => Number(!!a.doneAt) - Number(!!b.doneAt) || a.dueAt.localeCompare(b.dueAt),
-  );
+function ContactView({ contact }: { contact: ContactDetail }) {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const admins = useAdmins();
+  const ref = refOf(contact);
+  const isLead = contact.kind === "lead";
+  const [lostOpen, setLostOpen] = useState(false);
+  const refresh = () =>
+    queryClient
+      .invalidateQueries({ queryKey: ["crm"] })
+      .then(() => queryClient.invalidateQueries({ queryKey: ["contact"] }));
+
+  const { data: suggestionData } = useQuery({
+    queryKey: ["crm", "suggestions", contact.contactId],
+    queryFn: () => linkSuggestionsFn({ data: { contactId: contact.contactId ?? "" } }),
+    enabled: isLead && !!contact.contactId && !!contact.email,
+  });
+  const suggestion = suggestionData?.ok ? suggestionData.suggestions[0] : undefined;
+
+  async function changeStage(stage: LeadStage) {
+    if (!contact.contactId || stage === contact.leadStage) return;
+    if (stage === "lost") {
+      setLostOpen(true);
+      return;
+    }
+    const res = await setLeadStageFn({ data: { contactId: contact.contactId, stage } });
+    if (res.ok) {
+      toast.success(`Moved to ${LEAD_STAGE_LABEL[stage].toLowerCase()}`);
+      await refresh();
+    } else {
+      toast.error(res.message);
+    }
+  }
 
   return (
     <>
       <PageHeader
-        back={<BackLink to="/crm">CRM</BackLink>}
+        back={back}
         title={contact.fullName}
         description={
           <span className="inline-flex flex-wrap items-center gap-2">
             <StatusChip tone={STAGE_TONE[contact.stage]}>{stageLabel(contact)}</StatusChip>
             <span>
-              {contact.kind === "lead" ? "Lead" : "Customer"},{" "}
-              {contact.ownerId
-                ? `owned by ${contact.ownerId === CURRENT_STAFF_ID ? "you" : who(contact.ownerId)}`
-                : "no owner yet"}
+              {isLead ? "Lead" : "Customer"},{" "}
+              {contact.ownerId ? `owned by ${admins.name(contact.ownerId)}` : "no owner yet"}
             </span>
           </span>
         }
@@ -76,6 +123,8 @@ export function ContactPage({ contactId }: { contactId: string }) {
           <>
             <FollowUpDialog
               name={contact.fullName}
+              contactRef={ref}
+              onSaved={refresh}
               trigger={
                 <Button variant="outline">
                   <CalendarPlus />
@@ -85,6 +134,8 @@ export function ContactPage({ contactId }: { contactId: string }) {
             />
             <LogActivityDialog
               name={contact.fullName}
+              contactRef={ref}
+              onSaved={refresh}
               trigger={
                 <Button>
                   <MessageSquarePlus />
@@ -96,18 +147,57 @@ export function ContactPage({ contactId }: { contactId: string }) {
         }
       />
 
-      {match ? (
+      {suggestion && contact.contactId ? (
         <div
           role="status"
           className="mb-6 flex flex-col gap-3 rounded-3xl bg-terracotta-soft px-5 py-4 text-hearth-ink sm:flex-row sm:items-center sm:justify-between sm:px-6"
         >
           <p className="text-sm">
-            This email matches <strong>{match.fullName}</strong>'s Linara account (
-            {USER_KIND_LABEL[match.kind].toLowerCase()}). Link them to make this lead a customer.
+            This email matches a Linara manager account
+            {suggestion.fullName ? (
+              <>
+                {" "}
+                (<strong>{suggestion.fullName}</strong>)
+              </>
+            ) : null}
+            . Link them to make this lead a customer.
           </p>
-          <Button className="shrink-0" onClick={() => sampleToast("Contact linked")}>
+          <Button
+            className="shrink-0"
+            onClick={async () => {
+              const res = await linkContactFn({
+                data: { contactId: contact.contactId ?? "", userId: suggestion.userId },
+              });
+              if (res.ok) {
+                toast.success("Contact linked");
+                await refresh();
+              } else {
+                toast.error(res.message);
+              }
+            }}
+          >
             Link to account
           </Button>
+        </div>
+      ) : null}
+
+      {isLead && contact.contactId ? (
+        <div className="mb-6">
+          <SegmentedFilter
+            label="Lead stage"
+            value={contact.leadStage ?? "new"}
+            onChange={changeStage}
+            options={LEAD_STAGES.map((s) => ({ value: s, label: LEAD_STAGE_LABEL[s] }))}
+          />
+          {contact.leadStage === "lost" && contact.lostReason ? (
+            <p className="mt-2 text-sm text-muted-foreground">Lost: {contact.lostReason}</p>
+          ) : null}
+          <MarkLostDialog
+            open={lostOpen}
+            onOpenChange={setLostOpen}
+            contactId={contact.contactId}
+            onSaved={refresh}
+          />
         </div>
       ) : null}
 
@@ -122,92 +212,72 @@ export function ContactPage({ contactId }: { contactId: string }) {
               </div>
             ) : (
               <ol className="divide-y divide-border pb-2">
-                {[...contact.activities]
-                  .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
-                  .map((a) => (
-                    <li key={a.id} className="px-5 py-4 sm:px-6">
-                      <p className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted-foreground">
-                        <span className="font-semibold text-foreground">
-                          {ACTIVITY_LABEL[a.kind]}
-                        </span>
-                        <span>{formatDateTime(a.occurredAt)}</span>
-                        <span>by {who(a.authorId)}</span>
-                      </p>
-                      <p className="mt-1 max-w-prose whitespace-pre-line text-sm text-foreground">
-                        {a.body}
-                      </p>
-                    </li>
-                  ))}
+                {contact.activities.map((a) => (
+                  <li key={a.id} className="px-5 py-4 sm:px-6">
+                    <p className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted-foreground">
+                      <span className="font-semibold text-foreground">
+                        {ACTIVITY_LABEL[a.kind]}
+                      </span>
+                      <span>{formatDateTime(a.occurredAt)}</span>
+                      <span>by {admins.name(a.authorId)}</span>
+                    </p>
+                    {/* Plain text only (S-15). */}
+                    <p className="mt-1 max-w-prose whitespace-pre-line text-sm text-foreground">
+                      {a.body}
+                    </p>
+                  </li>
+                ))}
               </ol>
             )}
           </Surface>
 
-          <Surface title="Support tickets" flush>
-            {tickets.length === 0 ? (
-              <p className="px-5 pb-5 text-sm text-muted-foreground sm:px-6">No tickets.</p>
-            ) : (
-              <ul className="divide-y divide-border pb-2">
-                {tickets.map((t) => (
-                  <li
-                    key={t.id}
-                    className="flex items-center justify-between gap-3 px-5 py-3 sm:px-6"
-                  >
-                    <RecordLink to={`/support/${t.id}`} className="min-w-0 truncate">
-                      LIN-{t.ref} {t.subject}
-                    </RecordLink>
-                    <StatusChip tone={TICKET_STATUS_TONE[t.status]}>
-                      {TICKET_STATUS_LABEL[t.status]}
-                    </StatusChip>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Surface>
-        </div>
-
-        <div className="space-y-6">
           <Surface title="Follow-ups" flush>
-            {followUps.length === 0 ? (
-              <p className="px-5 pb-5 text-sm text-muted-foreground sm:px-6">None planned.</p>
+            {contact.followUps.length === 0 ? (
+              <p className="px-5 pb-5 text-sm text-muted-foreground sm:px-6">No follow-ups.</p>
             ) : (
               <ul className="divide-y divide-border pb-2">
-                {followUps.map((f) => {
-                  const late = !f.doneAt && daysBetween(now, f.dueAt) < 0;
+                {contact.followUps.map((f) => {
+                  const late = !f.doneAt && daysBetween(new Date(), f.dueAt) < 0;
                   return (
                     <li
                       key={f.id}
-                      className="flex items-start justify-between gap-3 px-5 py-3 sm:px-6"
+                      className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 sm:px-6"
                     >
                       <div className="min-w-0">
                         <p
                           className={cn(
-                            "text-sm",
-                            f.doneAt ? "text-muted-foreground line-through" : "text-foreground",
+                            "text-sm text-foreground",
+                            f.doneAt && "text-muted-foreground line-through",
                           )}
                         >
                           {f.note}
                         </p>
                         <p
                           className={cn(
-                            "text-xs",
-                            late ? "font-semibold text-status-late-ink" : "text-muted-foreground",
+                            "text-xs text-muted-foreground",
+                            late && "font-semibold text-status-late-ink",
                           )}
                         >
                           {f.doneAt
-                            ? `Done ${formatRelativeDay(f.doneAt, now)}`
-                            : `Due ${formatRelativeDay(f.dueAt, now)}`}
-                          , {who(f.assigneeId)}
+                            ? `Done ${formatRelativeDay(f.doneAt)}`
+                            : `Due ${formatRelativeDay(f.dueAt)}`}
+                          , {admins.name(f.assigneeId)}
                         </p>
                       </div>
-                      {!f.doneAt ? (
+                      {f.doneAt ? null : (
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => sampleToast("Follow-up marked done")}
+                          aria-label={`Mark done: ${f.note}`}
+                          onClick={async () => {
+                            const res = await completeFollowUpFn({ data: { followUpId: f.id } });
+                            if (res.ok) await refresh();
+                            else toast.error(res.message);
+                          }}
                         >
                           Mark done
                         </Button>
-                      ) : null}
+                      )}
                     </li>
                   );
                 })}
@@ -215,55 +285,131 @@ export function ContactPage({ contactId }: { contactId: string }) {
             )}
           </Surface>
 
-          <Surface title="Details">
+          <Surface title="Support tickets">
+            <p className="text-sm text-muted-foreground">Arrives with Support (Phase 5).</p>
+          </Surface>
+
+          {contact.contactId ? <AuditTrail targetId={contact.contactId} /> : null}
+        </div>
+
+        <div className="space-y-6">
+          <Surface
+            title="Details"
+            actions={
+              <EditContactDialog
+                contact={contact}
+                onSaved={async (savedId) => {
+                  if (!contact.contactId) {
+                    // A manager saved for the first time: their page now has an id (FR-CRM-3).
+                    await navigate({ to: `/crm/${savedId}`, replace: true });
+                    return;
+                  }
+                  await refresh();
+                }}
+                trigger={
+                  <Button size="sm" variant="outline">
+                    {isLead ? "Edit details" : "Edit owner and tags"}
+                  </Button>
+                }
+              />
+            }
+          >
             <DetailList
               items={[
-                { label: "Email", value: contact.email ?? "None" },
-                { label: "Phone", value: contact.phone ?? "None" },
+                { label: "Email", value: contact.email ?? "Not set" },
+                { label: "Phone", value: contact.phone ?? "Not set", hidden: !isLead },
                 {
                   label: "Source",
-                  value: contact.source ? SOURCE_LABEL[contact.source] : "Signed up on their own",
+                  value: contact.source ? SOURCE_LABEL[contact.source] : "Not set",
+                  hidden: !isLead,
                 },
+                { label: "Owner", value: admins.name(contact.ownerId) ?? "No owner" },
+                { label: "Tags", value: contact.tags.length ? contact.tags.join(", ") : "None" },
                 {
-                  label: "How they agreed to be contacted",
-                  value: contact.consentBasis,
+                  label: "Consent",
+                  value: contact.consentBasis ?? "",
                   hidden: !contact.consentBasis,
                 },
-                { label: "Lost because", value: contact.lostReason, hidden: !contact.lostReason },
-                { label: "Tags", value: contact.tags.length ? contact.tags.join(", ") : "None" },
-                { label: "Added", value: formatDate(contact.createdAt) },
+                { label: "In the CRM since", value: formatDate(contact.createdAt) },
               ]}
             />
           </Surface>
 
-          {user ? (
-            <Surface title="Linara account">
-              <DetailList
-                items={[
-                  {
-                    label: "Account",
-                    value: <RecordLink to={`/users/${user.id}`}>{user.fullName}</RecordLink>,
-                  },
-                  { label: "Role", value: USER_KIND_LABEL[user.kind] },
-                  {
-                    label: "Households",
-                    value: (
-                      <ul className="space-y-1">
-                        {householdsOf(user).map((h) => (
-                          <li key={h.id} className="flex flex-wrap items-center gap-2">
-                            <RecordLink to={`/households/${h.id}`}>{h.name}</RecordLink>
-                            <StatusChip tone={STAGE_TONE[householdStage(h, now)]}>
-                              {CUSTOMER_STAGE_LABEL[householdStage(h, now)]}
-                            </StatusChip>
-                          </li>
-                        ))}
-                      </ul>
-                    ),
-                  },
-                ]}
-              />
+          {contact.userId ? (
+            <Surface
+              title="Linara account"
+              actions={<RecordLink to={`/users/${contact.userId}`}>Open user</RecordLink>}
+              flush
+            >
+              {contact.households.length === 0 ? (
+                <p className="px-5 pb-5 text-sm text-muted-foreground sm:px-6">
+                  Not managing a household.
+                </p>
+              ) : (
+                <ul className="divide-y divide-border pb-2">
+                  {contact.households.map((h) => (
+                    <li key={h.householdId} className="px-5 py-3 sm:px-6">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <RecordLink to={`/households/${h.householdId}`}>{h.name}</RecordLink>
+                        <StatusChip tone={STAGE_TONE[h.stage]}>
+                          {CUSTOMER_STAGE_LABEL[h.stage]}
+                        </StatusChip>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {USER_KIND_LABEL[h.role]},{" "}
+                        {h.lastActivityAt
+                          ? `last task ${formatRelativeDay(h.lastActivityAt)}`
+                          : "no tasks yet"}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </Surface>
           ) : null}
+
+          <div className="flex flex-wrap gap-2 px-1">
+            {isLead && contact.contactId ? (
+              <LinkAccountDialog
+                contactId={contact.contactId}
+                onLinked={refresh}
+                trigger={<Button variant="outline">Link to an account</Button>}
+              />
+            ) : null}
+            {isLead && contact.contactId ? (
+              <ConfirmDialog
+                trigger={<Button variant="outline">Delete lead</Button>}
+                title="Delete this lead?"
+                description="Their activity and follow-ups are deleted too. The audit log keeps a record that it happened."
+                confirmLabel="Delete lead"
+                done="Lead deleted"
+                onConfirm={async () => {
+                  const res = await deleteLeadFn({ data: { contactId: contact.contactId ?? "" } });
+                  if (res.ok) {
+                    await queryClient.invalidateQueries({ queryKey: ["crm"] });
+                    await navigate({ to: "/crm" });
+                  }
+                  return res;
+                }}
+              />
+            ) : null}
+            {!isLead && contact.contactId ? (
+              <ConfirmDialog
+                trigger={<Button variant="outline">Unlink account</Button>}
+                title="Unlink this account?"
+                description="The contact becomes a lead again, keeping its history. The person's Linara account isn't changed."
+                confirmLabel="Unlink account"
+                done="Account unlinked"
+                onConfirm={async () => {
+                  const res = await unlinkContactFn({
+                    data: { contactId: contact.contactId ?? "" },
+                  });
+                  if (res.ok) await refresh();
+                  return res;
+                }}
+              />
+            ) : null}
+          </div>
         </div>
       </div>
     </>

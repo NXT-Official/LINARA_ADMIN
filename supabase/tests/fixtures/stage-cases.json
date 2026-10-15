@@ -1,0 +1,33 @@
+[
+  { "name": "no helper, no tasks", "helpers": [], "idleDays": null, "expected": "signed_up" },
+  {
+    "name": "only an invited helper",
+    "helpers": ["PENDING_CLAIM"],
+    "idleDays": null,
+    "expected": "signed_up"
+  },
+  {
+    "name": "helper joined, no tasks yet",
+    "helpers": ["ACTIVE"],
+    "idleDays": null,
+    "expected": "set_up"
+  },
+  { "name": "task today", "helpers": ["ACTIVE"], "idleDays": 0, "expected": "active" },
+  { "name": "task 7 days ago", "helpers": ["ACTIVE"], "idleDays": 7, "expected": "active" },
+  { "name": "task 8 days ago", "helpers": ["ACTIVE"], "idleDays": 8, "expected": "at_risk" },
+  { "name": "task 30 days ago", "helpers": ["ACTIVE"], "idleDays": 30, "expected": "at_risk" },
+  { "name": "task 31 days ago", "helpers": ["ACTIVE"], "idleDays": 31, "expected": "inactive" },
+  {
+    "name": "helper ended, task 40 days ago",
+    "helpers": ["INACTIVE"],
+    "idleDays": 40,
+    "expected": "inactive"
+  },
+  { "name": "never set up, idle 20 days", "helpers": [], "idleDays": 20, "expected": "signed_up" },
+  {
+    "name": "never set up, active this week",
+    "helpers": ["PENDING_CLAIM"],
+    "idleDays": 2,
+    "expected": "active"
+  }
+]

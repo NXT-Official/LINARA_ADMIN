@@ -15,7 +15,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "test:sql": "node supabase/tests/staff-foundation.test.mjs && node supabase/tests/visibility.test.mjs",
+    "test:sql": "node supabase/tests/staff-foundation.test.mjs && node supabase/tests/visibility.test.mjs && node supabase/tests/crm.test.mjs && node supabase/tests/crm-data.test.mjs",
     "test:bundle": "bun run build && node scripts/check-bundle.mjs"
   },
   "dependencies": {

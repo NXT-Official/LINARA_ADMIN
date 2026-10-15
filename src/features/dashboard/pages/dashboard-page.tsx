@@ -5,7 +5,11 @@ import { ChartSurface, ColumnChart, TrendChart, type ChartPoint } from "@/compon
 import { ExportCsvButton } from "@/components/shared/export-button";
 import { PageHeader, Surface } from "@/components/shared/page";
 import { EmptyState } from "@/components/shared/states";
+import { CUSTOMER_STAGE_LABEL, LEAD_STAGE_LABEL } from "@/data/labels";
+import type { CustomerStage, LeadStage } from "@/data/types";
+import { crmDashboardFn } from "@/features/crm/crm.actions";
 import { formatCount } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 import { getDashboardFn } from "../dashboard.actions";
 import { METRIC_COLUMNS, metricRows } from "../dashboard-metrics";
@@ -17,16 +21,19 @@ function Figure({
   value,
   note,
   href,
+  search,
 }: {
   label: string;
   value: number;
   note?: string;
   href: string;
+  search?: Record<string, string>;
 }) {
   return (
     <li>
       <Link
         to={href}
+        search={search}
         className="flex items-baseline justify-between gap-4 py-3 transition-colors hover:text-pine focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <span className="min-w-0">
@@ -81,10 +88,130 @@ function LaterPhases() {
       description="These figures join the dashboard as each part of the console is built."
     >
       <ul className="space-y-2 text-sm text-muted-foreground">
-        <li>CRM: arrives in Phase 3</li>
         <li>Deletion requests: arrive in Phase 4</li>
         <li>Support tickets: arrive in Phase 5</li>
         <li>Payouts and AI usage: arrive in Phase 6</li>
+      </ul>
+    </Surface>
+  );
+}
+
+const LEAD_ORDER: LeadStage[] = ["new", "contacted", "interested", "lost"];
+const CUSTOMER_ORDER: CustomerStage[] = ["signed_up", "set_up", "active", "at_risk", "inactive"];
+
+/** One stage as a row with a bar, linking to the list filtered to it (FR-DB-8). */
+function StageRow({
+  label,
+  count,
+  max,
+  search,
+  warn,
+}: {
+  label: string;
+  count: number;
+  max: number;
+  search: Record<string, string>;
+  warn?: boolean;
+}) {
+  return (
+    <li>
+      <Link
+        to="/crm"
+        search={search}
+        className="grid grid-cols-[7rem_1fr_2.5rem] items-center gap-3 rounded-lg py-1.5 transition-colors hover:text-pine focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <span className="text-sm text-foreground">{label}</span>
+        <span className="h-2 overflow-hidden rounded-full bg-sand-deep" aria-hidden="true">
+          <span
+            className={cn("block h-full rounded-full", warn ? "bg-terracotta" : "bg-pine")}
+            style={{ width: `${(count / max) * 100}%` }}
+          />
+        </span>
+        <span className="text-right text-sm tabular-nums text-foreground">
+          {formatCount(count)}
+        </span>
+      </Link>
+    </li>
+  );
+}
+
+/** Leads, customers and follow-ups (FR-DB-7). Its own query: it fails on its own. */
+function CrmPipeline() {
+  const { data, isPending } = useQuery({
+    queryKey: ["crm", "dashboard"],
+    queryFn: () => crmDashboardFn(),
+  });
+  if (!data?.ok) {
+    return (
+      <Surface title="CRM">
+        <EmptyState title={isPending ? "Loading the CRM figures" : "The CRM figures didn't load"}>
+          {data && !data.ok ? data.message : null}
+        </EmptyState>
+      </Surface>
+    );
+  }
+  const c = data.crm;
+  const max = Math.max(1, ...Object.values(c.leadsByStage), ...Object.values(c.customersByStage));
+  const leads = LEAD_ORDER.reduce((n, s) => n + c.leadsByStage[s], 0);
+  const customers = CUSTOMER_ORDER.reduce((n, s) => n + c.customersByStage[s], 0);
+  return (
+    <Surface
+      title="CRM"
+      actions={
+        <Link to="/crm" className="text-sm font-semibold text-pine hover:underline">
+          Open CRM
+        </Link>
+      }
+    >
+      <ul className="-mt-3 mb-4 divide-y divide-border">
+        <Figure
+          label="Follow-ups overdue"
+          value={c.followUpsOverdue}
+          href="/crm"
+          search={{ due: "overdue" }}
+        />
+        <Figure
+          label="Follow-ups due today"
+          value={c.followUpsDueToday}
+          href="/crm"
+          search={{ due: "today" }}
+        />
+        <Figure
+          label="Became customers, last 30 days"
+          value={c.converted30d}
+          note="Leads linked to a Linara account"
+          href="/crm"
+          search={{ kind: "customer" }}
+        />
+      </ul>
+      <h3 className="font-sans text-xs font-semibold text-muted-foreground">
+        Leads <span className="tabular-nums">{formatCount(leads)}</span>
+      </h3>
+      <ul className="mt-1">
+        {LEAD_ORDER.map((s) => (
+          <StageRow
+            key={s}
+            label={LEAD_STAGE_LABEL[s]}
+            count={c.leadsByStage[s]}
+            max={max}
+            search={{ kind: "lead", stage: s }}
+          />
+        ))}
+      </ul>
+      <h3 className="mt-5 font-sans text-xs font-semibold text-muted-foreground">
+        Customers <span className="tabular-nums">{formatCount(customers)}</span>
+      </h3>
+      <ul className="mt-1">
+        {CUSTOMER_ORDER.map((s) => (
+          <StageRow
+            key={s}
+            label={CUSTOMER_STAGE_LABEL[s]}
+            count={c.customersByStage[s]}
+            max={max}
+            search={{ kind: "customer", stage: s }}
+            warn={s === "at_risk"}
+          />
+        ))}
       </ul>
     </Surface>
   );
@@ -162,6 +289,7 @@ export function DashboardPage() {
       {d ? (
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] [&>*]:min-w-0">
           <div className="space-y-6">
+            <CrmPipeline />
             <Activity d={d} />
           </div>
           <div className="space-y-6">

@@ -137,7 +137,11 @@ describe("HouseholdPage (FR-HH-2, FR-US-6)", () => {
     expect(screen.getByText("Tasks scheduled, last 7 days")).toBeInTheDocument();
     expect(screen.getByText("9")).toBeInTheDocument();
     expect(screen.getByText(/Arrives with Support \(Phase 5\)/)).toBeInTheDocument();
-    expect(screen.getByText(/Arrives with the CRM \(Phase 3\)/)).toBeInTheDocument();
+    expect(screen.queryByText(/Arrives with the CRM/)).toBeNull();
+    expect(screen.getByRole("link", { name: "CRM: Ana Reyes" })).toHaveAttribute(
+      "href",
+      "/crm/account/u1",
+    );
   });
 
   it("an unknown household shows Household not found", async () => {

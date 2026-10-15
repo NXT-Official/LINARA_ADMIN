@@ -22,7 +22,7 @@ test.describe("visibility", () => {
     const name = (await first.textContent())?.trim() ?? "";
     await first.click();
     await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
-    await expect(page.getByText("Arrives with the CRM (Phase 3).")).toBeVisible();
+    await expect(page.getByText("Arrives with Support (Phase 5).")).toBeVisible();
   });
 
   test("household search narrows the list", async ({ page }) => {
@@ -49,10 +49,10 @@ test.describe("visibility", () => {
     await show.click();
     await expect(page.getByRole("button", { name: /monthly wage$/ })).toHaveCount(0);
 
+    // Other tests write audit entries at the same time: find this one, not the newest.
     await page.goto("/audit");
-    const newest = page.locator(tableRows).first();
-    await expect(newest).toContainText("Revealed pay details");
-    await expect(newest).toContainText(ADMIN.email);
+    const reveal = page.locator(tableRows).filter({ hasText: "Revealed pay details" }).first();
+    await expect(reveal).toContainText(ADMIN.email);
   });
 
   test("a made-up user id shows User not found", async ({ page }) => {
@@ -71,6 +71,6 @@ test.describe("visibility", () => {
     // The figure, not the sidebar link of the same name.
     const figure = page.getByRole("main").getByRole("link", { name: /^Households/ });
     await expect(figure).toContainText(String(listed));
-    await expect(page.getByText("CRM: arrives in Phase 3")).toBeVisible();
+    await expect(page.getByText("Deletion requests: arrive in Phase 4")).toBeVisible();
   });
 });

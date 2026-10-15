@@ -7,6 +7,7 @@ import { formatPeso } from "@/lib/format";
 
 import { AUDIT_CSV } from "./audit/audit.export";
 import { CONTACT_CSV } from "./crm/crm.export";
+import type { ContactRow } from "./crm/crm.types";
 import { deletionCsv } from "./deletions/deletions.export";
 import { HOUSEHOLD_CSV } from "./households/households.export";
 import type { HouseholdRow } from "./households/households.types";
@@ -23,6 +24,23 @@ import type { UserRow } from "./users/users.types";
 const now = new Date();
 const householdName = (id: string | undefined) =>
   sample.households.find((h) => h.id === id)?.name ?? null;
+/** The sample contacts as the real CRM list returns them (Phase 3a). */
+const contactRows: ContactRow[] = listContacts(now).map((c) => ({
+  contactId: c.virtual ? null : c.id,
+  userId: c.userId,
+  fullName: c.fullName,
+  email: c.email,
+  phone: c.phone,
+  kind: c.kind,
+  stage: c.stage,
+  source: c.source,
+  ownerId: c.ownerId,
+  tags: c.tags,
+  roles: [],
+  householdCount: 1,
+  nextFollowUpAt: c.nextFollowUp?.dueAt ?? null,
+  createdAt: c.createdAt,
+}));
 /** The sample households as the real Households list returns them (Phase 2). */
 const householdRows: HouseholdRow[] = sample.households.map((h) => {
   const primary = h.managers.find((m) => m.role === "primary_manager")?.userId ?? null;
@@ -54,7 +72,7 @@ const userRows: UserRow[] = sample.users.map((u) => ({
   devices: u.devices,
 }));
 const exports: Record<string, string> = {
-  contacts: toCsv(CONTACT_CSV, listContacts(now)),
+  contacts: toCsv(CONTACT_CSV, contactRows),
   users: toCsv(USER_CSV, userRows),
   households: toCsv(HOUSEHOLD_CSV, householdRows),
   tickets: toCsv(TICKET_CSV, sample.tickets),

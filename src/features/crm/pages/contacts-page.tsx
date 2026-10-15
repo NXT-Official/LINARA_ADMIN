@@ -1,8 +1,11 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { Download, MoreHorizontal, Plus, Upload } from "lucide-react";
 
-import { DataTable, ListFooter, type Column } from "@/components/shared/data-table";
+import { DataTable, ListPager, type Column } from "@/components/shared/data-table";
 import { ExportCsvButton } from "@/components/shared/export-button";
+import { SelectField } from "@/components/shared/form";
 import { ListToolbar, SearchField, SegmentedFilter } from "@/components/shared/list-toolbar";
 import { RowLink } from "@/components/shared/links";
 import { PageHeader, Surface } from "@/components/shared/page";
@@ -16,38 +19,90 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { CURRENT_STAFF_ID } from "@/data/sample";
-import { SOURCE_LABEL } from "@/data/labels";
-import { listContacts, staffById, type ContactRow } from "@/data/queries";
+import { Label } from "@/components/ui/label";
+import {
+  CUSTOMER_STAGE_LABEL,
+  LEAD_STAGE_LABEL,
+  SOURCE_LABEL,
+  USER_KIND_LABEL,
+} from "@/data/labels";
+import { useAdmins } from "@/features/team/use-admins";
 import { daysBetween, formatRelativeDay } from "@/lib/format";
+import { useDebouncedValue } from "@/lib/use-debounced-value";
 import { cn } from "@/lib/utils";
 
-import { AddLeadDialog, ExportDialog, ImportDialog } from "../components/crm-dialogs";
 import { CrmCharts } from "../components/crm-charts";
+import { AddLeadDialog, ExportDialog } from "../components/crm-dialogs";
+import { crmDashboardFn, listContactsFn } from "../crm.actions";
 import { CONTACT_CSV } from "../crm.export";
-import { hasDueFollowUp, stageLabel } from "../crm.utils";
+import type { ListContactsInput } from "../crm.handlers.server";
+import {
+  CUSTOMER_STAGES,
+  LEAD_STAGES,
+  MANAGER_ROLES,
+  type ContactKind,
+  type ContactRow,
+  type ManagerRole,
+} from "../crm.types";
+import { contactHref, stageLabel } from "../crm.utils";
 
-type View = "all" | "leads" | "customers" | "due";
+const ANY = "any";
 
-export function ContactsPage() {
-  const now = useMemo(() => new Date(), []);
-  const all = useMemo(() => listContacts(now), [now]);
-  const [view, setView] = useState<View>("all");
+/** Filters the list can start with, e.g. from a dashboard figure (FR-DB-8). */
+export type ContactFilters = {
+  kind?: ContactKind;
+  stage?: string;
+  due?: "today" | "overdue";
+};
+
+const STAGE_OPTIONS = [
+  { value: ANY, label: "Any stage" },
+  ...LEAD_STAGES.map((s) => ({ value: s, label: `Lead: ${LEAD_STAGE_LABEL[s]}` })),
+  ...CUSTOMER_STAGES.map((s) => ({ value: s, label: `Customer: ${CUSTOMER_STAGE_LABEL[s]}` })),
+];
+const ROLE_OPTIONS = [
+  { value: ANY, label: "Any role" },
+  ...MANAGER_ROLES.map((r) => ({ value: r, label: USER_KIND_LABEL[r] })),
+];
+
+export function ContactsPage({ initial = {} }: { initial?: ContactFilters }) {
+  const queryClient = useQueryClient();
+  const admins = useAdmins();
+  const [kind, setKind] = useState<ContactKind | "all">(initial.kind ?? "all");
+  const [stage, setStage] = useState<string>(initial.stage ?? ANY);
+  const [role, setRole] = useState<ManagerRole | typeof ANY>(ANY);
   const [owner, setOwner] = useState<"everyone" | "mine">("everyone");
+  const [due, setDue] = useState<"any" | "today" | "overdue">(initial.due ?? "any");
   const [q, setQ] = useState("");
-  const [dialog, setDialog] = useState<"import" | "export" | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const typed = useDebouncedValue(q.trim());
 
-  const rows = all.filter((c) => {
-    if (view === "leads" && c.kind !== "lead") return false;
-    if (view === "customers" && c.kind !== "customer") return false;
-    if (view === "due" && !hasDueFollowUp(c, now)) return false;
-    if (owner === "mine" && c.ownerId !== CURRENT_STAFF_ID) return false;
-    const needle = q.trim().toLowerCase();
-    if (!needle) return true;
-    return [c.fullName, c.email, c.phone, ...c.tags]
-      .filter(Boolean)
-      .some((v) => v!.toLowerCase().includes(needle));
+  const filters: Omit<ListContactsInput, "page"> = {
+    ...(typed.length >= 2 ? { search: typed } : {}),
+    ...(kind !== "all" ? { kind } : {}),
+    ...(stage !== ANY ? { stage } : {}),
+    ...(role !== ANY ? { role } : {}),
+    ...(owner === "mine" ? { owner: "mine" as const } : {}),
+    ...(due !== "any" ? { due } : {}),
+  };
+  // A new filter starts again at the first page.
+  const filterKey = JSON.stringify(filters);
+  const [paging, setPaging] = useState({ key: filterKey, page: 0 });
+  const page = paging.key === filterKey ? paging.page : 0;
+
+  const input: ListContactsInput = { page, ...filters };
+  const { data, isPending, isFetching } = useQuery({
+    queryKey: ["crm", "contacts", input],
+    queryFn: () => listContactsFn({ data: input }),
+    placeholderData: (prev) => prev,
   });
+  const rows = data?.ok ? data.contacts : [];
+  // Shares the dashboard's CRM query: one call for both screens' figures.
+  const { data: figures } = useQuery({
+    queryKey: ["crm", "dashboard"],
+    queryFn: () => crmDashboardFn(),
+  });
+  const now = new Date();
 
   const columns: Column<ContactRow>[] = [
     {
@@ -56,7 +111,7 @@ export function ContactsPage() {
       mobile: "primary",
       cell: (c) => (
         <div className="min-w-0">
-          <RowLink to={`/crm/${c.id}`}>{c.fullName}</RowLink>
+          <RowLink to={contactHref(c)}>{c.fullName}</RowLink>
           <div className="truncate text-xs text-muted-foreground">
             {c.email ?? c.phone ?? "No email or phone"}
           </div>
@@ -80,13 +135,13 @@ export function ContactsPage() {
       key: "follow",
       header: "Next follow-up",
       cell: (c) =>
-        c.nextFollowUp ? (
+        c.nextFollowUpAt ? (
           <span
             className={cn(
-              daysBetween(now, c.nextFollowUp.dueAt) < 0 && "font-semibold text-status-late-ink",
+              daysBetween(now, c.nextFollowUpAt) < 0 && "font-semibold text-status-late-ink",
             )}
           >
-            {formatRelativeDay(c.nextFollowUp.dueAt, now)}
+            {formatRelativeDay(c.nextFollowUpAt, now)}
           </span>
         ) : (
           <span className="text-muted-foreground">None</span>
@@ -96,7 +151,7 @@ export function ContactsPage() {
       key: "owner",
       header: "Owner",
       cell: (c) =>
-        c.ownerId === CURRENT_STAFF_ID ? "You" : (staffById(c.ownerId)?.fullName ?? "No owner"),
+        admins.name(c.ownerId) ?? <span className="text-muted-foreground">No owner</span>,
     },
     {
       key: "source",
@@ -106,7 +161,9 @@ export function ContactsPage() {
         c.source ? (
           SOURCE_LABEL[c.source]
         ) : (
-          <span className="text-muted-foreground">Signed up</span>
+          <span className="text-muted-foreground">
+            {c.kind === "customer" ? "Signed up" : "Not set"}
+          </span>
         ),
     },
     {
@@ -117,15 +174,6 @@ export function ContactsPage() {
       cell: (c) => <span className="line-clamp-1 text-muted-foreground">{c.tags.join(", ")}</span>,
     },
   ];
-
-  const count = (v: View) =>
-    all.filter((c) =>
-      v === "all"
-        ? true
-        : v === "due"
-          ? hasDueFollowUp(c, now)
-          : c.kind === (v === "leads" ? "lead" : "customer"),
-    ).length;
 
   return (
     <>
@@ -142,22 +190,19 @@ export function ContactsPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-64 rounded-xl">
-                <DropdownMenuItem onSelect={() => setDialog("import")}>
-                  <Upload aria-hidden="true" />
-                  Import leads from CSV
+                <DropdownMenuItem asChild>
+                  <Link to="/crm/import">
+                    <Upload aria-hidden="true" />
+                    Import leads from CSV
+                  </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setDialog("export")}>
+                <DropdownMenuItem onSelect={() => setExporting(true)}>
                   <Download aria-hidden="true" />
                   Export with contact details
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <ImportDialog open={dialog === "import"} onOpenChange={(o) => !o && setDialog(null)} />
-            <ExportDialog
-              count={rows.length}
-              open={dialog === "export"}
-              onOpenChange={(o) => !o && setDialog(null)}
-            />
+            <ExportDialog open={exporting} onOpenChange={setExporting} filters={filters} />
             <AddLeadDialog
               trigger={
                 <Button>
@@ -165,23 +210,23 @@ export function ContactsPage() {
                   Add lead
                 </Button>
               }
+              onAdded={() => queryClient.invalidateQueries({ queryKey: ["crm"] })}
             />
           </>
         }
       />
-      <CrmCharts contacts={all} />
+      {figures?.ok ? <CrmCharts crm={figures.crm} /> : null}
       <Surface flush>
         <div className="space-y-3 pt-5">
           <ListToolbar>
             <SegmentedFilter
               label="Show"
-              value={view}
-              onChange={setView}
+              value={kind}
+              onChange={setKind}
               options={[
-                { value: "all", label: "All", count: count("all") },
-                { value: "leads", label: "Leads", count: count("leads") },
-                { value: "customers", label: "Customers", count: count("customers") },
-                { value: "due", label: "Follow-up due", count: count("due") },
+                { value: "all", label: "All" },
+                { value: "lead", label: "Leads" },
+                { value: "customer", label: "Customers" },
               ]}
             />
             <SegmentedFilter
@@ -193,6 +238,40 @@ export function ContactsPage() {
                 { value: "mine", label: "Mine" },
               ]}
             />
+            <SegmentedFilter
+              label="Follow-ups"
+              value={due}
+              onChange={setDue}
+              options={[
+                { value: "any", label: "Any" },
+                { value: "today", label: "Due today" },
+                { value: "overdue", label: "Overdue" },
+              ]}
+            />
+          </ListToolbar>
+          <ListToolbar>
+            <div className="grid gap-2 sm:w-56">
+              <Label htmlFor="crm-stage" className="sr-only">
+                Stage
+              </Label>
+              <SelectField
+                id="crm-stage"
+                value={stage}
+                onChange={setStage}
+                options={STAGE_OPTIONS}
+              />
+            </div>
+            <div className="grid gap-2 sm:w-48">
+              <Label htmlFor="crm-role" className="sr-only">
+                Manager role
+              </Label>
+              <SelectField
+                id="crm-role"
+                value={role}
+                onChange={(v) => setRole(v as ManagerRole | typeof ANY)}
+                options={ROLE_OPTIONS}
+              />
+            </div>
             <SearchField
               value={q}
               onChange={setQ}
@@ -200,18 +279,33 @@ export function ContactsPage() {
               className="sm:ml-auto"
             />
           </ListToolbar>
-          <DataTable
-            label="Contacts"
-            rows={rows}
-            columns={columns}
-            rowKey={(c) => c.id}
-            empty={
-              <EmptyState title="No contacts match">
-                Try another filter, or clear the search.
-              </EmptyState>
-            }
-            footer={<ListFooter shown={rows.length} total={rows.length} />}
-          />
+          <div className={isFetching && !isPending ? "opacity-60" : undefined}>
+            {data && !data.ok ? (
+              <div className="px-5 pb-5 sm:px-6">
+                <EmptyState title="The contacts didn't load">{data.message}</EmptyState>
+              </div>
+            ) : (
+              <DataTable
+                label="Contacts"
+                rows={rows}
+                columns={columns}
+                rowKey={(c) => c.contactId ?? `user-${c.userId}`}
+                empty={
+                  <EmptyState title={isPending ? "Loading contacts" : "No contacts match"}>
+                    {isPending ? null : "Try another filter, or clear the search."}
+                  </EmptyState>
+                }
+                footer={
+                  <ListPager
+                    page={page}
+                    hasMore={!!(data?.ok && data.hasMore)}
+                    busy={isFetching}
+                    onPage={(p) => setPaging({ key: filterKey, page: p })}
+                  />
+                }
+              />
+            )}
+          </div>
         </div>
       </Surface>
     </>

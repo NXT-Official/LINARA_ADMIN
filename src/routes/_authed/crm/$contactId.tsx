@@ -10,5 +10,6 @@ export const Route = createFileRoute("/_authed/crm/$contactId")({
 
 function Page() {
   const { contactId } = Route.useParams();
-  return <ContactPage contactId={contactId} />;
+  // Keyed so moving to another contact starts fresh.
+  return <ContactPage key={contactId} contactRef={{ contactId }} />;
 }

@@ -80,8 +80,27 @@ describe("UserPage (FR-US-3, FR-US-6)", () => {
     renderPage();
     await screen.findByRole("heading", { name: "Carla Dizon" });
     expect(screen.getByText(/Arrives with Support \(Phase 5\)/)).toBeInTheDocument();
-    expect(screen.getByText(/Arrives with the CRM \(Phase 3\)/)).toBeInTheDocument();
+    expect(screen.queryByText(/Arrives with the CRM/)).toBeNull();
+    // Helpers aren't CRM contacts (§5.2.1).
+    expect(screen.queryByRole("link", { name: "Open in CRM" })).toBeNull();
     expect(screen.queryByRole("button", { name: /suspend/i })).toBeNull();
+  });
+
+  it("a manager links to their CRM contact", async () => {
+    m.get.mockResolvedValue({
+      ok: true,
+      user: {
+        ...helper,
+        kind: "primary_manager",
+        jobs: [],
+        memberships: [{ householdId: "h1", householdName: "Reyes home", role: "primary_manager" }],
+      },
+    });
+    renderPage();
+    expect(await screen.findByRole("link", { name: "Open in CRM" })).toHaveAttribute(
+      "href",
+      `/crm/account/${ID}`,
+    );
   });
 
   it("shows a pending deletion request", async () => {

@@ -138,9 +138,12 @@ function UserDetailView({ user }: { user: UserDetail }) {
               ]}
             />
           </Surface>
-          <Surface title="CRM">
-            <p className="text-sm text-muted-foreground">Arrives with the CRM (Phase 3).</p>
-          </Surface>
+          {user.kind === "helper" ? null : (
+            // Every manager is a CRM customer (FR-CRM-3); helpers aren't contacts (§5.2.1).
+            <Surface title="CRM">
+              <RecordLink to={`/crm/account/${user.userId}`}>Open in CRM</RecordLink>
+            </Surface>
+          )}
           <p className="px-1 text-xs text-muted-foreground">
             Profiles and passwords are changed by the user in their own app, not here.
           </p>

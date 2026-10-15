@@ -95,6 +95,15 @@ describe("UsersPage (FR-US-1, FR-US-2)", () => {
     );
   });
 
+  it("the Suspended filter goes to the server", async () => {
+    renderPage();
+    await screen.findAllByRole("link", { name: "Ana Reyes" });
+    fireEvent.click(screen.getByRole("radio", { name: "Suspended" }));
+    await waitFor(() =>
+      expect(m.list).toHaveBeenLastCalledWith({ data: { page: 0, suspended: true } }),
+    );
+  });
+
   it("empty search result says so", async () => {
     m.list.mockResolvedValue({ ok: true, users: [], hasMore: false });
     renderPage();

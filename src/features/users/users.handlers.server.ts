@@ -103,7 +103,13 @@ export function toUserDetail(d: DbUserDetail): UserDetail {
   };
 }
 
-export type ListUsersInput = { page: number; search?: string; kind?: UserKind };
+export type ListUsersInput = {
+  page: number;
+  search?: string;
+  kind?: UserKind;
+  /** true: only suspended; false: only not suspended (FR-US-4). */
+  suspended?: boolean;
+};
 
 export function listUsersHandler(
   input: ListUsersInput,
@@ -116,9 +122,10 @@ export function listUsersHandler(
     }
     await requireStaff("users.view");
 
-    const { data, error } = await getAdminClient().rpc("staff_list_users", {
+    const { data, error } = await getAdminClient().rpc("staff_find_users", {
       p_search: search,
       p_kind: input.kind ?? null,
+      p_suspended: typeof input.suspended === "boolean" ? input.suspended : null,
       ...pageWindow(page),
     });
     if (error) throw new Error(error.message);

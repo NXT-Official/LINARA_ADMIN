@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/shared/states";
 import { CUSTOMER_STAGE_LABEL, LEAD_STAGE_LABEL } from "@/data/labels";
 import type { CustomerStage, LeadStage } from "@/data/types";
 import { crmDashboardFn } from "@/features/crm/crm.actions";
+import { deletionCountsFn } from "@/features/deletions/deletions.actions";
 import { formatCount } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -80,6 +81,33 @@ function Platform({ d }: { d: DashboardData }) {
   );
 }
 
+/** Account deletion requests against their 30-day deadline (FR-DB-4). Its own query. */
+function Deletions() {
+  const { data, isPending } = useQuery({
+    queryKey: ["deletions", "counts"],
+    queryFn: () => deletionCountsFn(),
+  });
+  if (!data?.ok) {
+    return (
+      <Surface title="Deletion requests">
+        <EmptyState title={isPending ? "Loading" : "The deletion figures didn't load"}>
+          {data && !data.ok ? data.message : null}
+        </EmptyState>
+      </Surface>
+    );
+  }
+  const c = data.counts;
+  return (
+    <Surface title="Deletion requests">
+      <ul className="-my-3 divide-y divide-border">
+        <Figure label="Deletion requests waiting" value={c.pending} href="/deletions" />
+        <Figure label="Due within 7 days" value={c.dueSoon} href="/deletions" />
+        <Figure label="Past the 30-day deadline" value={c.overdue} href="/deletions" />
+      </ul>
+    </Surface>
+  );
+}
+
 /** Modules that aren't on real data yet: named, never shown as zero (FR-DB-9). */
 function LaterPhases() {
   return (
@@ -88,7 +116,6 @@ function LaterPhases() {
       description="These figures join the dashboard as each part of the console is built."
     >
       <ul className="space-y-2 text-sm text-muted-foreground">
-        <li>Deletion requests: arrive in Phase 4</li>
         <li>Support tickets: arrive in Phase 5</li>
         <li>Payouts and AI usage: arrive in Phase 6</li>
       </ul>
@@ -294,6 +321,7 @@ export function DashboardPage() {
           </div>
           <div className="space-y-6">
             <Platform d={d} />
+            <Deletions />
             <LaterPhases />
           </div>
         </div>

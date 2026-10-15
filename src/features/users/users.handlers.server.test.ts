@@ -44,9 +44,10 @@ describe("listUsersHandler (FR-US-1, FR-US-2, NFR-7)", () => {
   it("list pages 50 with one extra row", async () => {
     m.rpc.mockResolvedValue({ data: Array.from({ length: 51 }, (_, i) => row(i)), error: null });
     const res = await listUsersHandler({ page: 1 });
-    expect(m.rpc).toHaveBeenCalledWith("staff_list_users", {
+    expect(m.rpc).toHaveBeenCalledWith("staff_find_users", {
       p_search: null,
       p_kind: null,
+      p_suspended: null,
       p_limit: 51,
       p_offset: 50,
     });
@@ -72,7 +73,7 @@ describe("listUsersHandler (FR-US-1, FR-US-2, NFR-7)", () => {
   it("search is trimmed and bounded", async () => {
     await listUsersHandler({ page: 0, search: "  ab  " });
     expect(m.rpc).toHaveBeenCalledWith(
-      "staff_list_users",
+      "staff_find_users",
       expect.objectContaining({ p_search: "ab" }),
     );
     m.rpc.mockClear();
@@ -88,7 +89,7 @@ describe("listUsersHandler (FR-US-1, FR-US-2, NFR-7)", () => {
   it("an empty search means no search", async () => {
     await listUsersHandler({ page: 0, search: "   " });
     expect(m.rpc).toHaveBeenCalledWith(
-      "staff_list_users",
+      "staff_find_users",
       expect.objectContaining({ p_search: null }),
     );
   });
@@ -99,8 +100,16 @@ describe("listUsersHandler (FR-US-1, FR-US-2, NFR-7)", () => {
     });
     await listUsersHandler({ page: 0, kind: "co_manager" });
     expect(m.rpc).toHaveBeenCalledWith(
-      "staff_list_users",
+      "staff_find_users",
       expect.objectContaining({ p_kind: "co_manager" }),
+    );
+  });
+
+  it("the suspended filter goes to the server", async () => {
+    await listUsersHandler({ page: 0, suspended: true });
+    expect(m.rpc).toHaveBeenCalledWith(
+      "staff_find_users",
+      expect.objectContaining({ p_suspended: true }),
     );
   });
 

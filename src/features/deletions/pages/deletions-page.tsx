@@ -1,68 +1,93 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { DataTable, ListFooter, type Column } from "@/components/shared/data-table";
+import { DataTable, ListPager, type Column } from "@/components/shared/data-table";
+import { ExportCsvButton } from "@/components/shared/export-button";
 import { FormDialog } from "@/components/shared/form";
-import { ListToolbar, SegmentedFilter } from "@/components/shared/list-toolbar";
 import { RecordLink } from "@/components/shared/links";
+import { ListToolbar, SegmentedFilter } from "@/components/shared/list-toolbar";
 import { PageHeader, Surface } from "@/components/shared/page";
 import { EmptyState } from "@/components/shared/states";
 import { StatusChip } from "@/components/shared/status-chip";
 import { Button } from "@/components/ui/button";
+import { USER_KIND_LABEL } from "@/data/labels";
 import { CodeField } from "@/features/auth/components/code-field";
-import { DELETION_DAYS, deletionDaysLeft, listDeletionRequests, userById } from "@/data/queries";
-import type { DeletionRequest } from "@/data/types";
-import { ExportCsvButton } from "@/components/shared/export-button";
-
+import type { UserKind } from "@/features/users/users.types";
 import { formatDate, plural } from "@/lib/format";
-import { deletionCsv } from "../deletions.export";
 import { cn } from "@/lib/utils";
 
+import { listDeletionsFn, processDeletionFn } from "../deletions.actions";
+import { DELETION_CSV } from "../deletions.export";
+import type {
+  DeletionBlocker,
+  DeletionResult,
+  DeletionRow,
+  DeletionView,
+} from "../deletions.types";
+import { describeDeletion } from "../deletions.utils";
+
+const DUE_DAYS = 30;
 const DUE_SOON_DAYS = 7;
 
-function personName(r: DeletionRequest) {
-  return userById(r.userId)?.fullName ?? "Deleted account";
-}
+/** What blocks a deletion, in words, with what the household has to do (FR-DL-2). */
+const BLOCKER_TEXT: Record<DeletionBlocker, string> = {
+  console_admin:
+    "This is a console admin's account. Console admins are managed on the Admins screen.",
+  active_employment: "Still employed: the household has to end the job, with final pay, first.",
+  last_manager_with_helpers:
+    "Last manager of a household that still has a helper working: the household has to end each job, with final pay, first.",
+};
 
-/** FR-DL-2 to FR-DL-4: blockers first, then what goes and what stays, then the code. */
-function ProcessDialog({ request }: { request: DeletionRequest }) {
+// A console admin has a login but no Linara profile, so no name either.
+const name = (r: DeletionRow) =>
+  r.fullName ?? (r.blockers.includes("console_admin") ? "Console admin" : "Account already gone");
+const kind = (r: DeletionRow) =>
+  r.userType && r.userType in USER_KIND_LABEL ? USER_KIND_LABEL[r.userType as UserKind] : "Unknown";
+
+/** FR-DL-3, FR-DL-4: what goes and what stays, then the code; LINARA's refusal as it is. */
+function ProcessDialog({
+  request,
+  onDone,
+}: {
+  request: DeletionRow;
+  onDone: (result: DeletionResult) => void;
+}) {
   const [code, setCode] = useState("");
-  const blocked = request.blockers.length > 0;
   return (
     <FormDialog
       trigger={
-        <Button size="sm" variant="outline" className="relative z-10">
+        <Button
+          size="sm"
+          variant="outline"
+          className="relative z-10"
+          aria-label={`Process ${name(request)}'s request`}
+        >
           Process
         </Button>
       }
-      title={`Delete ${personName(request)}'s account`}
+      title={`Delete ${name(request)}'s account`}
       submitLabel="Delete account"
       done="Account deleted"
       destructive
-      canSubmit={!blocked && code.length === 6}
+      canSubmit={code.length === 6}
+      onOpenChange={(open) => !open && setCode("")}
+      onSubmit={async () => {
+        const res = await processDeletionFn({ data: { requestId: request.requestId, code } });
+        setCode("");
+        if (res.ok) onDone(res.result);
+        return res;
+      }}
     >
       {(id) => (
         <>
-          {blocked ? (
-            <div className="rounded-2xl bg-status-late-soft p-4 text-sm text-status-late-ink">
-              <p className="font-semibold">This can't be processed yet</p>
-              <ul className="mt-1 list-disc pl-5">
-                {request.blockers.map((b) => (
-                  <li key={b}>{b}</li>
-                ))}
-              </ul>
-              <p className="mt-2">
-                The household has to end the job or hand the household to another manager first.
-              </p>
-            </div>
-          ) : null}
-          {/* What process_account_deletion does (LINARA/supabase/add-account-deletion.sql),
-              plus the console's own anonymisation (FR-DL-5, FR-DL-6). */}
+          {/* What process_account_deletion does (LINARA, add-household-managers.sql),
+              plus the console's own forgetting (FR-DL-5, FR-DL-6, D36). */}
           <div className="grid gap-4 text-sm sm:grid-cols-2">
             <div>
               <p className="font-semibold text-foreground">Deleted</p>
               <ul className="mt-1 list-disc space-y-0.5 pl-5 text-muted-foreground">
                 <li>Their sign-in, profile and devices</li>
-                {request.kind === "helper" ? (
+                {request.userType === "helper" ? (
                   <li>Their private notes</li>
                 ) : (
                   <li>
@@ -70,7 +95,7 @@ function ProcessDialog({ request }: { request: DeletionRequest }) {
                     routines and unclaimed invites
                   </li>
                 )}
-                <li>Name, email and phone on their CRM contact and tickets</li>
+                <li>Name, email, phone and notes on their CRM contact</li>
               </ul>
             </div>
             <div>
@@ -80,12 +105,12 @@ function ProcessDialog({ request }: { request: DeletionRequest }) {
                   Each job with its payslips, hours and leave, which the household must keep by law
                 </li>
                 <li>Tasks a helper did</li>
-                <li>Dates and counts on the CRM contact and tickets, without the name</li>
+                <li>Dates and stages on the CRM contact, without the person</li>
                 <li>An audit entry with ids only</li>
               </ul>
             </div>
           </div>
-          {!blocked ? <CodeField id={id("code")} value={code} onChange={setCode} /> : null}
+          <CodeField id={id("code")} value={code} onChange={setCode} />
         </>
       )}
     </FormDialog>
@@ -93,63 +118,76 @@ function ProcessDialog({ request }: { request: DeletionRequest }) {
 }
 
 export function DeletionsPage() {
-  const now = useMemo(() => new Date(), []);
-  const all = listDeletionRequests();
-  const [tab, setTab] = useState<"pending" | "history">("pending");
-  const pending = all
-    .filter((r) => r.status === "pending")
-    .sort((a, b) => a.requestedAt.localeCompare(b.requestedAt));
-  const history = all.filter((r) => r.status !== "pending");
+  const queryClient = useQueryClient();
+  const [view, setView] = useState<DeletionView>("pending");
+  // What the last processing did, from LINARA's own report (FR-DL-4).
+  const [outcome, setOutcome] = useState<string | null>(null);
+  const [paging, setPaging] = useState({ view: "pending" as DeletionView, page: 0 });
+  const page = paging.view === view ? paging.page : 0;
 
-  const pendingColumns: Column<DeletionRequest>[] = [
-    {
-      key: "who",
-      header: "Account",
-      mobile: "primary",
-      cell: (r) =>
-        userById(r.userId) ? (
-          <RecordLink to={`/users/${r.userId}`}>{personName(r)}</RecordLink>
-        ) : (
-          personName(r)
-        ),
-    },
+  const input = { view, page };
+  const { data, isPending, isFetching } = useQuery({
+    queryKey: ["deletions", input],
+    queryFn: () => listDeletionsFn({ data: input }),
+    placeholderData: (prev) => prev,
+  });
+  const rows = data?.ok ? data.requests : [];
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ["deletions"] });
+
+  const who: Column<DeletionRow> = {
+    key: "who",
+    header: "Account",
+    mobile: "primary",
+    cell: (r) =>
+      r.fullName ? (
+        <RecordLink to={`/users/${r.userId}`}>{r.fullName}</RecordLink>
+      ) : (
+        <span className="text-muted-foreground">{name(r)}</span>
+      ),
+  };
+
+  const pendingColumns: Column<DeletionRow>[] = [
+    who,
     {
       key: "left",
       header: "Time left",
       mobile: "primary",
-      cell: (r) => {
-        const left = deletionDaysLeft(r.requestedAt, now);
-        if (left < 0) return <StatusChip tone="late">{plural(-left, "day")} overdue</StatusChip>;
-        return (
-          <span className={cn(left <= DUE_SOON_DAYS && "font-semibold text-terracotta-ink")}>
-            {left === 1 ? "1 day" : `${left} days`}
-          </span>
-        );
-      },
-    },
-    { key: "kind", header: "Kind", cell: (r) => (r.kind === "manager" ? "Manager" : "Helper") },
-    { key: "asked", header: "Requested", cell: (r) => formatDate(r.requestedAt) },
-    {
-      key: "blockers",
-      header: "Blockers",
       cell: (r) =>
-        r.blockers.length ? (
-          <span className="text-status-late-ink">{r.blockers.length}</span>
+        r.daysLeft < 0 ? (
+          <StatusChip tone="late">{plural(-r.daysLeft, "day")} overdue</StatusChip>
         ) : (
-          <span className="text-muted-foreground">None</span>
+          <span className={cn(r.daysLeft <= DUE_SOON_DAYS && "font-semibold text-terracotta-ink")}>
+            {r.daysLeft === 1 ? "1 day" : `${r.daysLeft} days`}
+          </span>
         ),
     },
+    { key: "kind", header: "Kind", cell: kind },
+    { key: "asked", header: "Requested", cell: (r) => formatDate(r.requestedAt) },
     {
       key: "act",
       header: "",
       align: "right",
       mobile: "primary",
-      cell: (r) => <ProcessDialog request={r} />,
+      className: "max-w-80",
+      cell: (r) =>
+        r.blockers.length ? (
+          <span className="text-left text-xs text-status-late-ink">
+            {r.blockers.map((b) => BLOCKER_TEXT[b]).join(" ")}
+          </span>
+        ) : (
+          <ProcessDialog
+            request={r}
+            onDone={(result) => {
+              setOutcome(describeDeletion(r.fullName, result));
+              void refresh();
+            }}
+          />
+        ),
     },
   ];
 
-  const historyColumns: Column<DeletionRequest>[] = [
-    { key: "who", header: "Account", mobile: "primary", cell: (r) => personName(r) },
+  const historyColumns: Column<DeletionRow>[] = [
+    { ...who, cell: (r) => <span className="text-muted-foreground">{name(r)}</span> },
     {
       key: "status",
       header: "Outcome",
@@ -161,49 +199,78 @@ export function DeletionsPage() {
           <StatusChip tone="quiet">Withdrawn</StatusChip>
         ),
     },
-    { key: "kind", header: "Kind", cell: (r) => (r.kind === "manager" ? "Manager" : "Helper") },
+    { key: "kind", header: "Kind", cell: kind },
     { key: "asked", header: "Requested", cell: (r) => formatDate(r.requestedAt) },
     {
       key: "done",
       header: "Finished",
-      cell: (r) => (r.finishedAt ? formatDate(r.finishedAt) : ""),
+      cell: (r) => (r.processedAt ? formatDate(r.processedAt) : ""),
     },
   ];
-
-  const rows = tab === "pending" ? pending : history;
 
   return (
     <>
       <PageHeader
         title="Deletion requests"
-        description={`Users ask to delete their account in the app. Each request has to be processed within ${DELETION_DAYS} days.`}
-        actions={<ExportCsvButton slug="deletion-requests" columns={deletionCsv(now)} rows={all} />}
+        description={`Users ask to delete their account in the app. Each request has to be processed within ${DUE_DAYS} days.`}
+        actions={<ExportCsvButton slug="deletion-requests" columns={DELETION_CSV} rows={rows} />}
       />
+      {outcome ? (
+        <p
+          role="status"
+          className="mb-6 rounded-3xl bg-sand-deep px-5 py-4 text-sm text-foreground sm:px-6"
+        >
+          {outcome}
+        </p>
+      ) : null}
       <Surface flush>
         <div className="space-y-3 pt-5">
           <ListToolbar>
             <SegmentedFilter
               label="Show"
-              value={tab}
-              onChange={setTab}
+              value={view}
+              onChange={setView}
               options={[
-                { value: "pending", label: "Waiting", count: pending.length },
-                { value: "history", label: "History", count: history.length },
+                { value: "pending", label: "Waiting" },
+                { value: "history", label: "History" },
               ]}
             />
           </ListToolbar>
-          <DataTable
-            label={tab === "pending" ? "Waiting deletion requests" : "Finished deletion requests"}
-            rows={rows}
-            columns={tab === "pending" ? pendingColumns : historyColumns}
-            rowKey={(r) => r.id}
-            empty={
-              <EmptyState
-                title={tab === "pending" ? "No requests waiting" : "No finished requests yet"}
+          <div className={isFetching && !isPending ? "opacity-60" : undefined}>
+            {data && !data.ok ? (
+              <div className="px-5 pb-5 sm:px-6">
+                <EmptyState title="The requests didn't load">{data.message}</EmptyState>
+              </div>
+            ) : (
+              <DataTable
+                label={
+                  view === "pending" ? "Waiting deletion requests" : "Finished deletion requests"
+                }
+                rows={rows}
+                columns={view === "pending" ? pendingColumns : historyColumns}
+                rowKey={(r) => r.requestId}
+                empty={
+                  <EmptyState
+                    title={
+                      isPending
+                        ? "Loading requests"
+                        : view === "pending"
+                          ? "No requests waiting"
+                          : "No finished requests yet"
+                    }
+                  />
+                }
+                footer={
+                  <ListPager
+                    page={page}
+                    hasMore={!!(data?.ok && data.hasMore)}
+                    busy={isFetching}
+                    onPage={(p) => setPaging({ view, page: p })}
+                  />
+                }
               />
-            }
-            footer={<ListFooter shown={rows.length} total={rows.length} />}
-          />
+            )}
+          </div>
         </div>
       </Surface>
     </>

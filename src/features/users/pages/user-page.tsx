@@ -1,7 +1,8 @@
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { HiddenValue } from "@/components/shared/hidden-value";
+import { Button } from "@/components/ui/button";
 import { BackLink, RecordLink } from "@/components/shared/links";
 import { DetailList, PageHeader, Surface } from "@/components/shared/page";
 import { EmptyState } from "@/components/shared/states";
@@ -12,6 +13,7 @@ import { AuditTrail } from "@/features/audit/components/audit-trail";
 import { payRevealer } from "@/features/pay/pay-reveal";
 import { daysBetween, formatDate, formatRelativeDay } from "@/lib/format";
 
+import { SuspendDialog } from "../components/suspend-dialog";
 import { getUserFn } from "../users.actions";
 import type { UserDetail, UserJob } from "../users.types";
 
@@ -47,6 +49,7 @@ export function UserPage({ userId }: { userId: string }) {
 }
 
 function UserDetailView({ user }: { user: UserDetail }) {
+  const queryClient = useQueryClient();
   const deletion = user.deletion;
   const daysLeft = deletion ? DELETION_DAYS - daysBetween(deletion.requestedAt, new Date()) : 0;
 
@@ -60,6 +63,22 @@ function UserDetailView({ user }: { user: UserDetail }) {
             {user.suspended ? <StatusChip tone="danger">Suspended</StatusChip> : null}
             <span>{USER_KIND_LABEL[user.kind]}</span>
           </span>
+        }
+        actions={
+          <SuspendDialog
+            name={user.fullName}
+            userId={user.userId}
+            suspended={user.suspended}
+            onDone={() => {
+              void queryClient.invalidateQueries({ queryKey: ["user", user.userId] });
+              void queryClient.invalidateQueries({ queryKey: ["users"] });
+            }}
+            trigger={
+              <Button variant={user.suspended ? "default" : "outline"}>
+                {user.suspended ? "Unsuspend" : "Suspend"}
+              </Button>
+            }
+          />
         }
       />
 

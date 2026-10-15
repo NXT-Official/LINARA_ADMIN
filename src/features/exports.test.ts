@@ -8,7 +8,8 @@ import { formatPeso } from "@/lib/format";
 import { AUDIT_CSV } from "./audit/audit.export";
 import { CONTACT_CSV } from "./crm/crm.export";
 import type { ContactRow } from "./crm/crm.types";
-import { deletionCsv } from "./deletions/deletions.export";
+import { DELETION_CSV } from "./deletions/deletions.export";
+import type { DeletionRow } from "./deletions/deletions.types";
 import { HOUSEHOLD_CSV } from "./households/households.export";
 import type { HouseholdRow } from "./households/households.types";
 import { PAYOUT_CSV } from "./payouts/payouts.export";
@@ -24,6 +25,19 @@ import type { UserRow } from "./users/users.types";
 const now = new Date();
 const householdName = (id: string | undefined) =>
   sample.households.find((h) => h.id === id)?.name ?? null;
+/** The sample deletion requests as the real list returns them (Phase 4). */
+const deletionRows: DeletionRow[] = sample.deletionRequests.map((r) => ({
+  requestId: r.id,
+  userId: r.userId,
+  fullName: sample.users.find((u) => u.id === r.userId)?.fullName ?? null,
+  userType: r.kind,
+  status: r.status,
+  requestedAt: r.requestedAt,
+  dueAt: r.requestedAt,
+  daysLeft: 5,
+  processedAt: r.finishedAt,
+  blockers: [],
+}));
 /** The sample contacts as the real CRM list returns them (Phase 3a). */
 const contactRows: ContactRow[] = listContacts(now).map((c) => ({
   contactId: c.virtual ? null : c.id,
@@ -76,7 +90,7 @@ const exports: Record<string, string> = {
   users: toCsv(USER_CSV, userRows),
   households: toCsv(HOUSEHOLD_CSV, householdRows),
   tickets: toCsv(TICKET_CSV, sample.tickets),
-  deletions: toCsv(deletionCsv(now), sample.deletionRequests),
+  deletions: toCsv(DELETION_CSV, deletionRows),
   payouts: toCsv(PAYOUT_CSV, sample.payouts),
   audit: toCsv(
     AUDIT_CSV,

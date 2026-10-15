@@ -76,6 +76,7 @@ const columns: Column<UserRow>[] = [
 
 export function UsersPage() {
   const [view, setView] = useState<View>("all");
+  const [status, setStatus] = useState<"everyone" | "suspended">("everyone");
   const [q, setQ] = useState("");
   const typed = useDebouncedValue(q.trim());
   // The server searches 2 characters or more (S-20); one character lists everyone.
@@ -83,11 +84,16 @@ export function UsersPage() {
   const kind = view === "all" ? undefined : view;
 
   // A new search or filter starts again at the first page.
-  const filterKey = `${search ?? ""}|${kind ?? ""}`;
+  const filterKey = `${search ?? ""}|${kind ?? ""}|${status}`;
   const [paging, setPaging] = useState({ key: filterKey, page: 0 });
   const page = paging.key === filterKey ? paging.page : 0;
 
-  const input = { page, ...(search ? { search } : {}), ...(kind ? { kind } : {}) };
+  const input = {
+    page,
+    ...(search ? { search } : {}),
+    ...(kind ? { kind } : {}),
+    ...(status === "suspended" ? { suspended: true } : {}),
+  };
   const { data, isPending, isFetching } = useQuery({
     queryKey: ["users", input],
     queryFn: () => listUsersFn({ data: input }),
@@ -106,6 +112,15 @@ export function UsersPage() {
         <div className="space-y-3 pt-5">
           <ListToolbar>
             <SegmentedFilter label="Show" value={view} onChange={setView} options={VIEWS} />
+            <SegmentedFilter
+              label="Status"
+              value={status}
+              onChange={setStatus}
+              options={[
+                { value: "everyone", label: "Everyone" },
+                { value: "suspended", label: "Suspended" },
+              ]}
+            />
             <SearchField
               value={q}
               onChange={setQ}

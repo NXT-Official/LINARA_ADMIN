@@ -90,3 +90,35 @@ CREATE TABLE public.tickets (
     -- spawn job carry the first task's id, not their own (add-repeating-tasks.sql).
     routine_id TEXT
 );
+
+-- LINARA's account deletion (add-household-managers.sql), cut down to what the
+-- console relies on: its two refusals, the login going, and the request closing.
+CREATE FUNCTION public.process_account_deletion(p_user_id UUID) RETURNS JSONB
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+    v_type TEXT;
+BEGIN
+    SELECT user_type INTO v_type FROM public.user_profiles WHERE id = p_user_id;
+    IF EXISTS (SELECT 1 FROM public.helper_profiles WHERE user_id = p_user_id AND status = 'ACTIVE') THEN
+        RAISE EXCEPTION 'Her employment is still active. Ask the household to end it (with final pay) first.';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM public.household_managers m
+        WHERE m.user_id = p_user_id
+          AND NOT EXISTS (SELECT 1 FROM public.household_managers o
+                          WHERE o.household_id = m.household_id AND o.user_id <> p_user_id)
+          AND EXISTS (SELECT 1 FROM public.helper_profiles h
+                      WHERE h.household_id = m.household_id AND h.status = 'ACTIVE')
+    ) THEN
+        RAISE EXCEPTION 'A household they''re the last manager of still employs someone. End each employment (with final pay) first.';
+    END IF;
+    DELETE FROM public.household_managers WHERE user_id = p_user_id;
+    UPDATE public.helper_profiles SET user_id = NULL WHERE user_id = p_user_id;
+    DELETE FROM auth.users WHERE id = p_user_id;
+    UPDATE public.account_deletion_requests
+        SET status = 'done', processed_at = now(), note = NULL
+        WHERE user_id = p_user_id AND status = 'pending';
+    RETURN jsonb_build_object('user_id', p_user_id, 'user_type', v_type,
+                              'household_deleted', false);
+END $$;
+REVOKE ALL ON FUNCTION public.process_account_deletion(UUID) FROM PUBLIC, anon, authenticated;

@@ -3,13 +3,25 @@ import "@testing-library/jest-dom/vitest";
 
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { UserDetail } from "../users.types";
 
-const m = vi.hoisted(() => ({ get: vi.fn() }));
-vi.mock("../users.actions", () => ({ getUserFn: (...a: unknown[]) => m.get(...a) }));
+const m = vi.hoisted(() => ({ get: vi.fn(), suspend: vi.fn() }));
+vi.mock("../users.actions", () => ({
+  getUserFn: (...a: unknown[]) => m.get(...a),
+  setSuspendedFn: (...a: unknown[]) => m.suspend(...a),
+}));
+vi.mock("sonner", () => ({ toast: { success: vi.fn() } }));
+
+// input-otp measures itself and looks for password managers; jsdom has neither API.
+document.elementFromPoint ??= () => null;
+globalThis.ResizeObserver ??= class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+} as unknown as typeof ResizeObserver;
 vi.mock("@/features/pay/pay.actions", () => ({ revealPayFn: vi.fn() }));
 vi.mock("@/features/audit/components/audit-trail", () => ({ AuditTrail: () => null }));
 vi.mock("@/components/shared/links", () => {
@@ -76,14 +88,13 @@ describe("UserPage (FR-US-3, FR-US-6)", () => {
     ).toBeInTheDocument();
   });
 
-  it("later phases say when they arrive, and there is no suspend yet", async () => {
+  it("later phases say when they arrive", async () => {
     renderPage();
     await screen.findByRole("heading", { name: "Carla Dizon" });
     expect(screen.getByText(/Arrives with Support \(Phase 5\)/)).toBeInTheDocument();
     expect(screen.queryByText(/Arrives with the CRM/)).toBeNull();
     // Helpers aren't CRM contacts (§5.2.1).
     expect(screen.queryByRole("link", { name: "Open in CRM" })).toBeNull();
-    expect(screen.queryByRole("button", { name: /suspend/i })).toBeNull();
   });
 
   it("a manager links to their CRM contact", async () => {
@@ -101,6 +112,39 @@ describe("UserPage (FR-US-3, FR-US-6)", () => {
       "href",
       `/crm/account/${ID}`,
     );
+  });
+
+  it("Suspend asks for a reason and the code", async () => {
+    m.suspend.mockResolvedValue({ ok: true });
+    renderPage();
+    await screen.findByRole("heading", { name: "Carla Dizon" });
+    fireEvent.click(screen.getByRole("button", { name: "Suspend" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText(/session keeps working until it expires, up to about an hour/),
+    ).toBeInTheDocument();
+    const submit = within(dialog).getByRole("button", { name: "Suspend" });
+    fireEvent.change(within(dialog).getByLabelText("6-digit code"), {
+      target: { value: "123456" },
+    });
+    expect(submit).toBeDisabled();
+    fireEvent.change(within(dialog).getByLabelText("Reason"), {
+      target: { value: "Reported by a household" },
+    });
+    expect(submit).toBeEnabled();
+    fireEvent.click(submit);
+    await waitFor(() =>
+      expect(m.suspend).toHaveBeenCalledWith({
+        data: { userId: ID, suspended: true, reason: "Reported by a household", code: "123456" },
+      }),
+    );
+  });
+
+  it("a suspended user shows Unsuspend", async () => {
+    m.get.mockResolvedValue({ ok: true, user: { ...helper, suspended: true } });
+    renderPage();
+    await screen.findByRole("heading", { name: "Carla Dizon" });
+    expect(screen.getByRole("button", { name: "Unsuspend" })).toBeInTheDocument();
   });
 
   it("shows a pending deletion request", async () => {

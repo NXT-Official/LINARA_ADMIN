@@ -8,9 +8,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { DashboardData } from "../dashboard.types";
 
-const m = vi.hoisted(() => ({ get: vi.fn(), crm: vi.fn() }));
+const m = vi.hoisted(() => ({ get: vi.fn(), crm: vi.fn(), del: vi.fn() }));
 vi.mock("../dashboard.actions", () => ({ getDashboardFn: (...a: unknown[]) => m.get(...a) }));
 vi.mock("@/features/crm/crm.actions", () => ({ crmDashboardFn: (...a: unknown[]) => m.crm(...a) }));
+vi.mock("@/features/deletions/deletions.actions", () => ({
+  deletionCountsFn: (...a: unknown[]) => m.del(...a),
+}));
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
     to,
@@ -74,6 +77,7 @@ const crm = {
 beforeEach(() => {
   m.get.mockReset().mockResolvedValue({ ok: true, data });
   m.crm.mockReset().mockResolvedValue({ ok: true, crm });
+  m.del.mockReset().mockResolvedValue({ ok: true, counts: { pending: 4, dueSoon: 1, overdue: 2 } });
 });
 afterEach(cleanup);
 
@@ -102,7 +106,6 @@ describe("DashboardPage (FR-DB-1 to FR-DB-3, FR-DB-8, FR-DB-9)", () => {
     await screen.findByRole("link", { name: /^Households/ });
     expect(screen.queryByText("CRM: arrives in Phase 3")).toBeNull();
     for (const text of [
-      "Deletion requests: arrive in Phase 4",
       "Support tickets: arrive in Phase 5",
       "Payouts and AI usage: arrive in Phase 6",
     ]) {
@@ -128,6 +131,16 @@ describe("DashboardPage (FR-DB-1 to FR-DB-3, FR-DB-8, FR-DB-9)", () => {
       "/crm?kind=lead&stage=new",
     );
     expect(screen.getByRole("link", { name: /Became customers/ })).toHaveTextContent("1");
+  });
+
+  it("deletion figures link to the list (FR-DB-4)", async () => {
+    renderPage();
+    const pending = await screen.findByRole("link", { name: /^Deletion requests waiting/ });
+    expect(pending).toHaveAttribute("href", "/deletions");
+    expect(pending).toHaveTextContent("4");
+    expect(screen.getByRole("link", { name: /^Past the 30-day deadline/ })).toHaveTextContent("2");
+    expect(screen.getByRole("link", { name: /^Due within 7 days/ })).toHaveTextContent("1");
+    expect(screen.queryByText(/Deletion requests: arrive in Phase 4/)).toBeNull();
   });
 
   it("a CRM failure shows Unavailable, other sections still show", async () => {

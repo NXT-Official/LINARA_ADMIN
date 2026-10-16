@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 
+import { useCan } from "@/features/auth/use-can";
 import { RecordLink } from "@/components/shared/links";
 import { Surface } from "@/components/shared/page";
 import { StatusChip } from "@/components/shared/status-chip";
@@ -19,30 +20,38 @@ import { LogTicketDialog, type TicketLinks } from "./log-ticket-dialog";
 export function RecordTickets({ filter }: { filter: TicketLinks }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const can = useCan();
+  const canView = can("support.view");
+  const canWrite = can("support.write");
   const input = { page: 0, ...filter };
   const { data, isPending } = useQuery({
     queryKey: ["support", "tickets", input],
     queryFn: () => listTicketsFn({ data: input }),
+    enabled: canView,
   });
   const tickets = data?.ok ? data.tickets : [];
+  // A role without Support doesn't see the panel at all (FR-RL-8).
+  if (!canView) return null;
 
   return (
     <Surface
       title="Support tickets"
       flush
       actions={
-        <LogTicketDialog
-          links={filter}
-          trigger={
-            <Button size="sm" variant="outline">
-              Log ticket
-            </Button>
-          }
-          onLogged={(ticketId) => {
-            void queryClient.invalidateQueries({ queryKey: ["support"] });
-            void navigate({ to: `/support/${ticketId}` });
-          }}
-        />
+        canWrite ? (
+          <LogTicketDialog
+            links={filter}
+            trigger={
+              <Button size="sm" variant="outline">
+                Log ticket
+              </Button>
+            }
+            onLogged={(ticketId) => {
+              void queryClient.invalidateQueries({ queryKey: ["support"] });
+              void navigate({ to: `/support/${ticketId}` });
+            }}
+          />
+        ) : undefined
       }
     >
       {isPending ? (

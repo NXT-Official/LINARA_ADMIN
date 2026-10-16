@@ -86,7 +86,7 @@ describe("setSuspendedHandler (FR-US-4, FR-US-5, S-5, D36)", () => {
     await expect(setSuspendedHandler(input)).resolves.toEqual({
       ok: false,
       code: "not_allowed",
-      message: "Console admins are managed on the Admins screen.",
+      message: "Team members are managed on the Team screen.",
     });
     expect(m.rpc).toHaveBeenCalledWith("staff_is_console_admin", { p_user_id: USER });
     expect(m.code).not.toHaveBeenCalled();

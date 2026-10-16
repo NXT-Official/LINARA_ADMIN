@@ -5,10 +5,11 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("./team.actions", () => ({
-  listAdminsFn: async () => ({
+  listTeamNamesFn: async () => ({
     ok: true,
-    admins: [{ userId: "a1", email: "ops@example.com", isYou: true }],
+    members: [{ userId: "a1", email: "ops@example.com", isYou: true }],
   }),
+  listAdminsFn: async () => ({ ok: false, code: "not_allowed", message: "no" }),
 }));
 
 import { SYSTEM_ACTOR, useAdmins } from "./use-admins";
@@ -24,6 +25,6 @@ describe("useAdmins", () => {
     expect(SYSTEM_ACTOR).toBe("00000000-0000-0000-0000-000000000000");
     expect(result.current.name(SYSTEM_ACTOR)).toBe("Automatic job");
     expect(result.current.name("a1")).toBe("You");
-    expect(result.current.name("gone")).toBe("Former admin");
+    expect(result.current.name("gone")).toBe("Former member");
   });
 });

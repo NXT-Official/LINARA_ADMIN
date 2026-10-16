@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useCan } from "@/features/auth/use-can";
 
 type State =
   | { kind: "hidden"; error: string | null }
@@ -23,6 +24,16 @@ export function HiddenValue({
   reveal: () => Promise<string | null>;
 }) {
   const [state, setState] = useState<State>({ kind: "hidden", error: null });
+  const canReveal = useCan()("pay.view");
+
+  if (!canReveal) {
+    return (
+      <span className="inline-flex items-center gap-2">
+        <span aria-hidden="true" className="h-4 w-16 rounded-md bg-sand-deep" />
+        <span className="sr-only">Hidden</span>
+      </span>
+    );
+  }
 
   if (state.kind === "shown") {
     return state.value === null ? (

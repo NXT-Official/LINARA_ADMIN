@@ -17,7 +17,7 @@ import {
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { signOutFn } from "@/features/auth/auth.actions";
 import { can } from "@/features/auth/permissions";
-import type { StaffRole } from "@/features/auth/permissions";
+import type { SessionStaff } from "@/features/auth/use-can";
 import { cn } from "@/lib/utils";
 
 import { NAV_GROUPS, type NavItem } from "./nav";
@@ -45,15 +45,21 @@ function Brand() {
   );
 }
 
-export type ShellStaff = { userId: string; email: string; role: StaffRole };
+export type ShellStaff = SessionStaff;
 
-function NavList({ role, onNavigate }: { role: StaffRole; onNavigate?: () => void }) {
+function NavList({
+  permissions,
+  onNavigate,
+}: {
+  permissions: readonly string[];
+  onNavigate?: () => void;
+}) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   return (
     <nav aria-label="Console" className="space-y-5">
       {NAV_GROUPS.map((group) => {
-        const items = group.items.filter((i) => can(role, i.permission));
+        const items = group.items.filter((i) => can(permissions, i.permission));
         if (items.length === 0) return null;
         return (
           <div key={group.label ?? "top"}>
@@ -112,7 +118,7 @@ function NavLink({
 function AccountMenu({ staff }: { staff: ShellStaff }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  // Admins have no stored name: the work email identifies them.
+  // Members have no stored name: the work email identifies them.
   const local = staff.email.split("@")[0] ?? "";
   const initials = local.slice(0, 2).toUpperCase() || "A";
   return (
@@ -136,6 +142,7 @@ function AccountMenu({ staff }: { staff: ShellStaff }) {
           <span className="block truncate text-sm font-semibold text-foreground">
             {staff.email}
           </span>
+          <span className="mt-1 block text-xs text-muted-foreground">{staff.roleName}</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem
@@ -167,7 +174,7 @@ export function AppShell({ staff, children }: { staff: ShellStaff; children: Rea
           <Brand />
         </div>
         <div className="mt-8 flex-1 overflow-y-auto">
-          <NavList role={staff.role} />
+          <NavList permissions={staff.permissions} />
         </div>
       </aside>
 
@@ -179,7 +186,7 @@ export function AppShell({ staff, children }: { staff: ShellStaff; children: Rea
             <Brand />
           </div>
           <div className="mt-8">
-            <NavList role={staff.role} onNavigate={() => setMenuOpen(false)} />
+            <NavList permissions={staff.permissions} onNavigate={() => setMenuOpen(false)} />
           </div>
         </SheetContent>
       </Sheet>

@@ -20,6 +20,8 @@ rows are listed in spec D28 and D33. The CRM's write rules are in D34.
 | `010-support.sql`           | Phase 5: `support_tickets` and `support_ticket_notes` (RLS on, no app-role access), list, detail and counts, writes that record themselves in the audit log (D37); a processed deletion also clears that person's tickets. |
 | `011-support-fixes.sql`     | Phase 5 review fixes: a ticket can only be assigned to a current admin; a user and a contact asked for together list the tickets linked to either. Run after 010. |
 | `012-operations.sql`       | Phase 6: payout problems (latest attempt per payslip, no amounts), their counts, and AI usage for the last 48 hours with limit hits (D38). Reads only. Run after 011. |
+| `013-roles.sql`            | Phase 7: `staff_role_defs` with four locked presets and custom roles, one role per member (existing admins become Admin), and team and role changes that enforce D39 and record themselves. Replaces `staff_touch_session` and `staff_list_admins`. Run after 012. |
+| `014-roles-fixes.sql`      | Phase 7 review fixes: the table refuses `team.manage` on a custom role, only the admin and mods presets manage the team, a missing code flag counts as no code, and the code covers creating a custom role and giving admin, mods or a custom role (spec 0.19), and the Team screen wording in the deletion and assignee messages (spec 0.20). Replaces six functions with the same signatures, and `staff_create_role` (gains `p_code_checked`). Run after 013. |
 
 Each file runs in one transaction: it applies completely or not at all.
 
@@ -37,12 +39,14 @@ Each file runs in one transaction: it applies completely or not at all.
 2. **SQL Editor**, with that email:
 
    ```sql
-   insert into public.staff_roles (user_id, role)
-   select id, 'admin' from auth.users where email = 'admin-email@example.com';
+   insert into public.staff_roles (user_id, role_id)
+   select u.id, d.id from auth.users u, public.staff_role_defs d
+   where u.email = 'admin-email@example.com' and d.preset = 'admin';
    ```
 
-   Expected: "Success. 1 row affected". Every later admin is added from the
-   console's Admins screen.
+   Expected: "Success. 1 row affected". Before `013-roles.sql`, use
+   `(user_id, role)` with `'admin'` instead. Every later member is added from
+   the console's Team screen.
 
 ## Tests
 

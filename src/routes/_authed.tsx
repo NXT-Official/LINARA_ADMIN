@@ -3,6 +3,7 @@ import { Outlet, createFileRoute, redirect, useMatches } from "@tanstack/react-r
 import { RestrictedPanel } from "@/components/shared/states";
 import { getConsoleSessionFn } from "@/features/auth/session.actions";
 import { can } from "@/features/auth/permissions";
+import { StaffProvider } from "@/features/auth/staff-provider";
 import { AppShell } from "@/features/shell/app-shell";
 import "@/features/shell/route-static-data";
 
@@ -33,13 +34,15 @@ function AuthedLayout() {
   const permission = matches[matches.length - 1]?.staticData?.permission;
 
   return (
-    <AppShell staff={staff}>
-      {/* Spec §7.3, step 2: a screen the role doesn't cover shows Restricted. */}
-      {permission && !can(staff.role, permission) ? (
-        <RestrictedPanel what="this screen" />
-      ) : (
-        <Outlet />
-      )}
-    </AppShell>
+    <StaffProvider staff={staff}>
+      <AppShell staff={staff}>
+        {/* Spec §7.3, step 2: a screen the role doesn't cover shows Restricted (FR-RL-7). */}
+        {permission && !can(staff.permissions, permission) ? (
+          <RestrictedPanel what="this screen" />
+        ) : (
+          <Outlet />
+        )}
+      </AppShell>
+    </StaffProvider>
   );
 }

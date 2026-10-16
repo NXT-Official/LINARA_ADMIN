@@ -35,7 +35,7 @@ export async function setSuspendedHandler(input: {
     });
     if (adminError) throw new Error(adminError.message);
     if (isAdmin) {
-      throw new ConsoleError("not_allowed", "Console admins are managed on the Admins screen.");
+      throw new ConsoleError("not_allowed", "Team members are managed on the Team screen.");
     }
 
     await requireFreshCode(staff, input.code);

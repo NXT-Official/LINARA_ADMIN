@@ -26,6 +26,7 @@ import {
   SOURCE_LABEL,
   USER_KIND_LABEL,
 } from "@/data/labels";
+import { useCan } from "@/features/auth/use-can";
 import { useAdmins } from "@/features/team/use-admins";
 import { daysBetween, formatRelativeDay } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
@@ -68,6 +69,7 @@ const ROLE_OPTIONS = [
 export function ContactsPage({ initial = {} }: { initial?: ContactFilters }) {
   const queryClient = useQueryClient();
   const admins = useAdmins();
+  const can = useCan();
   const [kind, setKind] = useState<ContactKind | "all">(initial.kind ?? "all");
   const [stage, setStage] = useState<string>(initial.stage ?? ANY);
   const [role, setRole] = useState<ManagerRole | typeof ANY>(ANY);
@@ -183,35 +185,43 @@ export function ContactsPage({ initial = {} }: { initial?: ContactFilters }) {
         actions={
           <>
             <ExportCsvButton slug="crm-contacts" columns={CONTACT_CSV} rows={rows} />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" aria-label="More CRM actions">
-                  <MoreHorizontal />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-64 rounded-xl">
-                <DropdownMenuItem asChild>
-                  <Link to="/crm/import">
-                    <Upload aria-hidden="true" />
-                    Import leads from CSV
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setExporting(true)}>
-                  <Download aria-hidden="true" />
-                  Export with contact details
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {can("crm.write") || can("crm.export") ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon" aria-label="More CRM actions">
+                    <MoreHorizontal />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64 rounded-xl">
+                  {can("crm.write") ? (
+                    <DropdownMenuItem asChild>
+                      <Link to="/crm/import">
+                        <Upload aria-hidden="true" />
+                        Import leads from CSV
+                      </Link>
+                    </DropdownMenuItem>
+                  ) : null}
+                  {can("crm.export") ? (
+                    <DropdownMenuItem onSelect={() => setExporting(true)}>
+                      <Download aria-hidden="true" />
+                      Export with contact details
+                    </DropdownMenuItem>
+                  ) : null}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
             <ExportDialog open={exporting} onOpenChange={setExporting} filters={filters} />
-            <AddLeadDialog
-              trigger={
-                <Button>
-                  <Plus />
-                  Add lead
-                </Button>
-              }
-              onAdded={() => queryClient.invalidateQueries({ queryKey: ["crm"] })}
-            />
+            {can("crm.write") ? (
+              <AddLeadDialog
+                trigger={
+                  <Button>
+                    <Plus />
+                    Add lead
+                  </Button>
+                }
+                onAdded={() => queryClient.invalidateQueries({ queryKey: ["crm"] })}
+              />
+            ) : null}
           </>
         }
       />

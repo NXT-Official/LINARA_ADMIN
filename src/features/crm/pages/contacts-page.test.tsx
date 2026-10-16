@@ -20,7 +20,7 @@ vi.mock("@/components/shared/charts", () => ({
   ),
   BarList: () => null,
 }));
-vi.mock("@/features/team/team.actions", () => ({ listAdminsFn: () => m.admins() }));
+vi.mock("@/features/team/team.actions", () => ({ listTeamNamesFn: () => m.admins() }));
 vi.mock("@/components/shared/export-button", () => ({ ExportCsvButton: () => null }));
 vi.mock("@/components/shared/links", () => ({
   RowLink: ({ to, children }: { to: string; children: ReactNode }) => <a href={to}>{children}</a>,
@@ -28,6 +28,7 @@ vi.mock("@/components/shared/links", () => ({
 vi.mock("sonner", () => ({ toast: { success: vi.fn() } }));
 
 import { ContactsPage } from "./contacts-page";
+import { asRole, SUPPORT } from "@/features/auth/staff.test-utils";
 
 const ME = "7f0c2a7e-1b2c-4d5e-8f90-000000000001";
 const row = (over: Partial<ContactRow> = {}): ContactRow => ({
@@ -90,7 +91,7 @@ beforeEach(() => {
   });
   m.admins.mockReset().mockResolvedValue({
     ok: true,
-    admins: [{ userId: ME, email: "ops@example.com", isYou: true }],
+    members: [{ userId: ME, email: "ops@example.com", isYou: true }],
   });
 });
 afterEach(cleanup);
@@ -200,5 +201,20 @@ describe("ContactsPage (FR-CRM-1 to FR-CRM-4, FR-CRM-8)", () => {
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(
       "A lead needs an email or a phone number.",
     );
+  });
+});
+
+describe("permissions (FR-RL-8)", () => {
+  it("support sees the list but no CRM edit or export controls", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <ContactsPage />
+      </QueryClientProvider>,
+      { wrapper: asRole(SUPPORT) },
+    );
+    await waitFor(() => expect(m.list).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: "Add lead" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "More CRM actions" })).toBeNull();
   });
 });

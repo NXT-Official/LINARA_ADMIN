@@ -9,7 +9,8 @@ import { getAdminClient } from "@/lib/supabase-admin.server";
 import { memoryLimit } from "./memory-limit.server";
 
 /** The shared, database-backed tier (D30). One call per check. */
-export type RateRule = "sign_in" | "reset" | "code" | "link" | "add_admin" | "export";
+export type RateRule =
+  "sign_in" | "reset" | "code" | "link" | "add_admin" | "team_change" | "export";
 type Kind = "email" | "ip" | "admin";
 
 export const RATE_RULES: Record<
@@ -33,6 +34,8 @@ export const RATE_RULES: Record<
   code: { windowMinutes: 15, limits: [{ kind: "admin", max: 5 }] },
   link: { windowMinutes: 15, limits: [{ kind: "ip", max: 10 }] },
   add_admin: { windowMinutes: 60, limits: [{ kind: "admin", max: 10 }] },
+  // Creating, editing or deleting a role, or changing a member's role (D30, spec 0.20).
+  team_change: { windowMinutes: 60, limits: [{ kind: "admin", max: 30 }] },
   export: { windowMinutes: 60, limits: [{ kind: "admin", max: 30 }] },
 };
 

@@ -21,13 +21,16 @@ export function RecordLink({
   children,
   className,
 }: {
+  /** A path, optionally with a query string such as `/team?tab=roles`. */
   to: string;
   children: ReactNode;
   className?: string;
 }) {
+  const [path, query] = to.split("?");
   return (
     <Link
-      to={to}
+      to={path}
+      search={query ? Object.fromEntries(new URLSearchParams(query)) : undefined}
       className={cn(
         "relative z-10 font-semibold text-pine underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         className,

@@ -25,6 +25,7 @@ vi.mock("@/components/shared/links", () => ({
 }));
 
 import { PayoutsPage } from "./payouts-page";
+import { asRole, SUPPORT } from "@/features/auth/staff.test-utils";
 
 const AMOUNT = 4321.5;
 const problem = (over: Partial<PayoutProblem> = {}): PayoutProblem => ({
@@ -125,5 +126,19 @@ describe("PayoutsPage (FR-PO-1 to FR-PO-3)", () => {
     await screen.findAllByText("Nena");
     expect(screen.queryByRole("button", { name: /xendit/i })).toBeNull();
     expect(screen.getByText(/search the reference in the Xendit dashboard/)).toBeInTheDocument();
+  });
+});
+
+describe("permissions (FR-RL-8)", () => {
+  it("no Show amount without pay.view", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <PayoutsPage />
+      </QueryClientProvider>,
+      { wrapper: asRole(SUPPORT) },
+    );
+    await screen.findAllByText("Nena");
+    expect(screen.queryByRole("button", { name: /payout amount/ })).toBeNull();
   });
 });

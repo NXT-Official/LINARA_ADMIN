@@ -4,11 +4,12 @@ import "@testing-library/jest-dom/vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { asRole, SUPPORT } from "@/features/auth/staff.test-utils";
 
 const m = vi.hoisted(() => ({ audit: vi.fn(), admins: vi.fn() }));
 vi.mock("../audit.actions", () => ({ listAuditFn: (...a: unknown[]) => m.audit(...a) }));
 vi.mock("@/features/team/team.actions", () => ({
-  listAdminsFn: (...a: unknown[]) => m.admins(...a),
+  listTeamNamesFn: (...a: unknown[]) => m.admins(...a),
 }));
 
 import { AuditTrail } from "./audit-trail";
@@ -27,7 +28,7 @@ function renderTrail() {
 beforeEach(() => {
   m.admins.mockReset().mockResolvedValue({
     ok: true,
-    admins: [{ userId: "a1", email: "ops@example.com" }],
+    members: [{ userId: "a1", email: "ops@example.com" }],
   });
   m.audit.mockReset().mockResolvedValue({
     ok: true,
@@ -58,6 +59,22 @@ describe("AuditTrail (FR-US-3)", () => {
   it("says when nothing was done here", async () => {
     m.audit.mockResolvedValue({ ok: true, hasMore: false, entries: [] });
     renderTrail();
-    expect(await screen.findByText("No admin has done anything here.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("No one on the team has done anything here."),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("without audit.view (FR-RL-8)", () => {
+  it("the history panel isn't shown and isn't asked for", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { container } = render(
+      <QueryClientProvider client={client}>
+        <AuditTrail targetId={ID} />
+      </QueryClientProvider>,
+      { wrapper: asRole(SUPPORT) },
+    );
+    expect(container).toBeEmptyDOMElement();
+    expect(m.audit).not.toHaveBeenCalled();
   });
 });

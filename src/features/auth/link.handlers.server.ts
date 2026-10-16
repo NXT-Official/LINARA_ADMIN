@@ -20,7 +20,7 @@ const MIN_PASSWORD = 12;
 async function isConsoleAdmin(userId: string): Promise<boolean> {
   const { data } = await getAdminClient()
     .from("staff_roles")
-    .select("role")
+    .select("user_id")
     .eq("user_id", userId)
     .maybeSingle();
   return !!data;

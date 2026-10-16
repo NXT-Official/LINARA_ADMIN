@@ -6,7 +6,7 @@ import { getAdminClient } from "@/lib/supabase-admin.server";
 import { getAnonClient } from "@/lib/supabase-user.server";
 
 import { memoryLimit } from "./memory-limit.server";
-import { can, type Permission, type StaffRole } from "./permissions";
+import { can, type Permission, type RolePreset } from "./permissions";
 import {
   clearSessionCookies,
   readSessionCookies,
@@ -20,10 +20,17 @@ const CALLS_PER_MINUTE = 120; // D30, memory tier, per admin
 const IP_CALLS_PER_MINUTE = 300; // D30, memory tier, per address (an office shares one)
 const TOO_MANY = "Too many requests. Wait a minute, then try again.";
 
-export type StaffContext = {
+/** The member's one role and what it allows (D39). */
+export type RoleFacts = {
+  roleId: string;
+  roleName: string;
+  preset: RolePreset | null;
+  permissions: Permission[];
+};
+
+export type StaffContext = RoleFacts & {
   userId: string;
   email: string;
-  role: StaffRole;
   sessionId: string;
   aal: "aal1" | "aal2";
   accessToken: string;
@@ -32,7 +39,7 @@ export type StaffContext = {
 
 export type SessionFacts = {
   now: Date;
-  role: StaffRole | null;
+  role: RoleFacts | null;
   aal: string;
   signedInAt: Date;
   lastSeenAt: Date | null;
@@ -61,6 +68,16 @@ const MESSAGE: Record<Reason | "signed_out", string> = {
   no_role: "Sign in to continue.",
   needs_two_step: "Sign in to continue.",
   signed_out: "Sign in to continue.",
+};
+
+type DbRoleDef = { id: string; name: string; preset: RolePreset | null; permissions: string[] };
+type DbTouchRow = {
+  role_id: string;
+  role_name: string;
+  preset: RolePreset | null;
+  permissions: string[];
+  started_at: string;
+  last_seen_at: string;
 };
 
 type Claims = {
@@ -126,7 +143,7 @@ export async function requireStaff(
   }
 
   const now = new Date();
-  let role: StaffRole | null = null;
+  let role: RoleFacts | null = null;
   let signedInAt = new Date((claims.iat ?? 0) * 1000);
   let lastSeenAt: Date | null = null;
 
@@ -134,14 +151,22 @@ export async function requireStaff(
     // Two-step setup or code entry: no console session row exists yet.
     const { data, error } = await admin
       .from("staff_roles")
-      .select("role")
+      .select("role_id, staff_role_defs(id, name, preset, permissions)")
       .eq("user_id", claims.sub)
-      .maybeSingle();
+      .maybeSingle<{ role_id: string; staff_role_defs: DbRoleDef | null }>();
     if (error) {
       logError("role lookup", error.message);
       throw new ConsoleError("outside_service");
     }
-    role = (data?.role as StaffRole | undefined) ?? null;
+    const def = data?.staff_role_defs;
+    role = def
+      ? {
+          roleId: def.id,
+          roleName: def.name,
+          preset: def.preset,
+          permissions: def.permissions as Permission[],
+        }
+      : null;
   } else {
     const { data, error } = await admin.rpc("staff_touch_session", {
       p_session_id: claims.session_id,
@@ -151,9 +176,14 @@ export async function requireStaff(
       logError("touch session", error.message);
       throw new ConsoleError("outside_service");
     }
-    const row = (data as { role: string; started_at: string; last_seen_at: string }[] | null)?.[0];
+    const row = (data as DbTouchRow[] | null)?.[0];
     if (row) {
-      role = row.role as StaffRole;
+      role = {
+        roleId: row.role_id,
+        roleName: row.role_name,
+        preset: row.preset,
+        permissions: row.permissions as Permission[],
+      };
       signedInAt = new Date(row.started_at);
       lastSeenAt = new Date(row.last_seen_at);
     }
@@ -170,12 +200,13 @@ export async function requireStaff(
     throw signedOut(verdict.reason);
   }
 
-  if (permission && !can(role, permission)) throw new ConsoleError("not_allowed");
+  const facts = role as RoleFacts;
+  if (permission && !can(facts.permissions, permission)) throw new ConsoleError("not_allowed");
 
   return {
     userId: claims.sub,
     email: claims.email ?? "",
-    role: role as StaffRole,
+    ...facts,
     sessionId: claims.session_id,
     aal: claims.aal === "aal2" ? "aal2" : "aal1",
     accessToken,

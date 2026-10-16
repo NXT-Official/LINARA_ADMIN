@@ -21,6 +21,8 @@ export function targetHref(e: {
       return `/crm/${e.targetId}`;
     case "staff":
       return "/team";
+    case "role":
+      return "/team?tab=roles";
     default:
       return null;
   }

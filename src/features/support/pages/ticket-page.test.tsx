@@ -35,9 +35,9 @@ vi.mock("@/features/crm/crm.actions", () => ({
   listContactsFn: async () => ({ ok: true, hasMore: false, contacts: [] }),
 }));
 vi.mock("@/features/team/team.actions", () => ({
-  listAdminsFn: async () => ({
+  listTeamNamesFn: async () => ({
     ok: true,
-    admins: [
+    members: [
       { userId: "a1", email: "ops@example.com", isYou: true },
       { userId: "a2", email: "sales@example.com", isYou: false },
     ],
@@ -53,6 +53,7 @@ vi.mock("@/components/shared/links", () => {
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { TicketPage } from "./ticket-page";
+import { asRole } from "@/features/auth/staff.test-utils";
 
 const ID = "7f0c2a7e-1b2c-4d5e-8f90-123456789abc";
 const ticket: TicketDetail = {
@@ -218,5 +219,22 @@ describe("TicketPage (FR-SP-3 to FR-SP-7)", () => {
     m.get.mockResolvedValue({ ok: false, code: "not_found", message: "x" });
     renderPage();
     expect(await screen.findByRole("heading", { name: "Ticket not found" })).toBeInTheDocument();
+  });
+});
+
+describe("permissions (FR-RL-8)", () => {
+  it("a view-only role sees the ticket but can't change it", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <TicketPage ticketId={ID} />
+      </QueryClientProvider>,
+      { wrapper: asRole(["dashboard.view", "support.view"]) },
+    );
+    await screen.findByRole("heading", { name: /Can't add/ });
+    expect(screen.queryByRole("button", { name: "Add note" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Assign to me" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Change links" })).toBeNull();
+    expect(screen.queryByRole("radio", { name: "Resolved" })).toBeNull();
   });
 });

@@ -35,6 +35,7 @@ vi.mock("@/components/shared/links", () => {
 });
 
 import { UserPage } from "./user-page";
+import { asRole, SUPPORT } from "@/features/auth/staff.test-utils";
 
 const ID = "7f0c2a7e-1b2c-4d5e-8f90-123456789abc";
 const helper: UserDetail = {
@@ -169,5 +170,20 @@ describe("UserPage (FR-US-3, FR-US-6)", () => {
     });
     renderPage();
     expect(await screen.findByRole("heading", { name: "User not found" })).toBeInTheDocument();
+  });
+});
+
+describe("permissions (FR-RL-8)", () => {
+  it("no Suspend and no Show pay without their permissions", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <UserPage userId={ID} />
+      </QueryClientProvider>,
+      { wrapper: asRole(SUPPORT) },
+    );
+    await screen.findByRole("heading", { name: "Carla Dizon" });
+    expect(screen.queryByRole("button", { name: /^(Suspend|Unsuspend)$/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Show / })).toBeNull();
   });
 });

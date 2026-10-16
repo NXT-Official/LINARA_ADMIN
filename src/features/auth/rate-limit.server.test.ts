@@ -43,6 +43,10 @@ describe("rate limits (D30)", () => {
       limits: [{ kind: "admin", max: 10 }],
     });
     expect(RATE_RULES.export).toEqual({ windowMinutes: 60, limits: [{ kind: "admin", max: 30 }] });
+    expect(RATE_RULES.team_change).toEqual({
+      windowMinutes: 60,
+      limits: [{ kind: "admin", max: 30 }],
+    });
   });
 
   it("one database call per check", async () => {

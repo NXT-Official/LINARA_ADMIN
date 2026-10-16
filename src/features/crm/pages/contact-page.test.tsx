@@ -36,9 +36,9 @@ vi.mock("../crm.actions", () => ({
   createLeadFn: vi.fn(),
 }));
 vi.mock("@/features/team/team.actions", () => ({
-  listAdminsFn: async () => ({
+  listTeamNamesFn: async () => ({
     ok: true,
-    admins: [{ userId: "a1", email: "ops@example.com", isYou: true }],
+    members: [{ userId: "a1", email: "ops@example.com", isYou: true }],
   }),
 }));
 vi.mock("@/features/users/users.actions", () => ({
@@ -58,6 +58,7 @@ vi.mock("@tanstack/react-router", () => ({ useNavigate: () => m.navigate }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn() } }));
 
 import { ContactPage } from "./contact-page";
+import { asRole, SUPPORT } from "@/features/auth/staff.test-utils";
 
 const lead: ContactDetail = {
   contactId: "c1",
@@ -315,5 +316,29 @@ describe("ContactPage (FR-CRM-5 to FR-CRM-8, FR-CRM-12, FR-CRM-14)", () => {
     m.get.mockResolvedValue({ ok: false, code: "not_found", message: "x" });
     renderPage();
     expect(await screen.findByRole("heading", { name: "Contact not found" })).toBeInTheDocument();
+  });
+});
+
+describe("permissions (FR-RL-8)", () => {
+  it("support sees tickets but no CRM edit controls", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <ContactPage contactRef={{ contactId: "c1" }} />
+      </QueryClientProvider>,
+      { wrapper: asRole(SUPPORT) },
+    );
+    await screen.findByRole("heading", { name: "Lia Santos" });
+    for (const name of [
+      "Log activity",
+      "Add follow-up",
+      "Edit details",
+      "Delete lead",
+      "Link to an account",
+    ]) {
+      expect(screen.queryByRole("button", { name })).toBeNull();
+    }
+    expect(screen.queryByRole("radio", { name: "Contacted" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Mark done/ })).toBeNull();
   });
 });

@@ -28,6 +28,7 @@ vi.mock("@/components/shared/links", () => {
 
 import { HouseholdPage } from "./household-page";
 import { HouseholdsPage } from "./households-page";
+import { asRole, SALES } from "@/features/auth/staff.test-utils";
 
 const ID = "7f0c2a7e-1b2c-4d5e-8f90-123456789abc";
 const row = (over: Partial<HouseholdRow> = {}): HouseholdRow => ({
@@ -153,5 +154,19 @@ describe("HouseholdPage (FR-HH-2, FR-US-6)", () => {
     m.get.mockResolvedValue({ ok: false, code: "not_found", message: "x" });
     withQuery(<HouseholdPage householdId={ID} />);
     expect(await screen.findByRole("heading", { name: "Household not found" })).toBeInTheDocument();
+  });
+});
+
+describe("permissions (FR-RL-8)", () => {
+  it("no Show pay without pay.view", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <HouseholdPage householdId={ID} />
+      </QueryClientProvider>,
+      { wrapper: asRole(SALES) },
+    );
+    await screen.findByRole("heading", { name: "Reyes home" });
+    expect(screen.queryByRole("button", { name: /^Show / })).toBeNull();
   });
 });

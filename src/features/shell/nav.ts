@@ -47,7 +47,7 @@ export const NAV_GROUPS: { label: string | null; items: NavItem[] }[] = [
   {
     label: "Admin",
     items: [
-      { to: "/team", label: "Admins", icon: ShieldCheck, permission: "team.manage" },
+      { to: "/team", label: "Team", icon: ShieldCheck, permission: "team.manage" },
       { to: "/audit", label: "Audit log", icon: ScrollText, permission: "audit.view" },
     ],
   },

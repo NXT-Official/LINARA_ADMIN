@@ -19,6 +19,7 @@ vi.mock("@/components/shared/links", () => ({
 }));
 
 import { RecordTickets } from "./record-tickets";
+import { asRole, SALES } from "@/features/auth/staff.test-utils";
 
 function renderPanel(filter: { userId?: string; householdId?: string; contactId?: string }) {
   return render(
@@ -64,5 +65,32 @@ describe("RecordTickets (FR-US-3, FR-HH-2, FR-CRM-12)", () => {
     renderPanel({ householdId: "h1" });
     await waitFor(() => expect(screen.getByText("No tickets.")).toBeInTheDocument());
     expect(m.list).toHaveBeenCalledWith({ data: { page: 0, householdId: "h1" } });
+  });
+});
+
+describe("permissions (FR-RL-8)", () => {
+  it("no Log ticket without support.write", async () => {
+    m.list.mockResolvedValue({ ok: true, hasMore: false, tickets: [] });
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <RecordTickets filter={{ userId: "u1" }} />
+      </QueryClientProvider>,
+      { wrapper: asRole(SALES.concat("support.view")) },
+    );
+    await waitFor(() => expect(m.list).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: "Log ticket" })).toBeNull();
+  });
+});
+
+describe("without support.view (FR-RL-8)", () => {
+  it("the tickets panel isn't shown and isn't asked for", async () => {
+    const { container } = render(
+      <QueryClientProvider client={new QueryClient()}>
+        <RecordTickets filter={{ userId: "u1" }} />
+      </QueryClientProvider>,
+      { wrapper: asRole(SALES) },
+    );
+    expect(container).toBeEmptyDOMElement();
+    expect(m.list).not.toHaveBeenCalled();
   });
 });

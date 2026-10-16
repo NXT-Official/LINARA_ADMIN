@@ -17,7 +17,7 @@ vi.mock("./session-cookies.server", () => ({
 const admin = vi.hoisted(() => ({
   claims: {} as Record<string, unknown>,
   touchRows: [] as unknown[],
-  roleRow: null as { role: string } | null,
+  roleRow: null as Record<string, unknown> | null,
   rpc: vi.fn(),
   getClaims: vi.fn(),
   getUser: vi.fn(),
@@ -53,6 +53,8 @@ import { evaluateSession, requireStaff } from "./session.server";
 
 // --- helpers ----------------------------------------------------------------
 const NOW = new Date("2026-10-14T04:00:00Z");
+const ALL = [...(await import("./permissions")).PERMISSIONS];
+const ADMIN_ROLE = { role_id: "role-admin", role_name: "Admin", preset: "admin", permissions: ALL };
 const ago = (ms: number) => new Date(NOW.getTime() - ms);
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -74,7 +76,7 @@ const claimsFor = (expInSeconds: number, aal = "aal2") => ({
 describe("evaluateSession", () => {
   const base = {
     now: NOW,
-    role: "admin" as const,
+    role: { roleId: "r1", roleName: "Admin", preset: "admin" as const, permissions: [] },
     aal: "aal2",
     signedInAt: ago(HOUR),
     lastSeenAt: ago(5 * MIN),
@@ -141,21 +143,27 @@ describe("requireStaff", () => {
     admin.rpc.mockResolvedValue({
       data: [
         {
-          role: "admin",
+          ...ADMIN_ROLE,
           started_at: ago(HOUR).toISOString(),
           last_seen_at: ago(MIN).toISOString(),
         },
       ],
       error: null,
     });
-    admin.roleRow = { role: "admin" };
+    admin.roleRow = {
+      role_id: "role-admin",
+      staff_role_defs: { id: "role-admin", name: "Admin", preset: "admin", permissions: ALL },
+    };
   });
 
   it("returns the admin for a valid session", async () => {
     await expect(requireStaff("team.manage")).resolves.toMatchObject({
       userId: "user-1",
       email: "admin@example.com",
-      role: "admin",
+      roleId: "role-admin",
+      roleName: "Admin",
+      preset: "admin",
+      permissions: ALL,
       sessionId: "sess-1",
       aal: "aal2",
     });
@@ -195,11 +203,60 @@ describe("requireStaff", () => {
     expect(anon.refreshSession).not.toHaveBeenCalled();
   });
 
+  it("session carries the role's permissions", async () => {
+    admin.rpc.mockResolvedValue({
+      data: [
+        {
+          role_id: "role-sup",
+          role_name: "Support",
+          preset: "support",
+          permissions: ["dashboard.view", "support.view"],
+          started_at: ago(HOUR).toISOString(),
+          last_seen_at: ago(MIN).toISOString(),
+        },
+      ],
+      error: null,
+    });
+    await expect(requireStaff("support.view")).resolves.toMatchObject({
+      roleName: "Support",
+      preset: "support",
+      permissions: ["dashboard.view", "support.view"],
+    });
+    await expect(requireStaff("crm.write")).rejects.toMatchObject({ code: "not_allowed" });
+  });
+
+  it("a permission removed mid-session is refused on the next call", async () => {
+    const row = (permissions: string[]) => ({
+      data: [
+        {
+          role_id: "role-c",
+          role_name: "Lead desk",
+          preset: null,
+          permissions,
+          started_at: ago(HOUR).toISOString(),
+          last_seen_at: ago(MIN).toISOString(),
+        },
+      ],
+      error: null,
+    });
+    admin.rpc.mockResolvedValueOnce(row(["dashboard.view", "crm.view", "crm.write"]));
+    await expect(requireStaff("crm.write")).resolves.toMatchObject({ roleName: "Lead desk" });
+    admin.rpc.mockResolvedValueOnce(row(["dashboard.view", "crm.view"]));
+    await expect(requireStaff("crm.write")).rejects.toMatchObject({
+      code: "not_allowed",
+      publicMessage: "Your role doesn't allow this.",
+    });
+  });
+
   it("two-step setup mode skips the session row", async () => {
     const c = claimsFor(600, "aal1");
     cookies.current = { accessToken: token(c), refreshToken: "r1" };
     admin.getClaims.mockResolvedValue({ data: { claims: c }, error: null });
-    await expect(requireStaff(null, { allowAal1: true })).resolves.toMatchObject({ aal: "aal1" });
+    await expect(requireStaff(null, { allowAal1: true })).resolves.toMatchObject({
+      aal: "aal1",
+      roleName: "Admin",
+      permissions: ALL,
+    });
     expect(admin.select).toHaveBeenCalledTimes(1);
     expect(admin.rpc).not.toHaveBeenCalled();
   });
@@ -226,7 +283,7 @@ describe("requireStaff", () => {
         ? {
             data: [
               {
-                role: "admin",
+                ...ADMIN_ROLE,
                 started_at: ago(HOUR).toISOString(),
                 last_seen_at: ago(31 * MIN).toISOString(),
               },

@@ -20,6 +20,7 @@ import {
 } from "@/data/labels";
 import { AuditTrail } from "@/features/audit/components/audit-trail";
 import { RecordTickets } from "@/features/support/components/record-tickets";
+import { useCan } from "@/features/auth/use-can";
 import { useAdmins } from "@/features/team/use-admins";
 import { daysBetween, formatDate, formatDateTime, formatRelativeDay } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -76,6 +77,7 @@ function ContactView({ contact }: { contact: ContactDetail }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const admins = useAdmins();
+  const canWrite = useCan()("crm.write");
   const ref = refOf(contact);
   const isLead = contact.kind === "lead";
   const [lostOpen, setLostOpen] = useState(false);
@@ -121,34 +123,36 @@ function ContactView({ contact }: { contact: ContactDetail }) {
           </span>
         }
         actions={
-          <>
-            <FollowUpDialog
-              name={contact.fullName}
-              contactRef={ref}
-              onSaved={refresh}
-              trigger={
-                <Button variant="outline">
-                  <CalendarPlus />
-                  Add follow-up
-                </Button>
-              }
-            />
-            <LogActivityDialog
-              name={contact.fullName}
-              contactRef={ref}
-              onSaved={refresh}
-              trigger={
-                <Button>
-                  <MessageSquarePlus />
-                  Log activity
-                </Button>
-              }
-            />
-          </>
+          canWrite ? (
+            <>
+              <FollowUpDialog
+                name={contact.fullName}
+                contactRef={ref}
+                onSaved={refresh}
+                trigger={
+                  <Button variant="outline">
+                    <CalendarPlus />
+                    Add follow-up
+                  </Button>
+                }
+              />
+              <LogActivityDialog
+                name={contact.fullName}
+                contactRef={ref}
+                onSaved={refresh}
+                trigger={
+                  <Button>
+                    <MessageSquarePlus />
+                    Log activity
+                  </Button>
+                }
+              />
+            </>
+          ) : undefined
         }
       />
 
-      {suggestion && contact.contactId ? (
+      {canWrite && suggestion && contact.contactId ? (
         <div
           role="status"
           className="mb-6 flex flex-col gap-3 rounded-3xl bg-terracotta-soft px-5 py-4 text-hearth-ink sm:flex-row sm:items-center sm:justify-between sm:px-6"
@@ -182,7 +186,7 @@ function ContactView({ contact }: { contact: ContactDetail }) {
         </div>
       ) : null}
 
-      {isLead && contact.contactId ? (
+      {canWrite && isLead && contact.contactId ? (
         <div className="mb-6">
           <SegmentedFilter
             label="Lead stage"
@@ -265,7 +269,7 @@ function ContactView({ contact }: { contact: ContactDetail }) {
                           , {admins.name(f.assigneeId)}
                         </p>
                       </div>
-                      {f.doneAt ? null : (
+                      {f.doneAt || !canWrite ? null : (
                         <Button
                           size="sm"
                           variant="outline"
@@ -306,22 +310,24 @@ function ContactView({ contact }: { contact: ContactDetail }) {
           <Surface
             title="Details"
             actions={
-              <EditContactDialog
-                contact={contact}
-                onSaved={async (savedId) => {
-                  if (!contact.contactId) {
-                    // A manager saved for the first time: their page now has an id (FR-CRM-3).
-                    await navigate({ to: `/crm/${savedId}`, replace: true });
-                    return;
+              canWrite ? (
+                <EditContactDialog
+                  contact={contact}
+                  onSaved={async (savedId) => {
+                    if (!contact.contactId) {
+                      // A manager saved for the first time: their page now has an id (FR-CRM-3).
+                      await navigate({ to: `/crm/${savedId}`, replace: true });
+                      return;
+                    }
+                    await refresh();
+                  }}
+                  trigger={
+                    <Button size="sm" variant="outline">
+                      {isLead ? "Edit details" : "Edit owner and tags"}
+                    </Button>
                   }
-                  await refresh();
-                }}
-                trigger={
-                  <Button size="sm" variant="outline">
-                    {isLead ? "Edit details" : "Edit owner and tags"}
-                  </Button>
-                }
-              />
+                />
+              ) : undefined
             }
           >
             <DetailList
@@ -378,48 +384,52 @@ function ContactView({ contact }: { contact: ContactDetail }) {
             </Surface>
           ) : null}
 
-          <div className="flex flex-wrap gap-2 px-1">
-            {isLead && contact.contactId ? (
-              <LinkAccountDialog
-                contactId={contact.contactId}
-                onLinked={refresh}
-                trigger={<Button variant="outline">Link to an account</Button>}
-              />
-            ) : null}
-            {isLead && contact.contactId ? (
-              <ConfirmDialog
-                trigger={<Button variant="outline">Delete lead</Button>}
-                title="Delete this lead?"
-                description="Their activity and follow-ups are deleted too. The audit log keeps a record that it happened."
-                confirmLabel="Delete lead"
-                done="Lead deleted"
-                onConfirm={async () => {
-                  const res = await deleteLeadFn({ data: { contactId: contact.contactId ?? "" } });
-                  if (res.ok) {
-                    await queryClient.invalidateQueries({ queryKey: ["crm"] });
-                    await navigate({ to: "/crm" });
-                  }
-                  return res;
-                }}
-              />
-            ) : null}
-            {!isLead && contact.contactId ? (
-              <ConfirmDialog
-                trigger={<Button variant="outline">Unlink account</Button>}
-                title="Unlink this account?"
-                description="The contact becomes a lead again, keeping its history. The person's Linara account isn't changed."
-                confirmLabel="Unlink account"
-                done="Account unlinked"
-                onConfirm={async () => {
-                  const res = await unlinkContactFn({
-                    data: { contactId: contact.contactId ?? "" },
-                  });
-                  if (res.ok) await refresh();
-                  return res;
-                }}
-              />
-            ) : null}
-          </div>
+          {canWrite ? (
+            <div className="flex flex-wrap gap-2 px-1">
+              {isLead && contact.contactId ? (
+                <LinkAccountDialog
+                  contactId={contact.contactId}
+                  onLinked={refresh}
+                  trigger={<Button variant="outline">Link to an account</Button>}
+                />
+              ) : null}
+              {isLead && contact.contactId ? (
+                <ConfirmDialog
+                  trigger={<Button variant="outline">Delete lead</Button>}
+                  title="Delete this lead?"
+                  description="Their activity and follow-ups are deleted too. The audit log keeps a record that it happened."
+                  confirmLabel="Delete lead"
+                  done="Lead deleted"
+                  onConfirm={async () => {
+                    const res = await deleteLeadFn({
+                      data: { contactId: contact.contactId ?? "" },
+                    });
+                    if (res.ok) {
+                      await queryClient.invalidateQueries({ queryKey: ["crm"] });
+                      await navigate({ to: "/crm" });
+                    }
+                    return res;
+                  }}
+                />
+              ) : null}
+              {!isLead && contact.contactId ? (
+                <ConfirmDialog
+                  trigger={<Button variant="outline">Unlink account</Button>}
+                  title="Unlink this account?"
+                  description="The contact becomes a lead again, keeping its history. The person's Linara account isn't changed."
+                  confirmLabel="Unlink account"
+                  done="Account unlinked"
+                  onConfirm={async () => {
+                    const res = await unlinkContactFn({
+                      data: { contactId: contact.contactId ?? "" },
+                    });
+                    if (res.ok) await refresh();
+                    return res;
+                  }}
+                />
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </div>
     </>

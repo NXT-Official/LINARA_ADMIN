@@ -29,6 +29,7 @@ globalThis.ResizeObserver ??= class {
 } as unknown as typeof ResizeObserver;
 
 import { DeletionsPage } from "./deletions-page";
+import { asRole, SUPPORT } from "@/features/auth/staff.test-utils";
 
 const row = (over: Partial<DeletionRow> = {}): DeletionRow => ({
   requestId: "r1",
@@ -156,15 +157,15 @@ describe("DeletionsPage (FR-DL-1 to FR-DL-4, FR-DL-7)", () => {
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("still employs someone");
   });
 
-  it("a console admin's request says why it can't be processed here", async () => {
+  it("a console team member's request says why it can't be processed here", async () => {
     m.list.mockResolvedValue({
       ok: true,
       hasMore: false,
       requests: [row({ requestId: "r7", fullName: null, blockers: ["console_admin"] })],
     });
     renderPage();
-    expect((await screen.findAllByText(/console admin's account/))[0]).toBeInTheDocument();
-    expect(screen.getAllByText("Console admin")[0]).toBeInTheDocument();
+    expect((await screen.findAllByText(/Manage it on the Team screen/))[0]).toBeInTheDocument();
+    expect(screen.getAllByText("Console team member")[0]).toBeInTheDocument();
     expect(screen.queryByText("Account already gone")).toBeNull();
     expect(screen.queryByRole("button", { name: /Process/ })).toBeNull();
   });
@@ -204,5 +205,19 @@ describe("DeletionsPage (FR-DL-1 to FR-DL-4, FR-DL-7)", () => {
     );
     expect((await screen.findAllByText("Deleted"))[0]).toBeInTheDocument();
     expect(screen.getAllByText("Withdrawn")[0]).toBeInTheDocument();
+  });
+});
+
+describe("permissions (FR-RL-8)", () => {
+  it("no Process without deletions.process", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <DeletionsPage />
+      </QueryClientProvider>,
+      { wrapper: asRole(SUPPORT) },
+    );
+    expect((await screen.findAllByText("Mona Reyes"))[0]).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Process / })).toBeNull();
   });
 });

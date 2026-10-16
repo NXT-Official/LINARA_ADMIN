@@ -14,9 +14,9 @@ vi.mock("../support.actions", () => ({
   createTicketFn: (...a: unknown[]) => m.create(...a),
 }));
 vi.mock("@/features/team/team.actions", () => ({
-  listAdminsFn: async () => ({
+  listTeamNamesFn: async () => ({
     ok: true,
-    admins: [{ userId: "a1", email: "ops@example.com", isYou: true }],
+    members: [{ userId: "a1", email: "ops@example.com", isYou: true }],
   }),
 }));
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => m.navigate }));
@@ -27,6 +27,7 @@ vi.mock("@/components/shared/links", () => ({
 vi.mock("sonner", () => ({ toast: { success: vi.fn() } }));
 
 import { TicketsPage } from "./tickets-page";
+import { asRole } from "@/features/auth/staff.test-utils";
 
 const row = (over: Partial<TicketRow> = {}): TicketRow => ({
   ticketId: "t1",
@@ -130,5 +131,19 @@ describe("TicketsPage (FR-SP-1 to FR-SP-6)", () => {
       }),
     );
     await waitFor(() => expect(m.navigate).toHaveBeenCalledWith({ to: "/support/t9" }));
+  });
+});
+
+describe("permissions (FR-RL-8)", () => {
+  it("no Log ticket without support.write", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <TicketsPage />
+      </QueryClientProvider>,
+      { wrapper: asRole(["dashboard.view", "support.view"]) },
+    );
+    await screen.findAllByRole("link", { name: "Payout missing" });
+    expect(screen.queryByRole("button", { name: "Log ticket" })).toBeNull();
   });
 });

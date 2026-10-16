@@ -10,6 +10,7 @@ import { StatusChip } from "@/components/shared/status-chip";
 import { HELPER_STATUS_TONE } from "@/components/shared/tones";
 import { HELPER_STATUS_LABEL, USER_KIND_LABEL } from "@/data/labels";
 import { AuditTrail } from "@/features/audit/components/audit-trail";
+import { useCan } from "@/features/auth/use-can";
 import { RecordTickets } from "@/features/support/components/record-tickets";
 import { payRevealer } from "@/features/pay/pay-reveal";
 import { daysBetween, formatDate, formatRelativeDay } from "@/lib/format";
@@ -51,6 +52,7 @@ export function UserPage({ userId }: { userId: string }) {
 
 function UserDetailView({ user }: { user: UserDetail }) {
   const queryClient = useQueryClient();
+  const canSuspend = useCan()("users.suspend");
   const deletion = user.deletion;
   const daysLeft = deletion ? DELETION_DAYS - daysBetween(deletion.requestedAt, new Date()) : 0;
 
@@ -66,20 +68,22 @@ function UserDetailView({ user }: { user: UserDetail }) {
           </span>
         }
         actions={
-          <SuspendDialog
-            name={user.fullName}
-            userId={user.userId}
-            suspended={user.suspended}
-            onDone={() => {
-              void queryClient.invalidateQueries({ queryKey: ["user", user.userId] });
-              void queryClient.invalidateQueries({ queryKey: ["users"] });
-            }}
-            trigger={
-              <Button variant={user.suspended ? "default" : "outline"}>
-                {user.suspended ? "Unsuspend" : "Suspend"}
-              </Button>
-            }
-          />
+          canSuspend ? (
+            <SuspendDialog
+              name={user.fullName}
+              userId={user.userId}
+              suspended={user.suspended}
+              onDone={() => {
+                void queryClient.invalidateQueries({ queryKey: ["user", user.userId] });
+                void queryClient.invalidateQueries({ queryKey: ["users"] });
+              }}
+              trigger={
+                <Button variant={user.suspended ? "default" : "outline"}>
+                  {user.suspended ? "Unsuspend" : "Suspend"}
+                </Button>
+              }
+            />
+          ) : undefined
         }
       />
 

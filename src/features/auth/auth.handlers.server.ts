@@ -61,7 +61,7 @@ export function signInHandler(input: SignInInput): Promise<SignInResult> {
     const admin = getAdminClient();
     const { data: roleRow } = await admin
       .from("staff_roles")
-      .select("role")
+      .select("user_id")
       .eq("user_id", data.user.id)
       .maybeSingle();
     if (!roleRow) {

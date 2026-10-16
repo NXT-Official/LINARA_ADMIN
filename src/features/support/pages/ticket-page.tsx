@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { CATEGORY_LABEL, CHANNEL_LABEL, PRIORITY_LABEL, TICKET_STATUS_LABEL } from "@/data/labels";
 import { AuditTrail } from "@/features/audit/components/audit-trail";
+import { useCan } from "@/features/auth/use-can";
 import { useAdmins } from "@/features/team/use-admins";
 import { formatDateTime } from "@/lib/format";
 
@@ -57,6 +58,7 @@ export function TicketPage({ ticketId }: { ticketId: string }) {
 function TicketView({ ticket }: { ticket: TicketDetail }) {
   const queryClient = useQueryClient();
   const admins = useAdmins();
+  const canWrite = useCan()("support.write");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -134,22 +136,30 @@ function TicketView({ ticket }: { ticket: TicketDetail }) {
                 ))}
               </ol>
             )}
-            <form onSubmit={addNote} className="space-y-2 border-t border-border px-5 py-4 sm:px-6">
-              <label htmlFor="ticket-note" className="text-xs font-semibold text-muted-foreground">
-                Add a note
-              </label>
-              <Textarea
-                id="ticket-note"
-                rows={3}
-                maxLength={5000}
-                placeholder="What was said or done, including replies sent on the channel"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-              />
-              <Button type="submit" disabled={busy || !note.trim()}>
-                Add note
-              </Button>
-            </form>
+            {canWrite ? (
+              <form
+                onSubmit={addNote}
+                className="space-y-2 border-t border-border px-5 py-4 sm:px-6"
+              >
+                <label
+                  htmlFor="ticket-note"
+                  className="text-xs font-semibold text-muted-foreground"
+                >
+                  Add a note
+                </label>
+                <Textarea
+                  id="ticket-note"
+                  rows={3}
+                  maxLength={5000}
+                  placeholder="What was said or done, including replies sent on the channel"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                />
+                <Button type="submit" disabled={busy || !note.trim()}>
+                  Add note
+                </Button>
+              </form>
+            ) : null}
           </Surface>
 
           <AuditTrail targetId={ticket.ticketId} />
@@ -157,95 +167,110 @@ function TicketView({ ticket }: { ticket: TicketDetail }) {
 
         <div className="space-y-6">
           <Surface title="Handling">
-            <div className="space-y-4">
-              <div className="space-y-1.5">
-                <p className="text-xs font-semibold text-muted-foreground">Status</p>
-                <SegmentedFilter
-                  label="Status"
-                  value={ticket.status}
-                  onChange={(status: TicketStatus) =>
-                    status !== ticket.status &&
-                    change(() => setStatusFn({ data: { ticketId: ticket.ticketId, status } }))
-                  }
-                  options={TICKET_STATUSES.map((s) => ({
-                    value: s,
-                    label: TICKET_STATUS_LABEL[s],
-                  }))}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <p className="text-xs font-semibold text-muted-foreground">Priority</p>
-                <SegmentedFilter
-                  label="Priority"
-                  value={ticket.priority}
-                  onChange={(priority: TicketPriority) =>
-                    priority !== ticket.priority &&
-                    change(() => setPriorityFn({ data: { ticketId: ticket.ticketId, priority } }))
-                  }
-                  options={TICKET_PRIORITIES.map((p) => ({ value: p, label: PRIORITY_LABEL[p] }))}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label
-                  htmlFor="ticket-assignee"
-                  className="text-xs font-semibold text-muted-foreground"
-                >
-                  Assigned to
-                </label>
-                <select
-                  id="ticket-assignee"
-                  className={selectClass}
-                  disabled={busy}
-                  value={ticket.assigneeId ?? ""}
-                  onChange={(e) =>
-                    change(() =>
-                      assignFn({
-                        data: { ticketId: ticket.ticketId, assigneeId: e.target.value || null },
-                      }),
-                    )
-                  }
-                >
-                  <option value="">No one</option>
-                  {admins.options.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                  {ticket.assigneeId &&
-                  !admins.admins.some((a) => a.userId === ticket.assigneeId) ? (
-                    <option value={ticket.assigneeId}>Former admin</option>
-                  ) : null}
-                </select>
-                {admins.me && ticket.assigneeId !== admins.me ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
+            {!canWrite ? (
+              <DetailList
+                items={[
+                  { label: "Status", value: TICKET_STATUS_LABEL[ticket.status] },
+                  { label: "Priority", value: PRIORITY_LABEL[ticket.priority] },
+                  {
+                    label: "Assigned to",
+                    value: ticket.assigneeId ? admins.name(ticket.assigneeId) : "No one",
+                  },
+                ]}
+              />
+            ) : (
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold text-muted-foreground">Status</p>
+                  <SegmentedFilter
+                    label="Status"
+                    value={ticket.status}
+                    onChange={(status: TicketStatus) =>
+                      status !== ticket.status &&
+                      change(() => setStatusFn({ data: { ticketId: ticket.ticketId, status } }))
+                    }
+                    options={TICKET_STATUSES.map((s) => ({
+                      value: s,
+                      label: TICKET_STATUS_LABEL[s],
+                    }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold text-muted-foreground">Priority</p>
+                  <SegmentedFilter
+                    label="Priority"
+                    value={ticket.priority}
+                    onChange={(priority: TicketPriority) =>
+                      priority !== ticket.priority &&
+                      change(() => setPriorityFn({ data: { ticketId: ticket.ticketId, priority } }))
+                    }
+                    options={TICKET_PRIORITIES.map((p) => ({ value: p, label: PRIORITY_LABEL[p] }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor="ticket-assignee"
+                    className="text-xs font-semibold text-muted-foreground"
+                  >
+                    Assigned to
+                  </label>
+                  <select
+                    id="ticket-assignee"
+                    className={selectClass}
                     disabled={busy}
-                    onClick={() =>
+                    value={ticket.assigneeId ?? ""}
+                    onChange={(e) =>
                       change(() =>
-                        assignFn({ data: { ticketId: ticket.ticketId, assigneeId: admins.me } }),
+                        assignFn({
+                          data: { ticketId: ticket.ticketId, assigneeId: e.target.value || null },
+                        }),
                       )
                     }
                   >
-                    Assign to me
-                  </Button>
-                ) : null}
+                    <option value="">No one</option>
+                    {admins.options.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                    {ticket.assigneeId &&
+                    !admins.admins.some((a) => a.userId === ticket.assigneeId) ? (
+                      <option value={ticket.assigneeId}>Former member</option>
+                    ) : null}
+                  </select>
+                  {admins.me && ticket.assigneeId !== admins.me ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() =>
+                        change(() =>
+                          assignFn({ data: { ticketId: ticket.ticketId, assigneeId: admins.me } }),
+                        )
+                      }
+                    >
+                      Assign to me
+                    </Button>
+                  ) : null}
+                </div>
               </div>
-            </div>
+            )}
           </Surface>
 
           <Surface
             title="Details"
             actions={
-              <LinksDialog
-                ticket={ticket}
-                onSaved={() => void refresh()}
-                trigger={
-                  <Button size="sm" variant="outline">
-                    Change links
-                  </Button>
-                }
-              />
+              canWrite ? (
+                <LinksDialog
+                  ticket={ticket}
+                  onSaved={() => void refresh()}
+                  trigger={
+                    <Button size="sm" variant="outline">
+                      Change links
+                    </Button>
+                  }
+                />
+              ) : undefined
             }
           >
             <DetailList

@@ -15,7 +15,7 @@ vi.mock("@/lib/csv", async (orig) => ({
   downloadCsv: (...a: unknown[]) => m.download(...a),
 }));
 vi.mock("@/features/team/team.actions", () => ({
-  listAdminsFn: async () => ({ ok: true, admins: [] }),
+  listTeamNamesFn: async () => ({ ok: true, members: [] }),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn() } }));
 

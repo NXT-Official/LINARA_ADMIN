@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { Lock } from "lucide-react";
 
+import { RecordLink } from "./links";
+
 /** An empty list: says what's missing and what to do next. */
 export function EmptyState({ title, children }: { title: string; children?: ReactNode }) {
   return (
@@ -29,8 +31,9 @@ export function RestrictedPanel({ what }: { what: string }) {
     <div className="mx-auto max-w-md rounded-3xl bg-card p-7 text-center shadow-soft">
       <Lock className="mx-auto h-5 w-5 text-muted-foreground" aria-hidden="true" />
       <h1 className="mt-3 text-xl text-foreground">Restricted</h1>
-      <p className="mt-2 text-sm text-muted-foreground">
-        Your role doesn't include {what}. Ask an admin if you need it.
+      <p className="mt-2 text-sm text-muted-foreground">Your role doesn't cover {what}.</p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Ask an admin if you need it. <RecordLink to="/">Go to the dashboard</RecordLink>
       </p>
     </div>
   );

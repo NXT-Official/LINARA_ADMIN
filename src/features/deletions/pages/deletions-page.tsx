@@ -12,6 +12,7 @@ import { StatusChip } from "@/components/shared/status-chip";
 import { Button } from "@/components/ui/button";
 import { USER_KIND_LABEL } from "@/data/labels";
 import { CodeField } from "@/features/auth/components/code-field";
+import { useCan } from "@/features/auth/use-can";
 import type { UserKind } from "@/features/users/users.types";
 import { formatDate, plural } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -31,16 +32,16 @@ const DUE_SOON_DAYS = 7;
 
 /** What blocks a deletion, in words, with what the household has to do (FR-DL-2). */
 const BLOCKER_TEXT: Record<DeletionBlocker, string> = {
-  console_admin:
-    "This is a console admin's account. Console admins are managed on the Admins screen.",
+  console_admin: "This account is on the console team. Manage it on the Team screen.",
   active_employment: "Still employed: the household has to end the job, with final pay, first.",
   last_manager_with_helpers:
     "Last manager of a household that still has a helper working: the household has to end each job, with final pay, first.",
 };
 
-// A console admin has a login but no Linara profile, so no name either.
+// A console team member has a login but no Linara profile, so no name either.
 const name = (r: DeletionRow) =>
-  r.fullName ?? (r.blockers.includes("console_admin") ? "Console admin" : "Account already gone");
+  r.fullName ??
+  (r.blockers.includes("console_admin") ? "Console team member" : "Account already gone");
 const kind = (r: DeletionRow) =>
   r.userType && r.userType in USER_KIND_LABEL ? USER_KIND_LABEL[r.userType as UserKind] : "Unknown";
 
@@ -119,6 +120,7 @@ function ProcessDialog({
 
 export function DeletionsPage() {
   const queryClient = useQueryClient();
+  const canProcess = useCan()("deletions.process");
   const [view, setView] = useState<DeletionView>("pending");
   // What the last processing did, from LINARA's own report (FR-DL-4).
   const [outcome, setOutcome] = useState<string | null>(null);
@@ -174,6 +176,8 @@ export function DeletionsPage() {
           <span className="text-left text-xs text-status-late-ink">
             {r.blockers.map((b) => BLOCKER_TEXT[b]).join(" ")}
           </span>
+        ) : !canProcess ? (
+          <span className="text-xs text-muted-foreground">Ready to process</span>
         ) : (
           <ProcessDialog
             request={r}

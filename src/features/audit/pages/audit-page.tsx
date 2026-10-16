@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AUDIT_ACTION_LABEL } from "@/data/labels";
-import { listAdminsFn } from "@/features/team/team.actions";
+import { listTeamNamesFn } from "@/features/team/team.actions";
+import { TEAM_KEYS } from "@/features/team/team-keys";
 import { formatDateTime } from "@/lib/format";
 
 import { listAuditFn } from "../audit.actions";
@@ -26,7 +27,8 @@ const TARGET_LABEL: Record<string, string> = {
   household: "Household",
   ticket: "Ticket",
   contact: "Contact",
-  staff: "Admin",
+  staff: "Team member",
+  role: "Role",
   payout: "Payout",
   export: "Export",
   import: "Import",
@@ -64,9 +66,12 @@ export function AuditPage() {
     // Refetching keeps the current rows on screen, dimmed, instead of flashing empty.
     placeholderData: (prev) => prev,
   });
-  const { data: adminData } = useQuery({ queryKey: ["admins"], queryFn: () => listAdminsFn() });
-  const admins = adminData?.ok ? adminData.admins : [];
-  const who = (id: string) => admins.find((a) => a.userId === id)?.email ?? "Former admin";
+  const { data: adminData } = useQuery({
+    queryKey: TEAM_KEYS.names,
+    queryFn: () => listTeamNamesFn(),
+  });
+  const admins = adminData?.ok ? adminData.members : [];
+  const who = (id: string) => admins.find((a) => a.userId === id)?.email ?? "Former member";
 
   const entries = data?.ok ? data.entries : [];
   const reset =

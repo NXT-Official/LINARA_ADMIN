@@ -14,6 +14,7 @@ import { PRIORITY_TONE, TICKET_STATUS_TONE } from "@/components/shared/tones";
 import { Button } from "@/components/ui/button";
 import { CHANNEL_LABEL, PRIORITY_LABEL, TICKET_STATUS_LABEL } from "@/data/labels";
 import { useAdmins } from "@/features/team/use-admins";
+import { useCan } from "@/features/auth/use-can";
 import { formatRelativeDay } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
 
@@ -33,6 +34,7 @@ export function TicketsPage({ initial = {} }: { initial?: TicketFilters }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const admins = useAdmins();
+  const can = useCan();
   const [view, setView] = useState<View>(initial.status ?? "active");
   const [who, setWho] = useState<"anyone" | "mine" | "unassigned">(initial.assignee ?? "anyone");
   const [q, setQ] = useState("");
@@ -110,18 +112,20 @@ export function TicketsPage({ initial = {} }: { initial?: TicketFilters }) {
         actions={
           <>
             <ExportCsvButton slug="support-tickets" columns={TICKET_CSV} rows={rows} />
-            <LogTicketDialog
-              trigger={
-                <Button>
-                  <Plus />
-                  Log ticket
-                </Button>
-              }
-              onLogged={(ticketId) => {
-                void queryClient.invalidateQueries({ queryKey: ["support"] });
-                void navigate({ to: `/support/${ticketId}` });
-              }}
-            />
+            {can("support.write") ? (
+              <LogTicketDialog
+                trigger={
+                  <Button>
+                    <Plus />
+                    Log ticket
+                  </Button>
+                }
+                onLogged={(ticketId) => {
+                  void queryClient.invalidateQueries({ queryKey: ["support"] });
+                  void navigate({ to: `/support/${ticketId}` });
+                }}
+              />
+            ) : null}
           </>
         }
       />

@@ -23,6 +23,11 @@ globalThis.ResizeObserver ??= class {
   disconnect() {}
 } as unknown as typeof ResizeObserver;
 vi.mock("@/features/pay/pay.actions", () => ({ revealPayFn: vi.fn() }));
+vi.mock("@/features/support/components/record-tickets", () => ({
+  RecordTickets: ({ filter }: { filter: Record<string, string> }) => (
+    <p>Tickets for {JSON.stringify(filter)}</p>
+  ),
+}));
 vi.mock("@/features/audit/components/audit-trail", () => ({ AuditTrail: () => null }));
 vi.mock("@/components/shared/links", () => {
   const A = ({ to, children }: { to: string; children: ReactNode }) => <a href={to}>{children}</a>;
@@ -91,7 +96,7 @@ describe("UserPage (FR-US-3, FR-US-6)", () => {
   it("later phases say when they arrive", async () => {
     renderPage();
     await screen.findByRole("heading", { name: "Carla Dizon" });
-    expect(screen.getByText(/Arrives with Support \(Phase 5\)/)).toBeInTheDocument();
+    expect(screen.getByText(`Tickets for {"userId":"${ID}"}`)).toBeInTheDocument();
     expect(screen.queryByText(/Arrives with the CRM/)).toBeNull();
     // Helpers aren't CRM contacts (§5.2.1).
     expect(screen.queryByRole("link", { name: "Open in CRM" })).toBeNull();

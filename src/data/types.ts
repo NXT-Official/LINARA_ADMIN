@@ -124,6 +124,9 @@ export type DeletionRequest = {
 
 export type PayoutStatus = "failed" | "ambiguous" | "sending";
 
+/** A payout problem from the latest attempt of a payslip (D38). */
+export type PayoutKind = "failed" | "cancelled" | "unclear" | "stuck" | "no_answer";
+
 export type Payout = {
   id: string;
   helperName: string;
@@ -134,15 +137,6 @@ export type Payout = {
   reference: string;
   createdAt: string;
 };
-
-export type AiFeature = {
-  fn: string;
-  label: string;
-  /** Calls per hour for the last 24 hours, oldest first. */
-  hourly: number[];
-};
-
-export type AiLimitHit = { userId: string; fn: string; limit: "hourly" | "daily"; at: string };
 
 export type AuditEntry = {
   id: string;

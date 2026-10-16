@@ -19,6 +19,7 @@ import {
   USER_KIND_LABEL,
 } from "@/data/labels";
 import { AuditTrail } from "@/features/audit/components/audit-trail";
+import { RecordTickets } from "@/features/support/components/record-tickets";
 import { useAdmins } from "@/features/team/use-admins";
 import { daysBetween, formatDate, formatDateTime, formatRelativeDay } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -285,9 +286,18 @@ function ContactView({ contact }: { contact: ContactDetail }) {
             )}
           </Surface>
 
-          <Surface title="Support tickets">
-            <p className="text-sm text-muted-foreground">Arrives with Support (Phase 5).</p>
-          </Surface>
+          {/* With both ids the list matches either, so the person's tickets are the
+              same here and on their user page (011). */}
+          {contact.contactId ? (
+            <RecordTickets
+              filter={{
+                contactId: contact.contactId,
+                ...(contact.userId ? { userId: contact.userId } : {}),
+              }}
+            />
+          ) : contact.userId ? (
+            <RecordTickets filter={{ userId: contact.userId }} />
+          ) : null}
 
           {contact.contactId ? <AuditTrail targetId={contact.contactId} /> : null}
         </div>

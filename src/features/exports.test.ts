@@ -5,6 +5,9 @@ import { listContacts } from "@/data/queries";
 import { toCsv } from "@/lib/csv";
 import { formatPeso } from "@/lib/format";
 
+import { AI_HOURLY_CSV, AI_LIMIT_HITS_CSV, AI_TOP_USERS_CSV } from "./ai/ai.export";
+import type { AiUsage } from "./ai/ai.types";
+
 import { AUDIT_CSV } from "./audit/audit.export";
 import { CONTACT_CSV } from "./crm/crm.export";
 import type { ContactRow } from "./crm/crm.types";
@@ -13,7 +16,9 @@ import type { DeletionRow } from "./deletions/deletions.types";
 import { HOUSEHOLD_CSV } from "./households/households.export";
 import type { HouseholdRow } from "./households/households.types";
 import { PAYOUT_CSV } from "./payouts/payouts.export";
+import type { PayoutProblem } from "./payouts/payouts.types";
 import { TICKET_CSV } from "./support/support.export";
+import type { TicketRow } from "./support/support.types";
 import { USER_CSV } from "./users/users.export";
 import type { UserRow } from "./users/users.types";
 
@@ -25,6 +30,25 @@ import type { UserRow } from "./users/users.types";
 const now = new Date();
 const householdName = (id: string | undefined) =>
   sample.households.find((h) => h.id === id)?.name ?? null;
+/** The sample tickets as the real list returns them (Phase 5). */
+const ticketRows: TicketRow[] = sample.tickets.map((t) => ({
+  ticketId: t.id,
+  ref: t.ref,
+  subject: t.subject,
+  channel: t.channel,
+  category: t.category,
+  priority: t.priority,
+  status: t.status,
+  userId: t.userId,
+  householdId: t.householdId,
+  contactId: t.contactId,
+  contact: t.contactHandle,
+  assigneeId: t.assigneeId,
+  createdAt: t.createdAt,
+  updatedAt: t.updatedAt,
+  resolvedAt: null,
+  noteCount: t.notes.length,
+}));
 /** The sample deletion requests as the real list returns them (Phase 4). */
 const deletionRows: DeletionRow[] = sample.deletionRequests.map((r) => ({
   requestId: r.id,
@@ -85,13 +109,49 @@ const userRows: UserRow[] = sample.users.map((u) => ({
   suspended: u.status === "suspended",
   devices: u.devices,
 }));
+const PAYOUT_AMOUNT = 4321.5;
+const payoutRows: PayoutProblem[] = [
+  {
+    attemptId: "a1",
+    payslipId: "p1",
+    attemptNumber: 2,
+    kind: "failed",
+    failureReason: "Recipient account Nena Payout-Helper is closed",
+    referenceId: "ref-1",
+    channelCode: "PH_GCASH",
+    helperId: "h1",
+    helperName: "Nena Payout-Helper",
+    householdId: "hh1",
+    householdName: "Payout Reyes Home",
+    cutoffStart: "2026-10-01",
+    cutoffEnd: "2026-10-15",
+    createdAt: "2026-10-16T09:00:00Z",
+  },
+];
+const aiUsage: AiUsage = {
+  hourly: [{ fn: "route-utos", hour: "2026-10-16T10:00:00+00:00", calls: 4 }],
+  topUsers: [{ userId: "u1", name: "Ana Top-Caller", calls: 40 }],
+  limitHits: [
+    {
+      userId: "u1",
+      name: "Ana Top-Caller",
+      kind: "hourly",
+      fn: "route-utos",
+      at: "2026-10-16T10:59:00Z",
+    },
+  ],
+  calls24h: 44,
+};
 const exports: Record<string, string> = {
   contacts: toCsv(CONTACT_CSV, contactRows),
   users: toCsv(USER_CSV, userRows),
   households: toCsv(HOUSEHOLD_CSV, householdRows),
-  tickets: toCsv(TICKET_CSV, sample.tickets),
+  tickets: toCsv(TICKET_CSV, ticketRows),
   deletions: toCsv(DELETION_CSV, deletionRows),
-  payouts: toCsv(PAYOUT_CSV, sample.payouts),
+  payouts: toCsv(PAYOUT_CSV, payoutRows),
+  aiHourly: toCsv(AI_HOURLY_CSV, aiUsage.hourly),
+  aiTopUsers: toCsv(AI_TOP_USERS_CSV, aiUsage.topUsers),
+  aiLimitHits: toCsv(AI_LIMIT_HITS_CSV, aiUsage.limitHits),
   audit: toCsv(
     AUDIT_CSV,
     sample.auditLog.map((e) => ({
@@ -121,7 +181,9 @@ const forbidden: string[] = [
     t.contactHandle,
     ...t.notes.map((n) => n.body),
   ]),
-  ...sample.payouts.flatMap((p) => [p.helperName, p.reason, String(p.amount)]),
+  ...payoutRows.flatMap((p) => [p.helperName, p.householdName, p.failureReason]),
+  String(PAYOUT_AMOUNT),
+  "Ana Top-Caller",
   ...sample.households.flatMap((h) => h.helpers.map((x) => String(x.monthlyRate))),
   ...sample.auditLog.map((e) => e.reason),
 ].filter((v): v is string => !!v);
@@ -136,10 +198,11 @@ describe("one-click exports (FR-EX-1)", () => {
 
   it("has a header and a row per record", () => {
     expect(exports.users.split("\r\n")).toHaveLength(sample.users.length + 1);
-    expect(exports.payouts.split("\r\n")).toHaveLength(sample.payouts.length + 1);
+    expect(exports.payouts.split("\r\n")).toHaveLength(payoutRows.length + 1);
+    expect(exports.aiLimitHits.split("\r\n")).toHaveLength(2);
   });
 
   it("checks amounts as the screens show them too", () => {
-    for (const p of sample.payouts) expect(exports.payouts).not.toContain(formatPeso(p.amount));
+    expect(exports.payouts).not.toContain(formatPeso(PAYOUT_AMOUNT));
   });
 });

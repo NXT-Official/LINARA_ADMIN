@@ -1,16 +1,20 @@
+import { useQuery } from "@tanstack/react-query";
+
 import { ChartSurface, ColumnChart, type ChartPoint } from "@/components/shared/charts";
 import { ExportCsvButton } from "@/components/shared/export-button";
 import { RecordLink } from "@/components/shared/links";
 import { PageHeader, Surface } from "@/components/shared/page";
-import { aiUsage, userById } from "@/data/queries";
-import type { CsvColumn } from "@/lib/csv";
+import { EmptyState } from "@/components/shared/states";
+import { AI_FEATURE_LABEL } from "@/data/labels";
 import { formatCount, formatDateTime } from "@/lib/format";
 
-/** Limits from LINARA/supabase/add-ai-call-limits.sql. */
-const HOURLY_LIMIT = 60;
-const DAILY_LIMIT = 300;
+import { aiUsageFn } from "../ai.actions";
+import { AI_HOURLY_CSV, AI_LIMIT_HITS_CSV, AI_TOP_USERS_CSV } from "../ai.export";
+import { AI_DAILY_LIMIT, AI_HOURLY_LIMIT, type AiUsage } from "../ai.types";
 
+const HOUR = 3_600_000;
 const hourFmt = new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", hour: "numeric" });
+const featureLabel = (fn: string) => AI_FEATURE_LABEL[fn] ?? fn;
 
 /** Calls per hour as plain bars, oldest on the left. */
 function HourBars({ hourly, label }: { hourly: number[]; label: string }) {
@@ -32,49 +36,77 @@ function HourBars({ hourly, label }: { hourly: number[]; label: string }) {
   );
 }
 
-type HourRow = { feature: string; hour: string; calls: number };
+/** The 24 hour starts up to and including the current hour, oldest first. */
+function last24Hours(now: number): number[] {
+  const current = Math.floor(now / HOUR) * HOUR;
+  return Array.from({ length: 24 }, (_, i) => current - (23 - i) * HOUR);
+}
 
-/** Calls per feature per hour, a long table analysts can pivot (FR-EX-1). */
-const HOUR_CSV: CsvColumn<HourRow>[] = [
-  { header: "feature", value: (r) => r.feature },
-  { header: "hour_start", value: (r) => r.hour },
-  { header: "calls", value: (r) => r.calls },
-];
+/** Per-feature counts in each of the last 24 hours (rows older than that are left out). */
+function byFeature(usage: AiUsage, hours: number[]) {
+  const index = new Map(hours.map((h, i) => [h, i]));
+  const features = new Map<string, number[]>();
+  for (const row of usage.hourly) {
+    const i = index.get(new Date(row.hour).getTime());
+    if (i === undefined) continue;
+    const counts = features.get(row.fn) ?? new Array<number>(hours.length).fill(0);
+    counts[i] += row.calls;
+    features.set(row.fn, counts);
+  }
+  return [...features.entries()]
+    .map(([fn, hourly]) => ({ fn, hourly, total: hourly.reduce((a, b) => a + b, 0) }))
+    .sort((a, b) => b.total - a.total || a.fn.localeCompare(b.fn));
+}
 
-/** The start of the hour, `hoursAgo` hours before now. */
-function hourStart(now: number, hoursAgo: number) {
-  const d = new Date(now - hoursAgo * 3_600_000);
-  d.setMinutes(0, 0, 0);
-  return d;
+function UserLink({ userId, name }: { userId: string; name: string | null }) {
+  return <RecordLink to={`/users/${userId}`}>{name ?? "Unnamed user"}</RecordLink>;
 }
 
 export function AiUsagePage() {
-  const { features, topUsers, limitHits } = aiUsage();
-  const now = Date.now();
-  const hours = features[0]?.hourly.length ?? 0;
-  const perHour: ChartPoint[] = Array.from({ length: hours }, (_, i) => {
-    const start = hourStart(now, hours - 1 - i);
-    return {
-      key: start.toISOString(),
-      label: hourFmt.format(start),
-      value: features.reduce((sum, f) => sum + (f.hourly[i] ?? 0), 0),
-    };
-  });
-  const hourRows: HourRow[] = features.flatMap((f) =>
-    f.hourly.map((calls, i) => ({
-      feature: f.fn,
-      hour: hourStart(now, f.hourly.length - 1 - i).toISOString(),
-      calls,
-    })),
-  );
+  const { data, isPending } = useQuery({ queryKey: ["ai", "usage"], queryFn: () => aiUsageFn() });
+  const usage = data?.ok ? data.usage : null;
 
   return (
     <>
       <PageHeader
         title="AI usage"
-        description={`Linara keeps AI call records for 48 hours, so nothing older shows here. Cost isn't recorded. Limits: ${HOURLY_LIMIT} calls an hour per feature, ${DAILY_LIMIT} a day per user.`}
-        actions={<ExportCsvButton slug="ai-calls-by-feature" columns={HOUR_CSV} rows={hourRows} />}
+        description={`Linara keeps AI call records for 48 hours, so nothing older shows here. Cost isn't recorded. Limits: ${AI_HOURLY_LIMIT} calls an hour per feature, ${AI_DAILY_LIMIT} a day per user.`}
+        actions={
+          usage ? (
+            <ExportCsvButton
+              slug="ai-calls-by-feature"
+              columns={AI_HOURLY_CSV}
+              rows={usage.hourly}
+            />
+          ) : null
+        }
       />
+      {usage ? (
+        <Usage usage={usage} />
+      ) : (
+        <Surface>
+          <EmptyState title={isPending ? "Loading AI usage" : "AI usage didn't load"}>
+            {data && !data.ok ? data.message : null}
+          </EmptyState>
+        </Surface>
+      )}
+    </>
+  );
+}
+
+function Usage({ usage }: { usage: AiUsage }) {
+  const hours = last24Hours(Date.now());
+  const features = byFeature(usage, hours);
+  // The bars' sum, so the figure and the bars agree (calls24h is a rolling 24 hours).
+  const total = features.reduce((sum, f) => sum + f.total, 0);
+  const perHour: ChartPoint[] = hours.map((h, i) => ({
+    key: new Date(h).toISOString(),
+    label: hourFmt.format(new Date(h)),
+    value: features.reduce((sum, f) => sum + f.hourly[i], 0),
+  }));
+
+  return (
+    <>
       <div className="mb-6">
         <ChartSurface
           title="Calls per hour"
@@ -87,82 +119,105 @@ export function AiUsagePage() {
         />
       </div>
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] [&>*]:min-w-0">
-        <Surface title="By feature" description="Last 24 hours" flush>
-          <ul className="divide-y divide-border pb-2">
-            {features.map((f) => {
-              const total = f.hourly.reduce((a, b) => a + b, 0);
-              const peak = f.hourly.indexOf(Math.max(...f.hourly));
-              const peakAt = new Date(now - (f.hourly.length - 1 - peak) * 3_600_000);
-              return (
-                <li
-                  key={f.fn}
-                  className="grid items-center gap-3 px-5 py-4 sm:grid-cols-[10rem_5rem_1fr] sm:px-6"
-                >
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">{f.label}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Busiest around {hourFmt.format(peakAt)}
+        <Surface
+          title="By feature"
+          description={`Last 24 hours, ${formatCount(total)} calls`}
+          flush
+        >
+          {features.length === 0 ? (
+            <p className="px-5 pb-5 text-sm text-muted-foreground sm:px-6">
+              No AI calls in the last 24 hours.
+            </p>
+          ) : (
+            <ul className="divide-y divide-border pb-2">
+              {features.map((f) => {
+                const peak = f.hourly.indexOf(Math.max(...f.hourly));
+                return (
+                  <li
+                    key={f.fn}
+                    className="grid items-center gap-3 px-5 py-4 sm:grid-cols-[10rem_5rem_1fr] sm:px-6"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold break-words text-foreground">
+                        {featureLabel(f.fn)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Busiest around {hourFmt.format(new Date(hours[peak]))}
+                      </p>
+                    </div>
+                    <p className="text-xl font-semibold text-foreground sm:text-right">
+                      {formatCount(f.total)}
                     </p>
-                  </div>
-                  <p className="text-xl font-semibold text-foreground sm:text-right">
-                    {formatCount(total)}
-                  </p>
-                  <HourBars hourly={f.hourly} label={f.label} />
-                </li>
-              );
-            })}
-          </ul>
+                    <HourBars hourly={f.hourly} label={featureLabel(f.fn)} />
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </Surface>
 
         <div className="space-y-6">
-          <Surface title="Hit a limit" flush>
-            {limitHits.length === 0 ? (
+          <Surface
+            title="Hit a limit"
+            description="Last 48 hours"
+            actions={
+              <ExportCsvButton
+                slug="ai-limit-hits"
+                columns={AI_LIMIT_HITS_CSV}
+                rows={usage.limitHits}
+              />
+            }
+            flush
+          >
+            {usage.limitHits.length === 0 ? (
               <p className="px-5 pb-5 text-sm text-muted-foreground sm:px-6">No one hit a limit.</p>
             ) : (
               <ul className="divide-y divide-border pb-2">
-                {limitHits.map((h) => {
-                  const user = userById(h.userId);
-                  const feature = features.find((f) => f.fn === h.fn)?.label ?? h.fn;
-                  return (
-                    <li key={`${h.userId}-${h.at}`} className="px-5 py-3 sm:px-6">
-                      {user ? (
-                        <RecordLink to={`/users/${user.id}`}>{user.fullName}</RecordLink>
-                      ) : (
-                        "Unknown user"
-                      )}
-                      <p className="text-xs text-muted-foreground">
-                        {h.limit === "hourly"
-                          ? `${HOURLY_LIMIT} an hour on ${feature}`
-                          : `${DAILY_LIMIT} in a day`}
-                        , {formatDateTime(h.at)}
-                      </p>
-                    </li>
-                  );
-                })}
+                {usage.limitHits.map((h) => (
+                  <li key={`${h.userId}-${h.kind}-${h.fn}`} className="px-5 py-3 sm:px-6">
+                    <UserLink userId={h.userId} name={h.name} />
+                    <p className="text-xs text-muted-foreground">
+                      {h.kind === "hourly"
+                        ? `${AI_HOURLY_LIMIT} an hour on ${featureLabel(h.fn ?? "")}`
+                        : `${AI_DAILY_LIMIT} in a day`}
+                      , {formatDateTime(h.at)}
+                    </p>
+                  </li>
+                ))}
               </ul>
             )}
           </Surface>
-          <Surface title="Most calls" description="Last 24 hours" flush>
-            <ol className="divide-y divide-border pb-2">
-              {topUsers.map((t) => {
-                const user = userById(t.userId);
-                return (
+          <Surface
+            title="Most calls"
+            description="Last 24 hours"
+            actions={
+              <ExportCsvButton
+                slug="ai-top-users"
+                columns={AI_TOP_USERS_CSV}
+                rows={usage.topUsers}
+              />
+            }
+            flush
+          >
+            {usage.topUsers.length === 0 ? (
+              <p className="px-5 pb-5 text-sm text-muted-foreground sm:px-6">
+                No AI calls in the last 24 hours.
+              </p>
+            ) : (
+              <ol className="divide-y divide-border pb-2">
+                {usage.topUsers.map((t) => (
                   <li
                     key={t.userId}
                     className="flex items-center justify-between gap-3 px-5 py-3 sm:px-6"
                   >
-                    {user ? (
-                      <RecordLink to={`/users/${user.id}`}>{user.fullName}</RecordLink>
-                    ) : (
-                      "Unknown user"
-                    )}
+                    <UserLink userId={t.userId} name={t.name} />
                     <span className="tabular-nums text-sm text-foreground">
-                      {formatCount(t.calls24h)}
+                      {formatCount(t.calls)}
                     </span>
                   </li>
-                );
-              })}
-            </ol>
+                ))}
+              </ol>
+            )}
           </Surface>
         </div>
       </div>

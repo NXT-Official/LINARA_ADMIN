@@ -3,6 +3,7 @@ import type {
   CustomerStage,
   HelperStatus,
   LeadStage,
+  PayoutKind,
   PayoutStatus,
   TicketPriority,
   TicketStatus,
@@ -45,6 +46,14 @@ export const HELPER_STATUS_TONE: Record<HelperStatus, ChipTone> = {
 export const ACCOUNT_STATUS_TONE: Record<AccountStatus, ChipTone> = {
   active: "neutral",
   suspended: "danger",
+};
+
+export const PAYOUT_PROBLEM_TONE: Record<PayoutKind, ChipTone> = {
+  failed: "danger",
+  cancelled: "danger",
+  unclear: "late",
+  stuck: "attention",
+  no_answer: "late",
 };
 
 export const PAYOUT_STATUS_TONE: Record<PayoutStatus, ChipTone> = {

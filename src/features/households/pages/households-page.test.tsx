@@ -14,6 +14,11 @@ vi.mock("../households.actions", () => ({
   getHouseholdFn: (...a: unknown[]) => m.get(...a),
 }));
 vi.mock("@/features/pay/pay.actions", () => ({ revealPayFn: vi.fn() }));
+vi.mock("@/features/support/components/record-tickets", () => ({
+  RecordTickets: ({ filter }: { filter: Record<string, string> }) => (
+    <p>Tickets for {JSON.stringify(filter)}</p>
+  ),
+}));
 vi.mock("@/features/audit/components/audit-trail", () => ({ AuditTrail: () => null }));
 vi.mock("@/components/shared/export-button", () => ({ ExportCsvButton: () => null }));
 vi.mock("@/components/shared/links", () => {
@@ -136,7 +141,7 @@ describe("HouseholdPage (FR-HH-2, FR-US-6)", () => {
     await screen.findByRole("heading", { name: "Reyes home" });
     expect(screen.getByText("Tasks scheduled, last 7 days")).toBeInTheDocument();
     expect(screen.getByText("9")).toBeInTheDocument();
-    expect(screen.getByText(/Arrives with Support \(Phase 5\)/)).toBeInTheDocument();
+    expect(screen.getByText(`Tickets for {"householdId":"${ID}"}`)).toBeInTheDocument();
     expect(screen.queryByText(/Arrives with the CRM/)).toBeNull();
     expect(screen.getByRole("link", { name: "CRM: Ana Reyes" })).toHaveAttribute(
       "href",

@@ -1,6 +1,4 @@
 import type {
-  AiFeature,
-  AiLimitHit,
   AppUser,
   AuditEntry,
   Contact,
@@ -854,44 +852,11 @@ export const payouts: Payout[] = [
   },
 ];
 
-// Index 0 is 23 hours ago. Busy from 6 AM to 9 PM Manila time, quiet overnight.
-const MANILA_HOUR_NOW = Number(
-  new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Manila",
-    hour: "numeric",
-    hour12: false,
-  }).format(NOW),
-);
-const curve = (base: number, seed: number) =>
-  Array.from({ length: 24 }, (_, i) => {
-    const hour = (((MANILA_HOUR_NOW - (23 - i)) % 24) + 24) % 24;
-    const daytime = hour >= 6 && hour <= 21 ? 1 : 0.2;
-    return Math.round(base * daytime * (0.7 + ((i * seed) % 7) / 10));
-  });
-
-export const aiFeatures: AiFeature[] = [
-  { fn: "utos-router", label: "Quick Utos", hourly: curve(14, 3) },
-  { fn: "sop-creator", label: "Routine writer", hourly: curve(5, 5) },
-  { fn: "temporal-scheduler", label: "Scheduling", hourly: curve(8, 2) },
-  { fn: "voice-promoter", label: "Voice tasks", hourly: curve(3, 4) },
-];
-
-export const aiTopUsers: { userId: string; calls24h: number }[] = [
-  { userId: "u-1", calls24h: 118 },
-  { userId: "u-12", calls24h: 64 },
-  { userId: "u-2", calls24h: 41 },
-  { userId: "u-3", calls24h: 12 },
-];
-
-export const aiLimitHits: AiLimitHit[] = [
-  { userId: "u-1", fn: "utos-router", limit: "hourly", at: ago(0, 5) },
-];
-
 export const auditLog: AuditEntry[] = [
   {
     id: "l-1",
     actorId: "s-1",
-    action: "ticket.assigned",
+    action: "support.assigned",
     targetType: "ticket",
     targetId: "t-1",
     reason: null,

@@ -17,6 +17,9 @@ rows are listed in spec D28 and D33. The CRM's write rules are in D34.
 | `007-crm-export.sql`        | Phase 3b review fix: the export with contact details comes back as one value with its true total, so the API's row cap can't cut it short unnoticed. Adds one function. |
 | `008-account-actions.sql`   | Phase 4: deletion request lists, blockers and counts; processing a request through LINARA's `process_account_deletion` with the CRM forgetting the person in the same transaction (D36); the Users list's suspended filter. Functions only. |
 | `009-account-actions-fixes.sql` | Phase 4 review fix: a console admin's own deletion request is a blocker and is refused, so it can't delete an admin or their console role. Replaces two functions. |
+| `010-support.sql`           | Phase 5: `support_tickets` and `support_ticket_notes` (RLS on, no app-role access), list, detail and counts, writes that record themselves in the audit log (D37); a processed deletion also clears that person's tickets. |
+| `011-support-fixes.sql`     | Phase 5 review fixes: a ticket can only be assigned to a current admin; a user and a contact asked for together list the tickets linked to either. Run after 010. |
+| `012-operations.sql`       | Phase 6: payout problems (latest attempt per payslip, no amounts), their counts, and AI usage for the last 48 hours with limit hits (D38). Reads only. Run after 011. |
 
 Each file runs in one transaction: it applies completely or not at all.
 

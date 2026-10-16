@@ -22,7 +22,7 @@ test.describe("visibility", () => {
     const name = (await first.textContent())?.trim() ?? "";
     await first.click();
     await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
-    await expect(page.getByText("Arrives with Support (Phase 5).")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Log ticket" })).toBeVisible();
   });
 
   test("household search narrows the list", async ({ page }) => {
@@ -71,6 +71,5 @@ test.describe("visibility", () => {
     // The figure, not the sidebar link of the same name.
     const figure = page.getByRole("main").getByRole("link", { name: /^Households/ });
     await expect(figure).toContainText(String(listed));
-    await expect(page.getByText("Support tickets: arrive in Phase 5")).toBeVisible();
   });
 });

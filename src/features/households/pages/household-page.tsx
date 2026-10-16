@@ -9,6 +9,7 @@ import { StatusChip } from "@/components/shared/status-chip";
 import { HELPER_STATUS_TONE } from "@/components/shared/tones";
 import { HELPER_STATUS_LABEL, USER_KIND_LABEL } from "@/data/labels";
 import { AuditTrail } from "@/features/audit/components/audit-trail";
+import { RecordTickets } from "@/features/support/components/record-tickets";
 import { payRevealer } from "@/features/pay/pay-reveal";
 import { formatDate, formatRelativeDay } from "@/lib/format";
 
@@ -70,9 +71,7 @@ function HouseholdDetailView({ household }: { household: HouseholdDetail }) {
             )}
           </Surface>
 
-          <Surface title="Support tickets">
-            <p className="text-sm text-muted-foreground">Arrives with Support (Phase 5).</p>
-          </Surface>
+          <RecordTickets filter={{ householdId: household.householdId }} />
 
           <AuditTrail targetId={household.householdId} />
         </div>

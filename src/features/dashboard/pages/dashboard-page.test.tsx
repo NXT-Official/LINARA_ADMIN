@@ -8,9 +8,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { DashboardData } from "../dashboard.types";
 
-const m = vi.hoisted(() => ({ get: vi.fn(), crm: vi.fn(), del: vi.fn() }));
+const m = vi.hoisted(() => ({
+  get: vi.fn(),
+  crm: vi.fn(),
+  del: vi.fn(),
+  sup: vi.fn(),
+  pay: vi.fn(),
+  ai: vi.fn(),
+}));
 vi.mock("../dashboard.actions", () => ({ getDashboardFn: (...a: unknown[]) => m.get(...a) }));
 vi.mock("@/features/crm/crm.actions", () => ({ crmDashboardFn: (...a: unknown[]) => m.crm(...a) }));
+vi.mock("@/features/support/support.actions", () => ({
+  supportCountsFn: (...a: unknown[]) => m.sup(...a),
+}));
+vi.mock("@/features/payouts/payouts.actions", () => ({
+  payoutCountsFn: (...a: unknown[]) => m.pay(...a),
+}));
+vi.mock("@/features/ai/ai.actions", () => ({ aiUsageFn: (...a: unknown[]) => m.ai(...a) }));
 vi.mock("@/features/deletions/deletions.actions", () => ({
   deletionCountsFn: (...a: unknown[]) => m.del(...a),
 }));
@@ -77,7 +91,25 @@ const crm = {
 beforeEach(() => {
   m.get.mockReset().mockResolvedValue({ ok: true, data });
   m.crm.mockReset().mockResolvedValue({ ok: true, crm });
+  m.sup.mockReset().mockResolvedValue({ ok: true, counts: { open: 5, pending: 2, unassigned: 3 } });
   m.del.mockReset().mockResolvedValue({ ok: true, counts: { pending: 4, dueSoon: 1, overdue: 2 } });
+  m.pay.mockReset().mockResolvedValue({
+    ok: true,
+    counts: { failed: 6, cancelled: 1, unclear: 2, stuck: 3, no_answer: 0 },
+  });
+  m.ai.mockReset().mockResolvedValue({
+    ok: true,
+    usage: {
+      hourly: [],
+      topUsers: [],
+      limitHits: [
+        { userId: "u1", name: null, kind: "hourly", fn: "route-utos", at: "2026-10-16T01:00:00Z" },
+        { userId: "u1", name: null, kind: "daily", fn: null, at: "2026-10-16T02:00:00Z" },
+        { userId: "u2", name: null, kind: "daily", fn: null, at: "2026-10-16T03:00:00Z" },
+      ],
+      calls24h: 1234,
+    },
+  });
 });
 afterEach(cleanup);
 
@@ -101,16 +133,47 @@ describe("DashboardPage (FR-DB-1 to FR-DB-3, FR-DB-8, FR-DB-9)", () => {
     expect(screen.getByLabelText("New households")).toHaveTextContent("2026-10-12:1");
   });
 
-  it("later modules say they're unavailable and when they arrive, never zero", async () => {
+  it("payout figures link to the filtered list (FR-DB-6, FR-DB-8)", async () => {
+    renderPage();
+    const failed = await screen.findByRole("link", { name: /^Failed/ });
+    expect(failed).toHaveAttribute("href", "/payouts?kind=failed");
+    expect(failed).toHaveTextContent("6");
+    expect(screen.getByRole("link", { name: /^Unclear/ })).toHaveAttribute(
+      "href",
+      "/payouts?kind=unclear",
+    );
+    expect(screen.getByRole("link", { name: /^Stuck sending/ })).toHaveTextContent("3");
+    expect(screen.getByRole("link", { name: /^Cancelled at Xendit/ })).toHaveAttribute(
+      "href",
+      "/payouts?kind=cancelled",
+    );
+    expect(screen.getByRole("link", { name: /^No answer from Xendit/ })).toHaveTextContent("0");
+  });
+
+  it("AI calls in 24h and users who hit a limit link to AI usage (FR-DB-6)", async () => {
+    renderPage();
+    const calls = await screen.findByRole("link", { name: /^AI calls in 24 hours/ });
+    expect(calls).toHaveAttribute("href", "/ai");
+    expect(calls).toHaveTextContent("1,234");
+    const limited = screen.getByRole("link", { name: /^People who hit an AI limit/ });
+    expect(limited).toHaveAttribute("href", "/ai");
+    expect(limited).toHaveTextContent("2");
+  });
+
+  it("a failed payout or AI load shows Unavailable, never 0 (FR-DB-9)", async () => {
+    m.pay.mockResolvedValue({ ok: false, code: "outside_service", message: "Payouts down." });
+    m.ai.mockResolvedValue({ ok: false, code: "outside_service", message: "AI down." });
+    renderPage();
+    expect(await screen.findByText("The payout figures didn't load")).toBeInTheDocument();
+    expect(await screen.findByText("The AI figures didn't load")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^Failed/ })).toBeNull();
+  });
+
+  it("the Not on live data yet panel is gone", async () => {
     renderPage();
     await screen.findByRole("link", { name: /^Households/ });
-    expect(screen.queryByText("CRM: arrives in Phase 3")).toBeNull();
-    for (const text of [
-      "Support tickets: arrive in Phase 5",
-      "Payouts and AI usage: arrive in Phase 6",
-    ]) {
-      expect(screen.getByText(text)).toBeInTheDocument();
-    }
+    expect(screen.queryByText("Not on live data yet")).toBeNull();
+    expect(screen.queryByText(/arrive in Phase 6/)).toBeNull();
   });
 
   it("CRM figures link to filtered lists (FR-DB-7, FR-DB-8)", async () => {
@@ -131,6 +194,22 @@ describe("DashboardPage (FR-DB-1 to FR-DB-3, FR-DB-8, FR-DB-9)", () => {
       "/crm?kind=lead&stage=new",
     );
     expect(screen.getByRole("link", { name: /Became customers/ })).toHaveTextContent("1");
+  });
+
+  it("support figures link to filtered lists (FR-DB-5, FR-DB-8)", async () => {
+    renderPage();
+    const open = await screen.findByRole("link", { name: /^Open tickets/ });
+    expect(open).toHaveAttribute("href", "/support?status=open");
+    expect(open).toHaveTextContent("5");
+    expect(screen.getByRole("link", { name: /^Waiting on the user/ })).toHaveAttribute(
+      "href",
+      "/support?status=pending",
+    );
+    expect(screen.getByRole("link", { name: /^Not assigned/ })).toHaveAttribute(
+      "href",
+      "/support?status=active&assignee=unassigned",
+    );
+    expect(screen.queryByText(/Support tickets: arrive in Phase 5/)).toBeNull();
   });
 
   it("deletion figures link to the list (FR-DB-4)", async () => {

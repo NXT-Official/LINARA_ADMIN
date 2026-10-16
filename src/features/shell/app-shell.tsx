@@ -5,7 +5,6 @@ import { ChevronDown, LogOut, Menu } from "lucide-react";
 
 import { EnvBadge } from "@/components/shared/env-badge";
 import { LogoMark } from "@/components/shared/logo";
-import { StatusChip } from "@/components/shared/status-chip";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -18,20 +17,10 @@ import {
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { signOutFn } from "@/features/auth/auth.actions";
 import { can } from "@/features/auth/permissions";
-import { listDeletionRequests, listPayouts, listTickets } from "@/data/queries";
 import type { StaffRole } from "@/features/auth/permissions";
 import { cn } from "@/lib/utils";
 
 import { NAV_GROUPS, type NavItem } from "./nav";
-
-/** Counts beside a nav item: only work waiting on someone. */
-function navCounts(): Record<string, number> {
-  return {
-    "/support": listTickets().filter((t) => t.status === "open").length,
-    "/deletions": listDeletionRequests().filter((d) => d.status === "pending").length,
-    "/payouts": listPayouts().length,
-  };
-}
 
 function isActive(pathname: string, to: string) {
   return to === "/" ? pathname === "/" : pathname === to || pathname.startsWith(`${to}/`);
@@ -60,7 +49,6 @@ export type ShellStaff = { userId: string; email: string; role: StaffRole };
 
 function NavList({ role, onNavigate }: { role: StaffRole; onNavigate?: () => void }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const counts = navCounts();
 
   return (
     <nav aria-label="Console" className="space-y-5">
@@ -80,7 +68,6 @@ function NavList({ role, onNavigate }: { role: StaffRole; onNavigate?: () => voi
                   key={item.to}
                   item={item}
                   active={isActive(pathname, item.to)}
-                  count={counts[item.to]}
                   onNavigate={onNavigate}
                 />
               ))}
@@ -95,12 +82,10 @@ function NavList({ role, onNavigate }: { role: StaffRole; onNavigate?: () => voi
 function NavLink({
   item,
   active,
-  count,
   onNavigate,
 }: {
   item: NavItem;
   active: boolean;
-  count?: number;
   onNavigate?: () => void;
 }) {
   const Icon = item.icon;
@@ -119,12 +104,6 @@ function NavLink({
       >
         <Icon className={cn("h-4 w-4 shrink-0", active && "text-pine")} aria-hidden="true" />
         <span className="flex-1 truncate">{item.label}</span>
-        {count ? (
-          <span className="tabular-nums text-xs font-semibold text-terracotta-ink">
-            {count}
-            <span className="sr-only"> waiting</span>
-          </span>
-        ) : null}
       </Link>
     </li>
   );
@@ -220,9 +199,6 @@ export function AppShell({ staff, children }: { staff: ShellStaff; children: Rea
             <LogoMark className="h-8 w-8" />
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <StatusChip tone="quiet" className="hidden sm:inline-flex">
-              Sample data
-            </StatusChip>
             <EnvBadge />
             <AccountMenu staff={staff} />
           </div>

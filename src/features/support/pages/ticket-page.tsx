@@ -1,77 +1,105 @@
 import { useState, type FormEvent } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
-import { SelectField } from "@/components/shared/form";
-import { sampleToast } from "@/lib/sample-toast";
+import { SegmentedFilter } from "@/components/shared/list-toolbar";
 import { BackLink, RecordLink } from "@/components/shared/links";
 import { DetailList, PageHeader, Surface } from "@/components/shared/page";
 import { EmptyState } from "@/components/shared/states";
 import { StatusChip } from "@/components/shared/status-chip";
-import { PRIORITY_TONE, TICKET_STATUS_TONE } from "@/components/shared/tones";
+import { TICKET_STATUS_TONE } from "@/components/shared/tones";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { AuditTrail } from "@/features/audit/components/audit-trail";
-import { CURRENT_STAFF_ID } from "@/data/sample";
 import { CATEGORY_LABEL, CHANNEL_LABEL, PRIORITY_LABEL, TICKET_STATUS_LABEL } from "@/data/labels";
-import {
-  contactById,
-  householdById,
-  listStaff,
-  staffById,
-  ticketById,
-  userById,
-} from "@/data/queries";
-import type { TicketStatus } from "@/data/types";
+import { AuditTrail } from "@/features/audit/components/audit-trail";
+import { useAdmins } from "@/features/team/use-admins";
 import { formatDateTime } from "@/lib/format";
 
-const STATUS_OPTIONS = (Object.entries(TICKET_STATUS_LABEL) as [TicketStatus, string][]).map(
-  ([value, label]) => ({ value, label }),
-);
+import { LinksDialog } from "../components/links-dialog";
+import { addNoteFn, assignFn, getTicketFn, setPriorityFn, setStatusFn } from "../support.actions";
+import { ticketRef } from "../support.input";
+import {
+  TICKET_PRIORITIES,
+  TICKET_STATUSES,
+  type TicketDetail,
+  type TicketPriority,
+  type TicketStatus,
+} from "../support.types";
 
+const back = <BackLink to="/support">Support</BackLink>;
+
+const selectClass =
+  "h-10 w-full rounded-xl border border-input bg-card px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:h-11";
+
+/** One ticket (FR-SP-3 to FR-SP-7). */
 export function TicketPage({ ticketId }: { ticketId: string }) {
-  const ticket = ticketById(ticketId);
-  const [status, setStatus] = useState<TicketStatus>(ticket?.status ?? "open");
-  const [assignee, setAssignee] = useState(ticket?.assigneeId ?? "");
-  const [note, setNote] = useState("");
-
-  if (!ticket) {
+  const { data, isPending } = useQuery({
+    queryKey: ["ticket", ticketId],
+    queryFn: () => getTicketFn({ data: { ticketId } }),
+  });
+  if (isPending) return <PageHeader title="Loading ticket" back={back} />;
+  if (!data?.ok) {
+    const missing = data?.code === "not_found";
     return (
       <>
-        <PageHeader title="Ticket not found" back={<BackLink to="/support">Support</BackLink>} />
+        <PageHeader title={missing ? "Ticket not found" : "The ticket didn't load"} back={back} />
         <Surface>
-          <EmptyState title="There's no ticket with this address" />
+          <EmptyState title={missing ? "There's no ticket with this address" : "Try again"}>
+            {missing ? null : data?.message}
+          </EmptyState>
         </Surface>
       </>
     );
   }
+  return <TicketView ticket={data.ticket} />;
+}
 
-  const user = userById(ticket.userId);
-  const household = householdById(ticket.householdId);
-  const contact = ticket.contactId ? contactById(ticket.contactId) : null;
+function TicketView({ ticket }: { ticket: TicketDetail }) {
+  const queryClient = useQueryClient();
+  const admins = useAdmins();
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  function addNote(e: FormEvent) {
+  const refresh = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["ticket", ticket.ticketId] });
+    await queryClient.invalidateQueries({ queryKey: ["support"] });
+  };
+  /** Runs one change and refreshes; a refusal shows its message. */
+  async function change(run: () => Promise<{ ok: true } | { ok: false; message: string }>) {
+    setBusy(true);
+    try {
+      const res = await run();
+      if (res.ok) await refresh();
+      else toast.error(res.message);
+    } catch {
+      toast.error("Something went wrong on our side. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function addNote(e: FormEvent) {
     e.preventDefault();
-    setNote("");
-    sampleToast("Note added");
+    if (!note.trim()) return;
+    await change(async () => {
+      const res = await addNoteFn({ data: { ticketId: ticket.ticketId, body: note } });
+      if (res.ok) setNote("");
+      return res;
+    });
   }
 
   return (
     <>
       <PageHeader
-        back={<BackLink to="/support">Support</BackLink>}
+        back={back}
         title={ticket.subject}
         description={
           <span className="inline-flex flex-wrap items-center gap-2">
             <StatusChip tone={TICKET_STATUS_TONE[ticket.status]}>
               {TICKET_STATUS_LABEL[ticket.status]}
             </StatusChip>
-            {ticket.priority !== "normal" ? (
-              <StatusChip tone={PRIORITY_TONE[ticket.priority]}>
-                {PRIORITY_LABEL[ticket.priority]} priority
-              </StatusChip>
-            ) : null}
             <span>
-              LIN-{ticket.ref}, opened {formatDateTime(ticket.createdAt)}
+              {ticketRef(ticket.ref)}, logged {formatDateTime(ticket.createdAt)}
             </span>
           </span>
         }
@@ -80,121 +108,186 @@ export function TicketPage({ ticketId }: { ticketId: string }) {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] [&>*]:min-w-0">
         <div className="space-y-6">
           <Surface title="Request">
-            <p className="max-w-prose whitespace-pre-line text-sm text-foreground">{ticket.body}</p>
+            {/* Plain text only (S-15). */}
+            <p className="max-w-prose whitespace-pre-line break-words text-sm text-foreground">
+              {ticket.body}
+            </p>
           </Surface>
 
           <Surface title="Notes" description="Internal. The user never sees these." flush>
-            {ticket.notes.length > 0 ? (
+            {ticket.notes.length === 0 ? (
+              <p className="px-5 pb-3 text-sm text-muted-foreground sm:px-6">No notes yet.</p>
+            ) : (
               <ol className="divide-y divide-border">
                 {ticket.notes.map((n) => (
                   <li key={n.id} className="px-5 py-4 sm:px-6">
                     <p className="text-xs text-muted-foreground">
                       <span className="font-semibold text-foreground">
-                        {n.authorId === CURRENT_STAFF_ID ? "You" : staffById(n.authorId)?.fullName}
+                        {admins.name(n.authorId)}
                       </span>{" "}
                       {formatDateTime(n.createdAt)}
                     </p>
-                    <p className="mt-1 max-w-prose whitespace-pre-line text-sm text-foreground">
+                    <p className="mt-1 max-w-prose whitespace-pre-line break-words text-sm text-foreground">
                       {n.body}
                     </p>
                   </li>
                 ))}
               </ol>
-            ) : null}
+            )}
             <form onSubmit={addNote} className="space-y-2 border-t border-border px-5 py-4 sm:px-6">
-              <Label htmlFor="note" className="text-xs font-semibold text-muted-foreground">
+              <label htmlFor="ticket-note" className="text-xs font-semibold text-muted-foreground">
                 Add a note
-              </Label>
+              </label>
               <Textarea
-                id="note"
+                id="ticket-note"
                 rows={3}
+                maxLength={5000}
+                placeholder="What was said or done, including replies sent on the channel"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="What you did, or what you replied on the channel"
               />
-              <div className="flex justify-end">
-                <Button type="submit" disabled={!note.trim()}>
-                  Add note
-                </Button>
-              </div>
+              <Button type="submit" disabled={busy || !note.trim()}>
+                Add note
+              </Button>
             </form>
           </Surface>
 
-          <AuditTrail targetId={ticket.id} />
+          <AuditTrail targetId={ticket.ticketId} />
         </div>
 
         <div className="space-y-6">
           <Surface title="Handling">
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="status" className="text-xs font-semibold text-muted-foreground">
-                  Status
-                </Label>
-                <SelectField
-                  id="status"
-                  value={status}
-                  onChange={(v) => {
-                    setStatus(v);
-                    sampleToast(`Status changed to ${TICKET_STATUS_LABEL[v].toLowerCase()}`);
-                  }}
-                  options={STATUS_OPTIONS}
+                <p className="text-xs font-semibold text-muted-foreground">Status</p>
+                <SegmentedFilter
+                  label="Status"
+                  value={ticket.status}
+                  onChange={(status: TicketStatus) =>
+                    status !== ticket.status &&
+                    change(() => setStatusFn({ data: { ticketId: ticket.ticketId, status } }))
+                  }
+                  options={TICKET_STATUSES.map((s) => ({
+                    value: s,
+                    label: TICKET_STATUS_LABEL[s],
+                  }))}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="assignee" className="text-xs font-semibold text-muted-foreground">
-                  Assigned to
-                </Label>
-                <SelectField
-                  id="assignee"
-                  value={assignee}
-                  placeholder="No one"
-                  onChange={(v) => {
-                    setAssignee(v);
-                    sampleToast("Ticket assigned");
-                  }}
-                  options={listStaff().map((s) => ({
-                    value: s.id,
-                    label: s.id === CURRENT_STAFF_ID ? `${s.fullName} (you)` : s.fullName,
-                  }))}
+                <p className="text-xs font-semibold text-muted-foreground">Priority</p>
+                <SegmentedFilter
+                  label="Priority"
+                  value={ticket.priority}
+                  onChange={(priority: TicketPriority) =>
+                    priority !== ticket.priority &&
+                    change(() => setPriorityFn({ data: { ticketId: ticket.ticketId, priority } }))
+                  }
+                  options={TICKET_PRIORITIES.map((p) => ({ value: p, label: PRIORITY_LABEL[p] }))}
                 />
+              </div>
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="ticket-assignee"
+                  className="text-xs font-semibold text-muted-foreground"
+                >
+                  Assigned to
+                </label>
+                <select
+                  id="ticket-assignee"
+                  className={selectClass}
+                  disabled={busy}
+                  value={ticket.assigneeId ?? ""}
+                  onChange={(e) =>
+                    change(() =>
+                      assignFn({
+                        data: { ticketId: ticket.ticketId, assigneeId: e.target.value || null },
+                      }),
+                    )
+                  }
+                >
+                  <option value="">No one</option>
+                  {admins.options.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                  {ticket.assigneeId &&
+                  !admins.admins.some((a) => a.userId === ticket.assigneeId) ? (
+                    <option value={ticket.assigneeId}>Former admin</option>
+                  ) : null}
+                </select>
+                {admins.me && ticket.assigneeId !== admins.me ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() =>
+                      change(() =>
+                        assignFn({ data: { ticketId: ticket.ticketId, assigneeId: admins.me } }),
+                      )
+                    }
+                  >
+                    Assign to me
+                  </Button>
+                ) : null}
               </div>
             </div>
           </Surface>
 
-          <Surface title="Details">
+          <Surface
+            title="Details"
+            actions={
+              <LinksDialog
+                ticket={ticket}
+                onSaved={() => void refresh()}
+                trigger={
+                  <Button size="sm" variant="outline">
+                    Change links
+                  </Button>
+                }
+              />
+            }
+          >
             <DetailList
               items={[
                 { label: "Channel", value: CHANNEL_LABEL[ticket.channel] },
                 { label: "Category", value: CATEGORY_LABEL[ticket.category] },
                 {
                   label: "Name on the channel",
-                  value: ticket.contactHandle,
-                  hidden: !ticket.contactHandle,
+                  value: ticket.contact ?? "",
+                  hidden: !ticket.contact,
                 },
                 {
                   label: "User",
-                  value: user ? (
-                    <RecordLink to={`/users/${user.id}`}>{user.fullName}</RecordLink>
+                  value: ticket.userId ? (
+                    <RecordLink to={`/users/${ticket.userId}`}>
+                      {ticket.userName ?? "Linked user"}
+                    </RecordLink>
                   ) : (
-                    "Not linked"
+                    "None"
                   ),
                 },
                 {
                   label: "Household",
-                  value: household ? (
-                    <RecordLink to={`/households/${household.id}`}>{household.name}</RecordLink>
+                  value: ticket.householdId ? (
+                    <RecordLink to={`/households/${ticket.householdId}`}>
+                      {ticket.householdName ?? "Linked household"}
+                    </RecordLink>
                   ) : (
-                    "Not linked"
+                    "None"
                   ),
                 },
                 {
                   label: "CRM contact",
-                  value: contact ? (
-                    <RecordLink to={`/crm/${contact.id}`}>{contact.fullName}</RecordLink>
+                  value: ticket.contactId ? (
+                    <RecordLink to={`/crm/${ticket.contactId}`}>
+                      {ticket.contactName ?? "Linked contact"}
+                    </RecordLink>
                   ) : (
-                    "Not linked"
+                    "None"
                   ),
                 },
+                { label: "Logged by", value: admins.name(ticket.createdBy) ?? "" },
               ]}
             />
           </Surface>

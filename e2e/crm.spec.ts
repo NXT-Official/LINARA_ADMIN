@@ -1,6 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { ADMIN, hasAdmin } from "./helpers";
+import { asSecondAdmin, hasAdmin } from "./helpers";
+
+const ADMIN = asSecondAdmin();
 
 /**
  * Phase 3a on linara dev: leads, activities, follow-ups, stages, customers and

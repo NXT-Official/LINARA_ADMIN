@@ -5,10 +5,14 @@ import { ChartSurface, ColumnChart, TrendChart, type ChartPoint } from "@/compon
 import { ExportCsvButton } from "@/components/shared/export-button";
 import { PageHeader, Surface } from "@/components/shared/page";
 import { EmptyState } from "@/components/shared/states";
-import { CUSTOMER_STAGE_LABEL, LEAD_STAGE_LABEL } from "@/data/labels";
+import { CUSTOMER_STAGE_LABEL, LEAD_STAGE_LABEL, PAYOUT_PROBLEM_LABEL } from "@/data/labels";
 import type { CustomerStage, LeadStage } from "@/data/types";
+import { aiUsageFn } from "@/features/ai/ai.actions";
 import { crmDashboardFn } from "@/features/crm/crm.actions";
 import { deletionCountsFn } from "@/features/deletions/deletions.actions";
+import { payoutCountsFn } from "@/features/payouts/payouts.actions";
+import { PAYOUT_KINDS } from "@/features/payouts/payouts.types";
+import { supportCountsFn } from "@/features/support/support.actions";
 import { formatCount } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -81,6 +85,44 @@ function Platform({ d }: { d: DashboardData }) {
   );
 }
 
+/** Open and unassigned support tickets (FR-DB-5). Its own query. */
+function Support() {
+  const { data, isPending } = useQuery({
+    queryKey: ["support", "counts"],
+    queryFn: () => supportCountsFn(),
+  });
+  if (!data?.ok) {
+    return (
+      <Surface title="Support">
+        <EmptyState title={isPending ? "Loading" : "The support figures didn't load"}>
+          {data && !data.ok ? data.message : null}
+        </EmptyState>
+      </Surface>
+    );
+  }
+  const c = data.counts;
+  return (
+    <Surface title="Support">
+      <ul className="-my-3 divide-y divide-border">
+        <Figure label="Open tickets" value={c.open} href="/support" search={{ status: "open" }} />
+        <Figure
+          label="Waiting on the user"
+          value={c.pending}
+          href="/support"
+          search={{ status: "pending" }}
+        />
+        <Figure
+          label="Not assigned"
+          value={c.unassigned}
+          note="Open or waiting, with no admin on it"
+          href="/support"
+          search={{ status: "active", assignee: "unassigned" }}
+        />
+      </ul>
+    </Surface>
+  );
+}
+
 /** Account deletion requests against their 30-day deadline (FR-DB-4). Its own query. */
 function Deletions() {
   const { data, isPending } = useQuery({
@@ -108,16 +150,61 @@ function Deletions() {
   );
 }
 
-/** Modules that aren't on real data yet: named, never shown as zero (FR-DB-9). */
-function LaterPhases() {
+/** Payout problems by kind (FR-DB-6, D38). Its own query. */
+function Payouts() {
+  const { data, isPending } = useQuery({
+    queryKey: ["payouts", "counts"],
+    queryFn: () => payoutCountsFn(),
+  });
+  if (!data?.ok) {
+    return (
+      <Surface title="Payouts">
+        <EmptyState title={isPending ? "Loading" : "The payout figures didn't load"}>
+          {data && !data.ok ? data.message : null}
+        </EmptyState>
+      </Surface>
+    );
+  }
   return (
-    <Surface
-      title="Not on live data yet"
-      description="These figures join the dashboard as each part of the console is built."
-    >
-      <ul className="space-y-2 text-sm text-muted-foreground">
-        <li>Support tickets: arrive in Phase 5</li>
-        <li>Payouts and AI usage: arrive in Phase 6</li>
+    <Surface title="Payouts">
+      <ul className="-my-3 divide-y divide-border">
+        {PAYOUT_KINDS.map((k) => (
+          <Figure
+            key={k}
+            label={PAYOUT_PROBLEM_LABEL[k]}
+            value={data.counts[k]}
+            href="/payouts"
+            search={{ kind: k }}
+          />
+        ))}
+      </ul>
+    </Surface>
+  );
+}
+
+/** AI calls in 24 hours and the people who hit a limit (FR-DB-6). Its own query. */
+function Ai() {
+  const { data, isPending } = useQuery({ queryKey: ["ai", "usage"], queryFn: () => aiUsageFn() });
+  if (!data?.ok) {
+    return (
+      <Surface title="AI usage">
+        <EmptyState title={isPending ? "Loading" : "The AI figures didn't load"}>
+          {data && !data.ok ? data.message : null}
+        </EmptyState>
+      </Surface>
+    );
+  }
+  const limited = new Set(data.usage.limitHits.map((h) => h.userId)).size;
+  return (
+    <Surface title="AI usage">
+      <ul className="-my-3 divide-y divide-border">
+        <Figure label="AI calls in 24 hours" value={data.usage.calls24h} href="/ai" />
+        <Figure
+          label="People who hit an AI limit"
+          value={limited}
+          note="Last 48 hours"
+          href="/ai"
+        />
       </ul>
     </Surface>
   );
@@ -321,8 +408,10 @@ export function DashboardPage() {
           </div>
           <div className="space-y-6">
             <Platform d={d} />
+            <Support />
             <Deletions />
-            <LaterPhases />
+            <Payouts />
+            <Ai />
           </div>
         </div>
       ) : (

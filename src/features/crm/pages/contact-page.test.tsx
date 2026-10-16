@@ -44,6 +44,11 @@ vi.mock("@/features/team/team.actions", () => ({
 vi.mock("@/features/users/users.actions", () => ({
   listUsersFn: (...a: unknown[]) => m.users(...a),
 }));
+vi.mock("@/features/support/components/record-tickets", () => ({
+  RecordTickets: ({ filter }: { filter: Record<string, string> }) => (
+    <p>Tickets for {JSON.stringify(filter)}</p>
+  ),
+}));
 vi.mock("@/features/audit/components/audit-trail", () => ({ AuditTrail: () => null }));
 vi.mock("@/components/shared/links", () => {
   const A = ({ to, children }: { to: string; children: ReactNode }) => <a href={to}>{children}</a>;
@@ -291,6 +296,19 @@ describe("ContactPage (FR-CRM-5 to FR-CRM-8, FR-CRM-12, FR-CRM-14)", () => {
     await waitFor(() =>
       expect(m.navigate).toHaveBeenCalledWith({ to: "/crm/c-new", replace: true }),
     );
+  });
+
+  it("shows the contact's support tickets", async () => {
+    renderPage();
+    expect(await screen.findByText('Tickets for {"contactId":"c1"}')).toBeInTheDocument();
+  });
+
+  it("a saved contact with an account shows the tickets of both", async () => {
+    m.get.mockResolvedValue({ ok: true, contact: { ...customer, contactId: "c2" } });
+    renderPage({ contactId: "c2" });
+    expect(
+      await screen.findByText('Tickets for {"contactId":"c2","userId":"u1"}'),
+    ).toBeInTheDocument();
   });
 
   it("an unknown contact shows Contact not found", async () => {

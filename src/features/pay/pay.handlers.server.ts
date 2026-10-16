@@ -87,3 +87,38 @@ export async function revealPayHandler(input: {
     return toPublicError(e);
   }
 }
+
+const NO_ATTEMPT = "That payout doesn't exist.";
+
+/**
+ * One payout attempt's amount (FR-PO-1, D38): read with its helper in one
+ * select, recorded before it leaves the server, ids only in the audit (S-22).
+ */
+export async function revealPayoutAmountHandler(input: {
+  attemptId: string;
+}): Promise<{ ok: true; amount: number } | PublicError> {
+  try {
+    if (!isUuid(input.attemptId)) throw new ConsoleError("not_found", NO_ATTEMPT);
+    const staff = await requireStaff("pay.view");
+
+    const { data, error } = await getAdminClient()
+      .from("payout_attempts")
+      .select("amount_sent, payslips(helper_id)")
+      .eq("id", input.attemptId)
+      .maybeSingle<{ amount_sent: number | string; payslips: { helper_id: string } | null }>();
+    if (error) throw new Error(error.message);
+    if (!data?.payslips) throw new ConsoleError("not_found", NO_ATTEMPT);
+
+    await writeAudit({
+      actorId: staff.userId,
+      action: "pay.revealed",
+      targetType: "helper",
+      targetId: data.payslips.helper_id,
+      metadata: { fields: "payout_amount", attempt_id: input.attemptId },
+    });
+    return { ok: true, amount: Number(data.amount_sent) };
+  } catch (e) {
+    if (!(e instanceof ConsoleError)) logError("payout amount reveal", e);
+    return toPublicError(e);
+  }
+}

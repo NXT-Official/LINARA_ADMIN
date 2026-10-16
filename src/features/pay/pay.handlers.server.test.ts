@@ -6,6 +6,7 @@ const m = vi.hoisted(() => ({
   tables: [] as string[],
   profile: null as { user_id: string | null; monthly_rate: number | null } | null,
   account: null as { method: string; account_name: string; account_number: string } | null,
+  attempt: null as { amount_sent: number | string; payslips: { helper_id: string } | null } | null,
 }));
 
 vi.mock("@/features/auth/session.server", () => ({
@@ -18,7 +19,12 @@ vi.mock("@/lib/supabase-admin.server", () => ({
   getAdminClient: () => ({
     from: (table: string) => {
       m.tables.push(table);
-      const result = table === "helper_profiles" ? m.profile : m.account;
+      const result =
+        table === "helper_profiles"
+          ? m.profile
+          : table === "payout_attempts"
+            ? m.attempt
+            : m.account;
       const chain = {
         select: () => chain,
         eq: () => chain,
@@ -31,7 +37,7 @@ vi.mock("@/lib/supabase-admin.server", () => ({
 
 import { ConsoleError } from "@/lib/console-error";
 
-import { revealPayHandler } from "./pay.handlers.server";
+import { revealPayHandler, revealPayoutAmountHandler } from "./pay.handlers.server";
 
 const HELPER = "7f0c2a7e-1b2c-4d5e-8f90-123456789abc";
 const RATE = 18000;
@@ -43,6 +49,7 @@ beforeEach(() => {
   m.tables = [];
   m.profile = { user_id: "u1", monthly_rate: RATE };
   m.account = { method: "PH_GCASH", account_name: "Carla D", account_number: ACCOUNT };
+  m.attempt = { amount_sent: "4321.50", payslips: { helper_id: HELPER } };
 });
 
 describe("revealPayHandler (FR-US-6, S-17)", () => {
@@ -124,5 +131,56 @@ describe("revealPayHandler (FR-US-6, S-17)", () => {
       revealPayHandler({ helperId: HELPER, field: "everything" as never }),
     ).resolves.toMatchObject({ code: "invalid_input" });
     expect(m.requireStaff).not.toHaveBeenCalled();
+  });
+});
+
+describe("revealPayoutAmountHandler (FR-PO-1, S-17, D38)", () => {
+  const ATTEMPT = "7f0c2a7e-1b2c-4d5e-8f90-0000000000aa";
+
+  it("checks pay.view first", async () => {
+    m.requireStaff.mockRejectedValue(new ConsoleError("not_allowed"));
+    await expect(revealPayoutAmountHandler({ attemptId: ATTEMPT })).resolves.toMatchObject({
+      code: "not_allowed",
+    });
+    expect(m.requireStaff).toHaveBeenCalledWith("pay.view");
+    expect(m.tables).toEqual([]);
+  });
+
+  it("returns the amount of that attempt, in one read", async () => {
+    await expect(revealPayoutAmountHandler({ attemptId: ATTEMPT })).resolves.toEqual({
+      ok: true,
+      amount: 4321.5,
+    });
+    expect(m.tables).toEqual(["payout_attempts"]);
+  });
+
+  it("reveal audit holds ids only", async () => {
+    await revealPayoutAmountHandler({ attemptId: ATTEMPT });
+    expect(m.audit).toHaveBeenCalledWith({
+      actorId: "me",
+      action: "pay.revealed",
+      targetType: "helper",
+      targetId: HELPER,
+      metadata: { fields: "payout_amount", attempt_id: ATTEMPT },
+    });
+    expect(JSON.stringify(m.audit.mock.calls)).not.toContain("4321");
+  });
+
+  it("no amount without its audit row", async () => {
+    m.audit.mockRejectedValue(new ConsoleError("outside_service"));
+    const res = await revealPayoutAmountHandler({ attemptId: ATTEMPT });
+    expect(res).toMatchObject({ ok: false, code: "outside_service" });
+    expect(JSON.stringify(res)).not.toContain("4321");
+  });
+
+  it("an unknown attempt says not found and records nothing", async () => {
+    m.attempt = null;
+    await expect(revealPayoutAmountHandler({ attemptId: ATTEMPT })).resolves.toMatchObject({
+      code: "not_found",
+    });
+    await expect(revealPayoutAmountHandler({ attemptId: "x" })).resolves.toMatchObject({
+      code: "not_found",
+    });
+    expect(m.audit).not.toHaveBeenCalled();
   });
 });

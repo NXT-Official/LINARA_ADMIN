@@ -121,11 +121,6 @@ export function deletionDaysLeft(requestedAt: string, now: Date = new Date()): n
 }
 
 export const listPayouts = () => sample.payouts;
-export const aiUsage = () => ({
-  features: sample.aiFeatures,
-  topUsers: sample.aiTopUsers,
-  limitHits: sample.aiLimitHits,
-});
 export const listAudit = () => sample.auditLog;
 export const auditFor = (targetId: string) =>
   sample.auditLog.filter((e) => e.targetId === targetId);

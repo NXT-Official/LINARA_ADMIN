@@ -13,12 +13,17 @@ if (existsSync(".env.e2e")) process.loadEnvFile(".env.e2e");
  *   (or reuses one already there).
  * - E2E_ADMIN_EMAIL / E2E_ADMIN_PASSWORD / E2E_ADMIN_TOTP_SECRET: a dedicated
  *   test admin on linara dev. Without them only the signed-out checks run.
+ * - E2E_ADMIN2_*: a second test admin, optional. Without it every spec uses
+ *   the first.
  */
 const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:8081";
 // Outside test-results/, which Playwright empties on every run: the saved session
 // must survive between runs to keep within the 5 sign-ins per 15 minutes (D30).
 // Ignored by git (the root "/*" in .gitignore).
 export const AUTH_FILE = "playwright/.auth/admin.json";
+// A second test admin (E2E_ADMIN2_*): spec files take turns between the two, so
+// neither passes the 120 calls a minute per admin (D30). See e2e/helpers.ts.
+export const AUTH_FILE_2 = "playwright/.auth/admin2.json";
 
 const signedIn = { storageState: AUTH_FILE };
 

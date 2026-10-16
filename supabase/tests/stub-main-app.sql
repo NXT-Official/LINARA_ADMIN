@@ -122,3 +122,36 @@ BEGIN
                               'household_deleted', false);
 END $$;
 REVOKE ALL ON FUNCTION public.process_account_deletion(UUID) FROM PUBLIC, anon, authenticated;
+
+-- Payouts and AI calls (Phase 6), at linara dev's columns (checked 2026-10-16).
+CREATE TABLE public.payslips (
+    id UUID PRIMARY KEY,
+    helper_id UUID NOT NULL,
+    cutoff_start DATE NOT NULL,
+    cutoff_end DATE NOT NULL,
+    net_pay NUMERIC(10,2) NOT NULL DEFAULT 0,
+    payout_status TEXT NOT NULL DEFAULT 'pending_send'
+);
+
+CREATE TABLE public.payout_attempts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    payslip_id UUID NOT NULL REFERENCES public.payslips(id) ON DELETE CASCADE,
+    attempt_number INT NOT NULL,
+    reference_id TEXT NOT NULL UNIQUE,
+    psp_payout_id TEXT,
+    status TEXT NOT NULL DEFAULT 'sending',
+    failure_reason TEXT,
+    amount_sent NUMERIC(10,2) NOT NULL,
+    channel_code TEXT NOT NULL,
+    requested_by UUID,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    resolved_at TIMESTAMPTZ,
+    UNIQUE (payslip_id, attempt_number)
+);
+
+CREATE TABLE public.ai_calls (
+    id BIGSERIAL PRIMARY KEY,
+    user_id UUID NOT NULL,
+    fn TEXT NOT NULL,
+    at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

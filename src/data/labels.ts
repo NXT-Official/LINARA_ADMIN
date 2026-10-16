@@ -4,6 +4,7 @@ import type {
   CustomerStage,
   HelperStatus,
   LeadStage,
+  PayoutKind,
   PayoutStatus,
   TicketCategory,
   TicketChannel,
@@ -88,6 +89,24 @@ export const PRIORITY_LABEL: Record<TicketPriority, string> = {
   high: "High",
 };
 
+export const PAYOUT_PROBLEM_LABEL: Record<PayoutKind, string> = {
+  failed: "Failed",
+  cancelled: "Cancelled at Xendit",
+  unclear: "Unclear",
+  stuck: "Stuck sending",
+  no_answer: "No answer from Xendit",
+};
+
+/** LINARA's AI edge functions (add-ai-call-limits.sql). Unknown ones show as stored. */
+export const AI_FEATURE_LABEL: Record<string, string> = {
+  "route-utos": "Quick Utos",
+  "generate-sop": "Routine writer",
+  "parse-scheduler": "Scheduling",
+  "simplify-sop": "Routine simplifier",
+  "promote-voice-task": "Voice tasks",
+  "transcribe-notes": "Voice notes",
+};
+
 export const PAYOUT_STATUS_LABEL: Record<PayoutStatus, string> = {
   failed: "Failed",
   ambiguous: "Unclear",
@@ -96,7 +115,12 @@ export const PAYOUT_STATUS_LABEL: Record<PayoutStatus, string> = {
 
 /** Audit actions in words. Unknown actions show as stored. */
 export const AUDIT_ACTION_LABEL: Record<string, string> = {
-  "ticket.assigned": "Assigned a ticket",
+  "support.ticket_created": "Logged a ticket",
+  "support.status_changed": "Changed a ticket's status",
+  "support.assigned": "Assigned a ticket",
+  "support.priority_changed": "Changed a ticket's priority",
+  "support.links_changed": "Changed a ticket's links",
+  "support.note_added": "Added a note to a ticket",
   "staff.added": "Added an admin",
   "staff.removed": "Removed an admin",
   "pay.revealed": "Revealed pay details",

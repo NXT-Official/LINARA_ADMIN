@@ -47,7 +47,7 @@ test.describe("account actions", () => {
       await page.getByRole("button", { name: action, exact: true }).click();
       const dialog = page.getByRole("dialog");
       await dialog.getByLabel("Reason").fill(`E2E ${action.toLowerCase()} check`);
-      await dialog.getByLabel("6-digit code").fill(await freshCode(page));
+      await dialog.getByLabel("Your two-step code").fill(await freshCode(page));
       await dialog.getByRole("button", { name: action, exact: true }).click();
       await expect(dialog).toBeHidden();
       // The code just used can't be used again in the same step.

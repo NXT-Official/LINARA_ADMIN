@@ -6,6 +6,7 @@ const m = vi.hoisted(() => ({
   rate: vi.fn(),
   rpc: vi.fn(),
   invite: vi.fn(),
+  role: null as { name: string; preset: string | null; permissions: string[] } | null,
 }));
 
 vi.mock("@/features/auth/session.server", () => ({
@@ -18,12 +19,17 @@ vi.mock("@/features/auth/rate-limit.server", () => ({
   checkRateLimit: (...a: unknown[]) => m.rate(...a),
 }));
 vi.mock("@/lib/server-env.server", () => ({
-  serverEnv: () => ({ siteUrl: "http://localhost:8081" }),
+  serverEnv: () => ({ siteUrl: "http://localhost:8081", appEnv: "staging" }),
 }));
 vi.mock("@/lib/supabase-admin.server", () => ({
   getAdminClient: () => ({
     rpc: m.rpc,
     auth: { admin: { inviteUserByEmail: m.invite } },
+    from: () => ({
+      select: () => ({
+        eq: () => ({ maybeSingle: async () => ({ data: m.role, error: null }) }),
+      }),
+    }),
   }),
 }));
 
@@ -46,7 +52,12 @@ function rpcAnswers(answers: Record<string, unknown>) {
 }
 
 beforeEach(() => {
-  for (const f of Object.values(m)) f.mockReset();
+  for (const f of Object.values(m)) if (typeof f === "function") f.mockReset();
+  m.role = {
+    name: "Sales",
+    preset: "sales",
+    permissions: ["dashboard.view", "crm.view", "crm.write"],
+  };
   m.requireStaff.mockResolvedValue(ME);
   m.freshCode.mockResolvedValue(undefined);
   m.rate.mockResolvedValue(undefined);
@@ -60,8 +71,19 @@ describe("addAdminHandler (FR-TM-2, D39)", () => {
       addAdminHandler({ email: "New@Console.example.com ", roleId: ROLE }),
     ).resolves.toEqual({ ok: true });
     expect(m.requireStaff).toHaveBeenCalledWith("team.manage");
+    // The invite email shows the role and who added them (invite.html).
     expect(m.invite).toHaveBeenCalledWith("new@console.example.com", {
       redirectTo: "http://localhost:8081/accept-invite",
+      data: {
+        invite_role: "Sales",
+        invite_permissions: [
+          "Dashboard",
+          "See contacts, activities, follow-ups",
+          "Create, edit, import, link contacts",
+        ],
+        invited_by: "me@console.example.com",
+        invite_environment: "Staging",
+      },
     });
     expect(m.rpc).toHaveBeenCalledWith("staff_add_member", {
       p_actor: "me",
@@ -82,16 +104,21 @@ describe("addAdminHandler (FR-TM-2, D39)", () => {
     );
   });
 
-  it("household emails can't join the team", async () => {
+  it("an email with a Linara app account is refused, before the code is spent", async () => {
     rpcAnswers({
       staff_lookup_user: { data: [{ user_id: "h", has_household_profile: true }], error: null },
     });
-    await expect(addAdminHandler({ email: "parent@x.com", roleId: ROLE })).resolves.toEqual({
+    await expect(
+      addAdminHandler({ email: "parent@x.com", roleId: ROLE, code: "123456" }),
+    ).resolves.toEqual({
       ok: false,
       code: "conflict",
-      message: "That email has a Linara household account. Use an email only for the console.",
+      message:
+        "This email already has a Linara app account. Use a separate work email for the console.",
     });
+    expect(m.freshCode).not.toHaveBeenCalled();
     expect(m.invite).not.toHaveBeenCalled();
+    expect(m.rpc).not.toHaveBeenCalledWith("staff_add_member", expect.anything());
   });
 
   it("an existing account isn't invited again, and SQL's refusal is shown", async () => {
@@ -123,6 +150,40 @@ describe("addAdminHandler (FR-TM-2, D39)", () => {
     });
   });
 
+  it("a role the person adding can't give is refused before any email", async () => {
+    m.requireStaff.mockResolvedValue({ ...ME, preset: "mods" });
+    m.role = { name: "Admin", preset: "admin", permissions: ["dashboard.view", "team.manage"] };
+    await expect(
+      addAdminHandler({ email: "new@x.com", roleId: ROLE, code: "123456" }),
+    ).resolves.toEqual({
+      ok: false,
+      code: "conflict",
+      message: "Mods can't give the admin or mods role.",
+    });
+    expect(m.invite).not.toHaveBeenCalled();
+    expect(m.freshCode).not.toHaveBeenCalled();
+  });
+
+  it("a role that needs the code is refused before any email when it's missing", async () => {
+    m.role = { name: "Lead desk", preset: null, permissions: ["dashboard.view"] };
+    await expect(addAdminHandler({ email: "new@x.com", roleId: ROLE })).resolves.toEqual({
+      ok: false,
+      code: "conflict",
+      message: "Enter your two-step code to make this change.",
+    });
+    expect(m.invite).not.toHaveBeenCalled();
+  });
+
+  it("an unknown role is refused before any email", async () => {
+    m.role = null;
+    await expect(addAdminHandler({ email: "new@x.com", roleId: ROLE })).resolves.toEqual({
+      ok: false,
+      code: "conflict",
+      message: "That role doesn't exist.",
+    });
+    expect(m.invite).not.toHaveBeenCalled();
+  });
+
   it("a role must be picked", async () => {
     await expect(addAdminHandler({ email: "new@x.com", roleId: "x" })).resolves.toMatchObject({
       ok: false,
@@ -137,7 +198,8 @@ describe("addAdminHandler (FR-TM-2, D39)", () => {
     await expect(
       addAdminHandler({ email: "new@x.com", roleId: ROLE, code: "123456" }),
     ).resolves.toMatchObject({ ok: false, code: "invalid_input" });
-    expect(m.rpc).not.toHaveBeenCalled();
+    // Only the read-only lookup ran: nobody was invited or added.
+    expect(m.rpc).not.toHaveBeenCalledWith("staff_add_member", expect.anything());
     expect(m.invite).not.toHaveBeenCalled();
   });
 

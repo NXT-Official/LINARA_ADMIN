@@ -83,7 +83,7 @@ test.describe("roles", () => {
     await dialog.getByLabel("Name").fill(name);
     await dialog.getByRole("checkbox", { name: "See contacts, activities, follow-ups" }).check();
     // Creating a role is new access, so it needs the code (spec 0.19).
-    await dialog.getByLabel("6-digit code").fill(await freshCode(page));
+    await dialog.getByLabel("Your two-step code").fill(await freshCode(page));
     await dialog.getByRole("button", { name: "Create role" }).click();
     await expect(dialog).toBeHidden();
     await expect(tableRow(page, name)).toContainText("Custom");
@@ -93,7 +93,7 @@ test.describe("roles", () => {
       .click();
     dialog = page.getByRole("dialog", { name });
     await dialog.getByRole("checkbox", { name: "Support tickets" }).check();
-    await dialog.getByLabel("6-digit code").fill(await freshCode(page));
+    await dialog.getByLabel("Your two-step code").fill(await freshCode(page));
     await dialog.getByRole("button", { name: "Save role" }).click();
     await expect(dialog).toBeHidden();
     await expect(tableRow(page, name)).toContainText("3 permissions");
@@ -104,7 +104,7 @@ test.describe("roles", () => {
       .click();
     dialog = page.getByRole("dialog", { name });
     await dialog.getByLabel("Name").fill(renamed);
-    await expect(dialog.getByLabel("6-digit code")).toHaveCount(0);
+    await expect(dialog.getByLabel("Your two-step code")).toHaveCount(0);
     await dialog.getByRole("button", { name: "Save role" }).click();
     await expect(dialog).toBeHidden();
 

@@ -128,7 +128,7 @@ describe("DeletionsPage (FR-DL-1 to FR-DL-4, FR-DL-7)", () => {
     expect(within(dialog).getByText("Kept")).toBeInTheDocument();
     const submit = within(dialog).getByRole("button", { name: "Delete account" });
     expect(submit).toBeDisabled();
-    fireEvent.change(within(dialog).getByLabelText("6-digit code"), {
+    fireEvent.change(within(dialog).getByLabelText("Your two-step code"), {
       target: { value: "123456" },
     });
     fireEvent.click(submit);
@@ -150,7 +150,7 @@ describe("DeletionsPage (FR-DL-1 to FR-DL-4, FR-DL-7)", () => {
       within(tableRow("Mona Reyes")).getByRole("button", { name: "Process Mona Reyes's request" }),
     );
     const dialog = await screen.findByRole("dialog");
-    fireEvent.change(within(dialog).getByLabelText("6-digit code"), {
+    fireEvent.change(within(dialog).getByLabelText("Your two-step code"), {
       target: { value: "123456" },
     });
     fireEvent.click(within(dialog).getByRole("button", { name: "Delete account" }));
@@ -187,7 +187,7 @@ describe("DeletionsPage (FR-DL-1 to FR-DL-4, FR-DL-7)", () => {
       within(tableRow("Mona Reyes")).getByRole("button", { name: "Process Mona Reyes's request" }),
     );
     const dialog = await screen.findByRole("dialog");
-    fireEvent.change(within(dialog).getByLabelText("6-digit code"), {
+    fireEvent.change(within(dialog).getByLabelText("Your two-step code"), {
       target: { value: "123456" },
     });
     fireEvent.click(within(dialog).getByRole("button", { name: "Delete account" }));

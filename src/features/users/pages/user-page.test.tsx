@@ -130,7 +130,7 @@ describe("UserPage (FR-US-3, FR-US-6)", () => {
       within(dialog).getByText(/session keeps working until it expires, up to about an hour/),
     ).toBeInTheDocument();
     const submit = within(dialog).getByRole("button", { name: "Suspend" });
-    fireEvent.change(within(dialog).getByLabelText("6-digit code"), {
+    fireEvent.change(within(dialog).getByLabelText("Your two-step code"), {
       target: { value: "123456" },
     });
     expect(submit).toBeDisabled();

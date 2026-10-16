@@ -47,7 +47,7 @@ function AddMemberDialog({ roles }: { roles: RoleRow[] }) {
         </Button>
       }
       title="Add a team member"
-      description="They get an invite link by email, and no access until they set up two-step sign-in. The change is recorded in the audit log."
+      description="We'll email them a link to choose their own password, then set up two-step sign-in on their phone. They can't open anything until both are done."
       submitLabel="Send invite"
       done="Invite sent"
       canSubmit={email.includes("@") && !!roleId && (!codeNeeded || code.length === 6)}
@@ -68,7 +68,7 @@ function AddMemberDialog({ roles }: { roles: RoleRow[] }) {
           <Field
             label="Work email"
             htmlFor={id("email")}
-            hint="Use an email only for the console, not one they use for a Linara household."
+            hint="Use a work email only for the console. An email that already has a Linara app account can't be added."
           >
             <Input
               id={id("email")}
@@ -82,7 +82,14 @@ function AddMemberDialog({ roles }: { roles: RoleRow[] }) {
           <Field label="Role" htmlFor={id("role")}>
             <RolePicker id={id("role")} roles={roles} value={roleId} onChange={setRoleId} />
           </Field>
-          {codeNeeded ? <CodeField id={id("code")} value={code} onChange={setCode} /> : null}
+          {codeNeeded ? (
+            <CodeField
+              id={id("code")}
+              value={code}
+              onChange={setCode}
+              hint="The 6-digit code in your authenticator app. It confirms it's you adding them."
+            />
+          ) : null}
         </>
       )}
     </FormDialog>
@@ -121,7 +128,14 @@ function ChangeRoleDialog({ member, roles }: { member: AdminRow; roles: RoleRow[
           <Field label="Role" htmlFor={id("role")}>
             <RolePicker id={id("role")} roles={roles} value={roleId} onChange={setRoleId} />
           </Field>
-          {codeNeeded ? <CodeField id={id("code")} value={code} onChange={setCode} /> : null}
+          {codeNeeded ? (
+            <CodeField
+              id={id("code")}
+              value={code}
+              onChange={setCode}
+              hint="The 6-digit code in your authenticator app. It confirms it's you changing their role."
+            />
+          ) : null}
         </>
       )}
     </FormDialog>
@@ -152,7 +166,14 @@ function RemoveMemberDialog({ member }: { member: AdminRow }) {
         return res;
       }}
     >
-      {(id) => <CodeField id={id("code")} value={code} onChange={setCode} />}
+      {(id) => (
+        <CodeField
+          id={id("code")}
+          value={code}
+          onChange={setCode}
+          hint="The 6-digit code in your authenticator app. It confirms it's you removing them."
+        />
+      )}
     </FormDialog>
   );
 }

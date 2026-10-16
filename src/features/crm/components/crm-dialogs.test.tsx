@@ -96,7 +96,7 @@ describe("ExportDialog (FR-CRM-11, S-5, S-18)", () => {
     const dialog = await screen.findByRole("dialog");
     const submit = within(dialog).getByRole("button", { name: "Export with contact details" });
     expect(submit).toBeDisabled();
-    fireEvent.change(within(dialog).getByLabelText("6-digit code"), {
+    fireEvent.change(within(dialog).getByLabelText("Your two-step code"), {
       target: { value: "123456" },
     });
     fireEvent.click(submit);
@@ -122,7 +122,7 @@ describe("ExportDialog (FR-CRM-11, S-5, S-18)", () => {
     m.download.mockReset();
     renderExport();
     const dialog = await screen.findByRole("dialog");
-    fireEvent.change(within(dialog).getByLabelText("6-digit code"), {
+    fireEvent.change(within(dialog).getByLabelText("Your two-step code"), {
       target: { value: "000000" },
     });
     fireEvent.click(within(dialog).getByRole("button", { name: "Export with contact details" }));

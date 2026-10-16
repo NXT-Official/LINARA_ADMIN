@@ -118,7 +118,14 @@ export function RoleEditorDialog({ draft, onClose }: { draft: RoleDraft; onClose
               ))}
             </fieldset>
           ))}
-          {codeNeeded ? <CodeField id={id("code")} value={code} onChange={setCode} /> : null}
+          {codeNeeded ? (
+            <CodeField
+              id={id("code")}
+              value={code}
+              onChange={setCode}
+              hint="The 6-digit code in your authenticator app. It confirms it's you changing what this role can do."
+            />
+          ) : null}
           {editing ? (
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
               <span className="text-xs text-muted-foreground">

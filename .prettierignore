@@ -12,3 +12,6 @@ src/routeTree.gen.ts
 # Vendored design tooling (the Impeccable skill), not app code.
 .claude
 .impeccable
+
+# Pasted by hand into Supabase email templates: kept exactly as written.
+supabase/email-templates/

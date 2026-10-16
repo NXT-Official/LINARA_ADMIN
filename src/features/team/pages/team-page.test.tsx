@@ -141,15 +141,36 @@ describe("Members tab (FR-TM-1 to FR-TM-3, FR-RL-6)", () => {
       target: { value: "new@x.com" },
     });
     fireEvent.change(within(dialog).getByLabelText("Role"), { target: { value: "r-sales" } });
-    expect(within(dialog).queryByLabelText("6-digit code")).toBeNull();
+    expect(within(dialog).queryByLabelText("Your two-step code")).toBeNull();
     fireEvent.change(within(dialog).getByLabelText("Role"), { target: { value: "r-mods" } });
-    expect(within(dialog).getByLabelText("6-digit code")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Your two-step code")).toBeInTheDocument();
     fireEvent.change(within(dialog).getByLabelText("Role"), { target: { value: "r-lead" } });
-    expect(within(dialog).getByLabelText("6-digit code")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Your two-step code")).toBeInTheDocument();
     fireEvent.change(within(dialog).getByLabelText("Role"), { target: { value: "r-sales" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Send invite" }));
     await waitFor(() =>
       expect(m.add).toHaveBeenCalledWith({ data: { email: "new@x.com", roleId: "r-sales" } }),
+    );
+  });
+
+  it("add member explains what happens next and whose code it asks for", async () => {
+    renderPage("members", ADMIN);
+    await screen.findAllByText("lead@x.com");
+    fireEvent.click(screen.getByRole("button", { name: "Add member" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText(
+        "We'll email them a link to choose their own password, then set up two-step sign-in on their phone. They can't open anything until both are done.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        "Use a work email only for the console. An email that already has a Linara app account can't be added.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText("Role"), { target: { value: "r-mods" } });
+    expect(within(dialog).getByLabelText("Your two-step code")).toHaveAccessibleDescription(
+      "The 6-digit code in your authenticator app. It confirms it's you adding them.",
     );
   });
 
@@ -178,7 +199,7 @@ describe("Members tab (FR-TM-1 to FR-TM-3, FR-RL-6)", () => {
       .map((o) => o.textContent);
     expect(options).toEqual(["Sales", "Support", "Lead desk", "Unused"]);
     fireEvent.change(within(dialog).getByLabelText("Role"), { target: { value: "r-lead" } });
-    fireEvent.change(within(dialog).getByLabelText("6-digit code"), {
+    fireEvent.change(within(dialog).getByLabelText("Your two-step code"), {
       target: { value: "123456" },
     });
     fireEvent.click(within(dialog).getByRole("button", { name: "Change role" }));
@@ -204,7 +225,7 @@ describe("Members tab (FR-TM-1 to FR-TM-3, FR-RL-6)", () => {
     await screen.findAllByText("sales@x.com");
     fireEvent.click(within(row("sales@x.com")).getByRole("button", { name: "Remove" }));
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByLabelText("6-digit code")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Your two-step code")).toBeInTheDocument();
   });
 });
 
@@ -247,7 +268,7 @@ describe("Roles tab (FR-RL-1 to FR-RL-5)", () => {
       within(editor).queryByRole("checkbox", { name: PERMISSION_LABEL["team.manage"] }),
     ).toBeNull();
     expect(within(editor).getByRole("button", { name: "Create role" })).toBeDisabled();
-    fireEvent.change(within(editor).getByLabelText("6-digit code"), {
+    fireEvent.change(within(editor).getByLabelText("Your two-step code"), {
       target: { value: "123456" },
     });
     fireEvent.click(within(editor).getByRole("button", { name: "Create role" }));
@@ -277,7 +298,7 @@ describe("Roles tab (FR-RL-1 to FR-RL-5)", () => {
     fireEvent.click(within(row("Lead desk")).getByRole("button", { name: "Open Lead desk" }));
     const editor = await screen.findByRole("dialog", { name: "Lead desk" });
     fireEvent.change(within(editor).getByLabelText("Name"), { target: { value: "Lead team" } });
-    expect(within(editor).queryByLabelText("6-digit code")).toBeNull();
+    expect(within(editor).queryByLabelText("Your two-step code")).toBeNull();
     fireEvent.click(within(editor).getByRole("button", { name: "Save role" }));
     await waitFor(() =>
       expect(m.update).toHaveBeenCalledWith({
@@ -294,7 +315,7 @@ describe("Roles tab (FR-RL-1 to FR-RL-5)", () => {
     fireEvent.click(within(row("Lead desk")).getByRole("button", { name: "Open Lead desk" }));
     const again = await screen.findByRole("dialog", { name: "Lead desk" });
     fireEvent.click(within(again).getByRole("checkbox", { name: PERMISSION_LABEL["crm.write"] }));
-    expect(within(again).getByLabelText("6-digit code")).toBeInTheDocument();
+    expect(within(again).getByLabelText("Your two-step code")).toBeInTheDocument();
   });
 
   it("a stale save shows the reload message", async () => {

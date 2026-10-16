@@ -48,6 +48,25 @@ Each file runs in one transaction: it applies completely or not at all.
    `(user_id, role)` with `'admin'` instead. Every later member is added from
    the console's Team screen.
 
+## Invite email (once per Supabase project)
+
+Supabase sends the invite when someone is added on the Team screen (FR-TM-2).
+
+1. **Authentication > Email Templates > Invite user.** Subject: `You're invited to
+   the Linara Business Console`. Body: paste `email-templates/invite.html` as is.
+   Only the console sends Supabase invites (LINARA itself only sends password
+   resets), so this changes nothing in the main app.
+   The template reads `invite_role`, `invite_permissions`, `invited_by` and
+   `invite_environment`, which the console passes with each invite. They're kept
+   on the new login's metadata but never used for access (the role is in
+   `staff_roles`).
+2. **Authentication > Email > link expiry:** set to `86400` (24 hours, FR-TM-2).
+   This setting covers every email link on the project, including LINARA's
+   password resets.
+3. **Delivery:** Supabase's built-in sender only reaches the project's team
+   members' addresses, a few emails an hour. Real invites need custom SMTP
+   (Authentication > Email > SMTP settings), which waits on OQ-13.
+
 ## Tests
 
 `tests/` runs each file against PGlite (`stub-main-app.sql` stands in for the main-app tables Phase 2 reads) with `bun run test:sql`. Rules: every

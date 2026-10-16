@@ -1,12 +1,20 @@
 import { checkRateLimit } from "@/features/auth/rate-limit.server";
 import { requireFreshCode } from "@/features/auth/reauth.server";
 import { requireStaff } from "@/features/auth/session.server";
-import type { RolePreset } from "@/features/auth/permissions";
+import {
+  PERMISSION_LABEL,
+  PERMISSIONS,
+  type Permission,
+  type RolePreset,
+} from "@/features/auth/permissions";
 import { ConsoleError, toPublicError, type PublicError } from "@/lib/console-error";
+import { APP_ENV_LABEL } from "@/lib/env";
 import { isUuid } from "@/lib/list-input";
 import { logError } from "@/lib/log.server";
 import { serverEnv } from "@/lib/server-env.server";
 import { getAdminClient } from "@/lib/supabase-admin.server";
+
+import { assignableRoles, needsCode, type RoleRow } from "./roles.types";
 
 /** The Team screen's members (FR-TM-1 to FR-TM-3, D28, D31, D39). */
 
@@ -119,8 +127,8 @@ export function addAdminHandler(input: AddAdminInput): Promise<{ ok: true } | Pu
     if (!EMAIL.test(email)) throw new ConsoleError("invalid_input", "Enter a work email.");
     if (!isUuid(input.roleId)) throw new ConsoleError("invalid_input", "Pick a role.");
     await checkRateLimit("add_admin", { adminId: staff.userId });
-    if (input.code) await requireFreshCode(staff, input.code);
 
+    // Checked before the code, so a refused email doesn't spend a code attempt (D30).
     const admin = getAdminClient();
     const { data: found, error: lookupError } = await admin.rpc("staff_lookup_user", {
       p_email: email,
@@ -128,12 +136,39 @@ export function addAdminHandler(input: AddAdminInput): Promise<{ ok: true } | Pu
     if (lookupError) throw new Error(lookupError.message);
     const existing = (found as { user_id: string; has_household_profile: boolean }[] | null)?.[0];
 
+    // A console login must never be a Linara app login too (§4.1).
     if (existing?.has_household_profile) {
       throw new ConsoleError(
         "conflict",
-        "That email has a Linara household account. Use an email only for the console.",
+        "This email already has a Linara app account. Use a separate work email for the console.",
       );
     }
+
+    // The role is checked before anything is sent, so an invite email never
+    // names a role the person won't get. SQL checks the same rules again (D39).
+    const { data: role, error: roleError } = await admin
+      .from("staff_role_defs")
+      .select("name, preset, permissions")
+      .eq("id", input.roleId)
+      .maybeSingle<{ name: string; preset: RolePreset | null; permissions: string[] }>();
+    if (roleError) throw new Error(roleError.message);
+    if (!role) throw new ConsoleError("conflict", "That role doesn't exist.");
+    const row: RoleRow = {
+      roleId: input.roleId,
+      preset: role.preset,
+      name: role.name,
+      description: null,
+      permissions: role.permissions as Permission[],
+      memberCount: 0,
+      updatedAt: "",
+    };
+    if (assignableRoles(staff.preset, [row]).length === 0) {
+      throw new ConsoleError("conflict", "Mods can't give the admin or mods role.");
+    }
+    if (needsCode(row) && !input.code) {
+      throw new ConsoleError("conflict", "Enter your two-step code to make this change.");
+    }
+    if (input.code) await requireFreshCode(staff, input.code);
 
     let userId: string;
     if (existing) {
@@ -141,8 +176,19 @@ export function addAdminHandler(input: AddAdminInput): Promise<{ ok: true } | Pu
     } else {
       // The invite link expires per the project's email-link setting (S-7) and
       // lands on /accept-invite, then two-step setup (FR-TM-2).
+      // Shown in the invite email (supabase/email-templates/invite.html). Kept on
+      // the login's metadata, but never read for access: the role lives in staff_roles.
+      const env = serverEnv();
       const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-        redirectTo: `${serverEnv().siteUrl}/accept-invite`,
+        redirectTo: `${env.siteUrl}/accept-invite`,
+        data: {
+          invite_role: role.name,
+          invite_permissions: PERMISSIONS.filter((p) => role.permissions.includes(p)).map(
+            (p) => PERMISSION_LABEL[p],
+          ),
+          invited_by: staff.email,
+          invite_environment: APP_ENV_LABEL[env.appEnv],
+        },
       });
       if (error || !data.user) throw new Error(error?.message ?? "invite returned no user");
       userId = data.user.id;

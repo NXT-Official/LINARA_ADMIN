@@ -63,7 +63,7 @@ test.describe("crm data", () => {
     // A code from the start of a 30-second step, so it can't expire mid-submit.
     const secondsLeft = 30 - (Math.floor(Date.now() / 1000) % 30);
     if (secondsLeft < 5) await page.waitForTimeout(secondsLeft * 1000 + 500);
-    await dialog.getByLabel("6-digit code").fill(totp(ADMIN.totpSecret));
+    await dialog.getByLabel("Your two-step code").fill(totp(ADMIN.totpSecret));
     const [download] = await Promise.all([
       page.waitForEvent("download"),
       dialog.getByRole("button", { name: "Export with contact details" }).click(),

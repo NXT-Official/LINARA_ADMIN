@@ -44,3 +44,5 @@
 Thumbs.db
 # Supabase CLI scratch state (holds the linked project and owner's email).
 supabase/.temp/
+# Personal deployment notes (which keys to make per stage); never pushed.
+/DEPLOYMENT-KEYS.md

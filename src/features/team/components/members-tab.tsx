@@ -15,7 +15,7 @@ import { formatDate, formatRelativeDay } from "@/lib/format";
 import { setMemberRoleFn } from "../roles.actions";
 import { assignableRoles, canChangeMember, needsCode, type RoleRow } from "../roles.types";
 import { addAdminFn, removeAdminFn } from "../team.actions";
-import type { AdminRow } from "../team.handlers.server";
+import type { AddOutcome, AdminRow } from "../team.handlers.server";
 import { TEAM_KEYS } from "../team-keys";
 import { RolePicker } from "./role-picker";
 
@@ -28,7 +28,15 @@ function useRefreshTeam() {
   };
 }
 
-/** FR-TM-2: invite by email with a role; the code only for admin or mods. */
+/** What the toast says after adding (FR-TM-2). */
+const ADDED: Record<AddOutcome, string> = {
+  invited: "Invite sent",
+  reinvited: "Invite sent again",
+  existing:
+    "Added. They already have a console login, so they can sign in with their password and two-step code.",
+};
+
+/** FR-TM-2: invite by email with a role; the code for admin, mods and custom roles. */
 function AddMemberDialog({ roles }: { roles: RoleRow[] }) {
   const refresh = useRefreshTeam();
   const first = roles.find((r) => r.preset === "sales") ?? roles[0];
@@ -56,11 +64,10 @@ function AddMemberDialog({ roles }: { roles: RoleRow[] }) {
           data: { email, roleId, ...(codeNeeded ? { code } : {}) },
         });
         setCode("");
-        if (res.ok) {
-          setEmail("");
-          await refresh();
-        }
-        return res;
+        if (!res.ok) return res;
+        setEmail("");
+        await refresh();
+        return { ok: true as const, done: ADDED[res.outcome] };
       }}
     >
       {(id) => (

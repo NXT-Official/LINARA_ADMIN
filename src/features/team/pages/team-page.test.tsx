@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PERMISSION_LABEL, PERMISSIONS, type RolePreset } from "@/features/auth/permissions";
 import { StaffProvider } from "@/features/auth/staff-provider";
+import { toast } from "sonner";
 
 import type { AdminRow } from "../team.handlers.server";
 import type { RoleRow } from "../roles.types";
@@ -171,6 +172,23 @@ describe("Members tab (FR-TM-1 to FR-TM-3, FR-RL-6)", () => {
     fireEvent.change(within(dialog).getByLabelText("Role"), { target: { value: "r-mods" } });
     expect(within(dialog).getByLabelText("Your two-step code")).toHaveAccessibleDescription(
       "The 6-digit code in your authenticator app. It confirms it's you adding them.",
+    );
+  });
+
+  it("adding someone who already has a console login says they can sign in", async () => {
+    m.add.mockResolvedValue({ ok: true, outcome: "existing" });
+    renderPage("members", ADMIN);
+    await screen.findAllByText("lead@x.com");
+    fireEvent.click(screen.getByRole("button", { name: "Add member" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("Work email"), {
+      target: { value: "back@x.com" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Send invite" }));
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        "Added. They already have a console login, so they can sign in with their password and two-step code.",
+      ),
     );
   });
 

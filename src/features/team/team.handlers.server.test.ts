@@ -7,6 +7,8 @@ const m = vi.hoisted(() => ({
   rpc: vi.fn(),
   invite: vi.fn(),
   role: null as { name: string; preset: string | null; permissions: string[] } | null,
+  member: null as { user_id: string } | null,
+  getUserById: vi.fn(),
 }));
 
 vi.mock("@/features/auth/session.server", () => ({
@@ -24,10 +26,15 @@ vi.mock("@/lib/server-env.server", () => ({
 vi.mock("@/lib/supabase-admin.server", () => ({
   getAdminClient: () => ({
     rpc: m.rpc,
-    auth: { admin: { inviteUserByEmail: m.invite } },
-    from: () => ({
+    auth: { admin: { inviteUserByEmail: m.invite, getUserById: m.getUserById } },
+    from: (table: string) => ({
       select: () => ({
-        eq: () => ({ maybeSingle: async () => ({ data: m.role, error: null }) }),
+        eq: () => ({
+          maybeSingle: async () => ({
+            data: table === "staff_roles" ? m.member : m.role,
+            error: null,
+          }),
+        }),
       }),
     }),
   }),
@@ -58,6 +65,14 @@ beforeEach(() => {
     preset: "sales",
     permissions: ["dashboard.view", "crm.view", "crm.write"],
   };
+  m.member = null;
+  // By default an existing login is one the console invited and that was set up.
+  m.getUserById.mockResolvedValue({
+    data: {
+      user: { invited_at: "2026-10-16T11:20:00Z", email_confirmed_at: "2026-10-16T11:24:00Z" },
+    },
+    error: null,
+  });
   m.requireStaff.mockResolvedValue(ME);
   m.freshCode.mockResolvedValue(undefined);
   m.rate.mockResolvedValue(undefined);
@@ -69,7 +84,7 @@ describe("addAdminHandler (FR-TM-2, D39)", () => {
     m.invite.mockResolvedValue({ data: { user: { id: "new" } }, error: null });
     await expect(
       addAdminHandler({ email: "New@Console.example.com ", roleId: ROLE }),
-    ).resolves.toEqual({ ok: true });
+    ).resolves.toEqual({ ok: true, outcome: "invited" });
     expect(m.requireStaff).toHaveBeenCalledWith("team.manage");
     // The invite email shows the role and who added them (invite.html).
     expect(m.invite).toHaveBeenCalledWith("new@console.example.com", {
@@ -119,6 +134,82 @@ describe("addAdminHandler (FR-TM-2, D39)", () => {
     expect(m.freshCode).not.toHaveBeenCalled();
     expect(m.invite).not.toHaveBeenCalled();
     expect(m.rpc).not.toHaveBeenCalledWith("staff_add_member", expect.anything());
+  });
+
+  it("an app sign-up without a profile is refused like an app account (§4.1)", async () => {
+    rpcAnswers({
+      staff_lookup_user: { data: [{ user_id: "s", has_household_profile: false }], error: null },
+    });
+    m.getUserById.mockResolvedValue({
+      data: { user: { invited_at: null, user_metadata: { signed_up_as: "primary_manager" } } },
+      error: null,
+    });
+    await expect(
+      addAdminHandler({ email: "signup@x.com", roleId: ROLE, code: "123456" }),
+    ).resolves.toEqual({
+      ok: false,
+      code: "conflict",
+      message:
+        "This email already has a Linara app account. Use a separate work email for the console.",
+    });
+    expect(m.freshCode).not.toHaveBeenCalled();
+    expect(m.invite).not.toHaveBeenCalled();
+    expect(m.rpc).not.toHaveBeenCalledWith("staff_add_member", expect.anything());
+  });
+
+  it("a console invite never accepted gets the invite again", async () => {
+    rpcAnswers({
+      staff_lookup_user: { data: [{ user_id: "p", has_household_profile: false }], error: null },
+    });
+    m.getUserById.mockResolvedValue({
+      data: { user: { invited_at: "2026-10-16T11:20:00Z", email_confirmed_at: null } },
+      error: null,
+    });
+    m.invite.mockResolvedValue({ data: { user: { id: "p" } }, error: null });
+    await expect(addAdminHandler({ email: "pending@x.com", roleId: ROLE })).resolves.toEqual({
+      ok: true,
+      outcome: "reinvited",
+    });
+    expect(m.invite).toHaveBeenCalledWith(
+      "pending@x.com",
+      expect.objectContaining({ data: expect.objectContaining({ invite_role: "Sales" }) }),
+    );
+    expect(m.rpc).toHaveBeenCalledWith(
+      "staff_add_member",
+      expect.objectContaining({ p_user_id: "p" }),
+    );
+  });
+
+  it("a console login already set up is added without an email, and says so", async () => {
+    rpcAnswers({
+      staff_lookup_user: { data: [{ user_id: "c", has_household_profile: false }], error: null },
+    });
+    await expect(addAdminHandler({ email: "back@x.com", roleId: ROLE })).resolves.toEqual({
+      ok: true,
+      outcome: "existing",
+    });
+    expect(m.invite).not.toHaveBeenCalled();
+    expect(m.rpc).toHaveBeenCalledWith(
+      "staff_add_member",
+      expect.objectContaining({ p_user_id: "c" }),
+    );
+  });
+
+  it("someone already on the team is refused before any email", async () => {
+    rpcAnswers({
+      staff_lookup_user: { data: [{ user_id: "t", has_household_profile: false }], error: null },
+    });
+    m.getUserById.mockResolvedValue({
+      data: { user: { invited_at: "2026-10-16T11:20:00Z", email_confirmed_at: null } },
+      error: null,
+    });
+    m.member = { user_id: "t" };
+    await expect(addAdminHandler({ email: "dup@x.com", roleId: ROLE })).resolves.toEqual({
+      ok: false,
+      code: "conflict",
+      message: "That email is already on the team.",
+    });
+    expect(m.invite).not.toHaveBeenCalled();
   });
 
   it("an existing account isn't invited again, and SQL's refusal is shown", async () => {

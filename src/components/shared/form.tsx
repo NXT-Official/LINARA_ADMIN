@@ -96,7 +96,7 @@ export function FormDialog({
    * `{ ok: false, message }` to stay open and show the message. Omitted, the
    * dialog only confirms with the sample-data toast.
    */
-  onSubmit?: () => Promise<{ ok: true } | { ok: false; message: string }>;
+  onSubmit?: () => Promise<{ ok: true; done?: string } | { ok: false; message: string }>;
   /** Omit when a menu item opens the dialog; pass `open` and `onOpenChange` instead. */
   trigger?: ReactNode;
   open?: boolean;
@@ -133,7 +133,7 @@ export function FormDialog({
       const res = await onSubmit();
       if (res.ok) {
         setOpen(false);
-        toast.success(done);
+        toast.success(res.done ?? done);
       } else {
         setError(res.message);
       }

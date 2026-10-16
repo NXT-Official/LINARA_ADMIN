@@ -115,10 +115,21 @@ async function call(fn: string, args: Record<string, unknown>): Promise<void> {
 export type AddAdminInput = { email: string; roleId: string; code?: string };
 
 /**
+ * What adding did: a new invite, the invite sent again to a console login that
+ * was never set up, or a console login that was already set up (no email).
+ */
+export type AddOutcome = "invited" | "reinvited" | "existing";
+
+const APP_ACCOUNT =
+  "This email already has a Linara app account. Use a separate work email for the console.";
+
+/**
  * Adds a member with a role (FR-TM-2). The code is needed for the admin and
  * mods roles; SQL decides, and refuses a role the person adding may not give.
  */
-export function addAdminHandler(input: AddAdminInput): Promise<{ ok: true } | PublicError> {
+export function addAdminHandler(
+  input: AddAdminInput,
+): Promise<{ ok: true; outcome: AddOutcome } | PublicError> {
   return run(async () => {
     const staff = await requireStaff("team.manage");
     const email = String(input.email ?? "")
@@ -136,12 +147,26 @@ export function addAdminHandler(input: AddAdminInput): Promise<{ ok: true } | Pu
     if (lookupError) throw new Error(lookupError.message);
     const existing = (found as { user_id: string; has_household_profile: boolean }[] | null)?.[0];
 
-    // A console login must never be a Linara app login too (§4.1).
-    if (existing?.has_household_profile) {
-      throw new ConsoleError(
-        "conflict",
-        "This email already has a Linara app account. Use a separate work email for the console.",
+    // A console login must never be a Linara app login too (§4.1). An app
+    // profile shows it; so does a login the console didn't invite, since the
+    // Linara app never sends invites (an app sign-up with no profile yet, or
+    // whose profile was removed, still belongs to that person).
+    if (existing?.has_household_profile) throw new ConsoleError("conflict", APP_ACCOUNT);
+    let pendingInvite = false;
+    if (existing) {
+      const { data: found, error: userError } = await admin.auth.admin.getUserById(
+        existing.user_id,
       );
+      if (userError || !found.user) throw new Error(userError?.message ?? "login not found");
+      if (!found.user.invited_at) throw new ConsoleError("conflict", APP_ACCOUNT);
+      pendingInvite = !found.user.email_confirmed_at;
+      const { data: member, error: memberError } = await admin
+        .from("staff_roles")
+        .select("user_id")
+        .eq("user_id", existing.user_id)
+        .maybeSingle();
+      if (memberError) throw new Error(memberError.message);
+      if (member) throw new ConsoleError("conflict", "That email is already on the team.");
     }
 
     // The role is checked before anything is sent, so an invite email never
@@ -171,9 +196,13 @@ export function addAdminHandler(input: AddAdminInput): Promise<{ ok: true } | Pu
     if (input.code) await requireFreshCode(staff, input.code);
 
     let userId: string;
-    if (existing) {
+    let outcome: AddOutcome;
+    if (existing && !pendingInvite) {
       userId = existing.user_id;
+      outcome = "existing";
     } else {
+      // A new email, or a console invite never accepted: Supabase sends the
+      // invite again for a login that was never confirmed.
       // The invite link expires per the project's email-link setting (S-7) and
       // lands on /accept-invite, then two-step setup (FR-TM-2).
       // Shown in the invite email (supabase/email-templates/invite.html). Kept on
@@ -192,6 +221,7 @@ export function addAdminHandler(input: AddAdminInput): Promise<{ ok: true } | Pu
       });
       if (error || !data.user) throw new Error(error?.message ?? "invite returned no user");
       userId = data.user.id;
+      outcome = existing ? "reinvited" : "invited";
     }
 
     // Records itself in the audit log (D39). FR-TM-4's email waits for OQ-13.
@@ -201,7 +231,7 @@ export function addAdminHandler(input: AddAdminInput): Promise<{ ok: true } | Pu
       p_role_id: input.roleId,
       p_code_checked: !!input.code,
     });
-    return { ok: true as const };
+    return { ok: true as const, outcome };
   });
 }
 

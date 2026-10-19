@@ -4,6 +4,7 @@ import { Plus } from "lucide-react";
 
 import { DataTable, type Column } from "@/components/shared/data-table";
 import { Field, FormDialog } from "@/components/shared/form";
+import { SegmentedFilter } from "@/components/shared/list-toolbar";
 import { EmptyState, TableSkeleton } from "@/components/shared/states";
 import { StatusChip } from "@/components/shared/status-chip";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import { CodeField } from "@/features/auth/components/code-field";
 import type { RolePreset } from "@/features/auth/permissions";
 import { formatDate, formatRelativeDay } from "@/lib/format";
 
+import { sortMembers, type MemberSort } from "../members-sort";
 import { setMemberRoleFn } from "../roles.actions";
 import { assignableRoles, canChangeMember, needsCode, type RoleRow } from "../roles.types";
 import { addAdminFn, removeAdminFn } from "../team.actions";
@@ -196,6 +198,7 @@ export function MembersTab({
   actor: { userId: string; preset: RolePreset | null };
   loading: boolean;
 }) {
+  const [sort, setSort] = useState<MemberSort>("role");
   const giveable = assignableRoles(actor.preset, roles);
   const columns: Column<AdminRow>[] = [
     {
@@ -247,12 +250,23 @@ export function MembersTab({
 
   return (
     <>
-      <div className="flex justify-end px-5 pb-3 sm:px-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-5 pb-3 sm:px-6">
+        <SegmentedFilter
+          label="Sort members by"
+          value={sort}
+          onChange={setSort}
+          options={[
+            { value: "role", label: "Role" },
+            { value: "email", label: "Email" },
+            { value: "signIn", label: "Last sign-in" },
+            { value: "added", label: "Newest" },
+          ]}
+        />
         <AddMemberDialog roles={giveable} />
       </div>
       <DataTable
         label="Team members"
-        rows={members}
+        rows={sortMembers(members, sort)}
         columns={columns}
         rowKey={(a) => a.userId}
         empty={

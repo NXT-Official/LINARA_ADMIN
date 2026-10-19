@@ -15,8 +15,9 @@
 // nothing, Xendit confirming a manual mark asks staff to check, a trial gives
 // only the plan's included seats, seat counts stay within 0 to 1000, a first
 // payment from a buyer who has since handed over replaces nothing, staff revoke
-// a subscription at once, the server key is nobody's household, and applying
-// the file again leaves the data alone. Ported from LINARA 594daf6
+// a subscription for good (no renew, cancel, link or payment brings it back),
+// the server key is nobody's household, applying the file again leaves the
+// data alone, and it upgrades a database from before revoked_at. Ported from LINARA 594daf6
 // supabase/tests/subscriptions.test.mjs (S-22, S-27).
 //
 //   node supabase/tests/billing-subscriptions.test.mjs
@@ -1809,6 +1810,12 @@ check(
     farmRevoked.note === "farm pilot\nRevoked by staff: Pilot ended early",
   farmRevoked,
 );
+const farmRevokedRow = await subRow(farmComp.subscription_id);
+check(
+  "revoke: revoked_at and revoked_by are set",
+  (await nearNow(farmRevokedRow.revoked_at)) && farmRevokedRow.revoked_by === A1,
+  farmRevokedRow,
+);
 check("revoke: H6 falls back to the free tier", (await entitlements(H6)).source === "free");
 const rFarmRow = await invoiceRow(rFarm.invoice_id);
 check(
@@ -1816,31 +1823,152 @@ check(
   rFarmRow.status === "expired" && rFarmRow.raw_callback.revoked_by === A1,
   rFarmRow,
 );
-const lateOnRevoked = await pay(rFarm.external_id, "PAID", null, "xs_farm");
-const farmAfter = await subRow(farmComp.subscription_id);
-check(
-  "revoke: paying its invoice later is not applied: it stays ended, a refund is noted",
-  lateOnRevoked.applied === false &&
-    farmAfter.status === "canceled" &&
-    farmAfter.note.includes(
-      `Late payment: session xs_farm paid invoice ${rFarm.invoice_number} on `,
-    ) &&
-    farmAfter.note.endsWith("after its plan was revoked; refund in Xendit") &&
-    (await entitlements(H6)).source === "free",
-  { lateOnRevoked, note: farmAfter.note },
+// The household can't bring it back.
+await expectError(
+  "revoke: the primary can't renew it (NOT_FOUND:revoked)",
+  () => renew(farmComp.subscription_id),
+  /^NOT_FOUND:revoked$/,
 );
-check(
-  "revoke: nor can staff mark that invoice paid",
-  (await markPaid(rFarm.invoice_id, "gcash", "late")).applied === false &&
-    (await subRow(farmComp.subscription_id)).status === "canceled",
+await expectError(
+  "revoke: the primary can't cancel it (NOT_FOUND:revoked)",
+  () => cancel(farmComp.subscription_id),
+  /^NOT_FOUND:revoked$/,
 );
-// A paid plan with time left ends now too.
-await revoke(openComp.subscription_id, "Chargeback");
+await expectError(
+  "revoke: the primary can't attach a payment link to its invoice (NOT_FOUND:revoked)",
+  () => attach(rFarm.invoice_id, "xs_farm_new", XENDIT("xs_farm_new")),
+  /^NOT_FOUND:revoked$/,
+);
 as(M2);
+await expectError(
+  "revoke: someone who can't act for it still just gets NOT_FOUND:subscription",
+  () => renew(farmComp.subscription_id),
+  /^NOT_FOUND:subscription$/,
+);
+as(P);
+const latePayRevoked = await pay(rFarm.external_id, "PAID", null, "xs_farm");
+const farmAfter = await subRow(farmComp.subscription_id);
+const revokedOn = (
+  await one(`SELECT to_char($1::timestamptz AT TIME ZONE 'Asia/Manila', 'YYYY-MM-DD') AS d`, [
+    farmRevokedRow.revoked_at,
+  ])
+).d;
+const revokedPaidNote = `Paid ${rFarm.invoice_number} after its plan was revoked on ${revokedOn}; refund in Xendit`;
+check(
+  "revoke: PAID on its old pending invoice is not applied, it stays canceled and revoked, a refund is noted",
+  latePayRevoked.applied === false &&
+    farmAfter.status === "canceled" &&
+    farmAfter.revoked_at !== null &&
+    farmAfter.note.endsWith(`\n${revokedPaidNote}`) &&
+    (await invoiceRow(rFarm.invoice_id)).raw_callback.revoked_paid_xs_farm?.event ===
+      "payment_session.completed" &&
+    (await entitlements(H6)).source === "free",
+  { latePayRevoked, note: farmAfter.note },
+);
+await pay(rFarm.external_id, "PAID", null, "xs_farm");
+check(
+  "revoke: the same PAID again adds no second note",
+  (await subRow(farmComp.subscription_id)).note === farmAfter.note,
+);
+await expectError(
+  "revoke: staff can't mark its invoice paid",
+  () => markPaid(rFarm.invoice_id, "gcash", "late"),
+  /^This invoice's plan was revoked, so it can't be marked paid\. Refund the payment instead\.$/,
+);
+await expectError(
+  "revoke: a second revoke is refused",
+  () => revoke(farmComp.subscription_id, "Again"),
+  /^That subscription is already revoked\.$/,
+);
+await setEnd(farmComp.subscription_id, `now() + interval '10 days'`);
+check(
+  "revoke: a revoked subscription gives no entitlement even with a period ahead",
+  (await entitlements(H6)).source === "free",
+);
+await setEnd(farmComp.subscription_id, `now() - interval '1 second'`);
+const farmMine = (await myBilling(H6)).subscriptions.find((s) => s.id === farmComp.subscription_id);
+check(
+  "revoke: the household page still lists it, canceled and revoked (no note)",
+  farmMine?.status === "canceled" && farmMine.revoked === true && !("note" in farmMine),
+  farmMine,
+);
+const farmDetail = (await householdDetail(H6)).subscriptions.find(
+  (s) => s.id === farmComp.subscription_id,
+);
+check(
+  "revoke: staff see it revoked, with when and by whom",
+  farmDetail?.revoked === true && farmDetail.revoked_by === A1 && farmDetail.revoked_at !== null,
+  farmDetail,
+);
+const regrant = await grant(H6, MONTHLY, 2, 2, THIRTY_DAYS, "second pilot", "Pilot restarted");
+const eRegrant = await entitlements(H6);
+check(
+  "revoke: a new grant for the same household works on its own",
+  eRegrant.source === "subscription" &&
+    eRegrant.subscription_id === regrant.subscription_id &&
+    (await subRow(regrant.subscription_id)).revoked_at === null &&
+    (await subRow(farmComp.subscription_id)).status === "canceled" &&
+    (await myBilling(H6)).subscriptions.find((s) => s.id === regrant.subscription_id)?.revoked ===
+      false,
+  eRegrant,
+);
+
+// A paid plan with time left ends now too, and every invoice of it not paid is marked.
+as(M2);
+const rOpen2 = await renew(openComp.subscription_id);
+await pay(rOpen2.external_id, "EXPIRED", null, "xs_open_2");
+const rOpen3 = await renew(openComp.subscription_id);
+await pay(rOpen3.external_id, "FAILED", null, "xs_open_3");
+const rOpen4 = await renew(openComp.subscription_id);
+check(
+  "revoke: before it, the paid plan has an expired, a failed and a pending invoice",
+  (await invoiceRow(rOpen2.invoice_id)).status === "expired" &&
+    (await invoiceRow(rOpen3.invoice_id)).status === "failed" &&
+    (await invoiceRow(rOpen4.invoice_id)).status === "pending",
+);
+await revoke(openComp.subscription_id, "Chargeback");
+const openInvoices = await q(
+  `SELECT id, status, raw_callback FROM public.billing_invoices WHERE subscription_id = $1`,
+  [openComp.subscription_id],
+);
+check(
+  "revoke: every unpaid invoice (expired, failed, pending) is expired and marked; paid ones are left alone",
+  openInvoices.every((i) =>
+    [rOpen2.invoice_id, rOpen3.invoice_id, rOpen4.invoice_id].includes(i.id)
+      ? i.status === "expired" && i.raw_callback?.revoked_by === A1
+      : i.status === "paid" && !("revoked_by" in (i.raw_callback ?? {})),
+  ) && openInvoices.length === 5,
+  openInvoices,
+);
 check(
   "revoke: a paid subscription mid-period ends now, back to the free tier",
   (await subRow(openComp.subscription_id)).status === "canceled" &&
     (await entitlements(H2)).source === "free",
+);
+const failedThenPaid = await pay(rOpen3.external_id, "PAID", null, "xs_open_3");
+check(
+  "revoke: PAID on an invoice that had failed before the revoke is not applied either",
+  failedThenPaid.applied === false &&
+    (await subRow(openComp.subscription_id)).status === "canceled" &&
+    (await subRow(openComp.subscription_id)).note.includes(
+      `Paid ${rOpen3.invoice_number} after its plan was revoked on `,
+    ),
+  failedThenPaid,
+);
+const openNoteBefore = (await subRow(openComp.subscription_id)).note;
+const retryAfterRevoke = await pay(rOpen.external_id, "PAID", null, "xs_open");
+check(
+  "revoke: Xendit retrying a payment applied before the revoke is a repeat, not a refund",
+  retryAfterRevoke.applied === false &&
+    (await subRow(openComp.subscription_id)).note === openNoteBefore,
+);
+const dupAfterRevoke = await pay(rOpen.external_id, "PAID", null, "xs_open_other");
+check(
+  "revoke: another session paying an invoice paid before the revoke is a duplicate to refund",
+  dupAfterRevoke.applied === false &&
+    (await subRow(openComp.subscription_id)).note.includes(
+      `Duplicate payment: session xs_open_other paid invoice ${rOpen.invoice_number} again on `,
+    ),
 );
 
 // --- Deleting the owner's account keeps the revenue record ---------------------------------------
@@ -2124,8 +2252,8 @@ const grants = log.filter((a) => a.action === "billing.granted");
 const marks = log.filter((a) => a.action === "billing.marked_paid");
 const revokes = log.filter((a) => a.action === "billing.revoked");
 check(
-  "only the three grants, the one applied mark and the two revokes were audited (refusals and repeats weren't)",
-  log.length === 6 && grants.length === 3 && marks.length === 1 && revokes.length === 2,
+  "only the four grants, the one applied mark and the two revokes were audited (refusals and repeats weren't)",
+  log.length === 7 && grants.length === 4 && marks.length === 1 && revokes.length === 2,
   log,
 );
 check(
@@ -2202,6 +2330,81 @@ await expectError(
   "a third apply keeps the tables closed",
   () => asMe(() => q(`SELECT * FROM public.billing_invoices`)),
   /permission denied/,
+);
+
+// --- Upgrading a database that ran the version before revoked_at -------------------------------
+// billing_subscriptions as fix round 1 (8cb4b45) created it, with a row, then this file over it.
+const old = new PGlite();
+for (const file of SQL_FILES.slice(0, -1)) {
+  await old.exec(readFileSync(resolve(REPO, file), "utf8"));
+}
+await old.exec(`
+  INSERT INTO auth.users (id, email) VALUES ('${P}', 'ben@example.com');
+  INSERT INTO public.households (id, name) VALUES ('${H1}', 'Reyes Household');
+  INSERT INTO public.household_managers (household_id, user_id, role)
+    VALUES ('${H1}', '${P}', 'primary_manager');
+  INSERT INTO public.billing_plans (id, name, interval, base_centavos, status)
+    VALUES ('${MONTHLY}', 'Household', 'monthly', 49900, 'active');
+  CREATE TABLE public.billing_subscriptions (
+      id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      plan_id              UUID NOT NULL REFERENCES public.billing_plans(id),
+      owner_user_id        UUID NULL REFERENCES auth.users(id) ON DELETE SET NULL,
+      status               TEXT NOT NULL
+                           CHECK (status IN ('pending', 'trialing', 'active', 'past_due',
+                                             'expired', 'canceled')),
+      helper_seats         INT NULL CHECK (helper_seats >= 0),
+      manager_seats        INT NULL CHECK (manager_seats >= 0),
+      home_seats           INT NOT NULL DEFAULT 1 CHECK (home_seats >= 1),
+      amount_centavos      BIGINT NOT NULL CHECK (amount_centavos >= 0),
+      current_period_start TIMESTAMPTZ NULL,
+      current_period_end   TIMESTAMPTZ NULL,
+      canceled_at          TIMESTAMPTZ NULL,
+      note                 TEXT NULL,
+      created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  INSERT INTO public.billing_subscriptions
+      (id, plan_id, owner_user_id, status, amount_centavos, current_period_start, current_period_end)
+    VALUES ('${s1.subscription_id}', '${MONTHLY}', '${P}', 'active', 49900, now(),
+            now() + interval '1 month');
+`);
+await old.exec(readFileSync(resolve(REPO, "017-billing-subscriptions.sql"), "utf8"));
+await old.exec(readFileSync(resolve(REPO, "017-billing-subscriptions.sql"), "utf8"));
+const upgraded = (
+  await old.query(
+    `SELECT (SELECT count(*)::int FROM information_schema.columns
+             WHERE table_schema = 'public' AND table_name = 'billing_subscriptions'
+               AND column_name IN ('revoked_at', 'revoked_by')) AS columns,
+            s.status, s.revoked_at, s.revoked_by
+     FROM public.billing_subscriptions s WHERE s.id = $1`,
+    [s1.subscription_id],
+  )
+).rows[0];
+check(
+  "upgrade: the file applies (twice) over the earlier table, adding revoked_at and revoked_by",
+  upgraded.columns === 2 &&
+    upgraded.status === "active" &&
+    upgraded.revoked_at === null &&
+    upgraded.revoked_by === null,
+  upgraded,
+);
+await old.exec(
+  `INSERT INTO public.billing_subscription_homes VALUES ('${s1.subscription_id}', '${H1}')`,
+);
+await old.exec("SET ROLE service_role");
+await old.query(`SELECT public.billing_revoke($1, $2, 'Upgrade check')`, [A1, s1.subscription_id]);
+await old.exec("RESET ROLE");
+await old.query("SELECT set_config('test.uid', $1, false)", [P]);
+await old.exec("SET ROLE authenticated");
+const upgradedRenew = await old.query(`SELECT public.billing_renew($1)`, [s1.subscription_id]).then(
+  () => "no error",
+  (e) => e.message,
+);
+await old.exec("RESET ROLE");
+check(
+  "upgrade: a subscription that existed before the upgrade can be revoked, and then stays revoked",
+  upgradedRenew === "NOT_FOUND:revoked",
+  upgradedRenew,
 );
 
 console.log(failures ? `\n${failures} failing` : "\nall passing");

@@ -1,0 +1,22 @@
+supabase/tests/faq.test.mjs
+  s_015ef908465883::t_07e107b74e10f4 1-188
+supabase/020-faq.sql
+  s_015ef908465883::t_de4d1fe2855f04 36,91,95,99,104,109,112,117,139,143,150-176
+  s_015ef908465883::t_58fe7077736226 1-35,37-90,92-94,96-98,100-103,105-108,110-111,113-116,118-138,140-142,144-149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3d0eb26ed40432d5a0db3cab28249a963ce96ed2",
+  "prompts": {},
+  "sessions": {
+    "s_015ef908465883": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bc0c8d9c-45ff-47d9-bb1d-e5046b9ee7e4",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "naaxtech <naaxtech.official@gmail.com>"
+    }
+  }
+}

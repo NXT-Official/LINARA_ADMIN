@@ -1,0 +1,29 @@
+package.json
+  s_015ef908465883::t_f96c2fc033d229 18
+src/features/auth/permissions.test.ts
+  s_015ef908465883::t_d14c792d9a1b20 25-37,42-43
+src/features/auth/permissions.ts
+  s_015ef908465883::t_df48106a2b81d2 24-27,60-63,68,95-98
+supabase/015-business-permissions.sql
+  s_015ef908465883::t_3e0b910acc0c59 1-32
+supabase/tests/business-permissions.test.mjs
+  s_015ef908465883::t_dec2d896b8cddd 1-130
+supabase/tests/roles.test.mjs
+  s_015ef908465883::t_e828951b25989e 1,74,84,93-101,103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c4bf90220e40bad80f199e110c3ea694fe8d36dd",
+  "prompts": {},
+  "sessions": {
+    "s_015ef908465883": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bc0c8d9c-45ff-47d9-bb1d-e5046b9ee7e4",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "naaxtech <naaxtech.official@gmail.com>"
+    }
+  }
+}

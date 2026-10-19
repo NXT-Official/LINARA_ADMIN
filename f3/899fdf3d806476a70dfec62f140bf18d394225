@@ -1,0 +1,23 @@
+supabase/tests/support-in-app.test.mjs
+  s_015ef908465883::t_59028aa1039892 91-129
+  s_015ef908465883::t_ad650f65f88867 462-467,470-473
+supabase/019-support-in-app.sql
+  s_015ef908465883::t_3beeac2d49e0b9 37-65
+  s_015ef908465883::t_32be7014d89285 186-187,195-196
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f3899fdf3d806476a70dfec62f140bf18d394225",
+  "prompts": {},
+  "sessions": {
+    "s_015ef908465883": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bc0c8d9c-45ff-47d9-bb1d-e5046b9ee7e4",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "naaxtech <naaxtech.official@gmail.com>"
+    }
+  }
+}

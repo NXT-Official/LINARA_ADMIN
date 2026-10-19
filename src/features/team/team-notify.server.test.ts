@@ -35,6 +35,7 @@ import {
   notifyContactsExported,
   notifyMemberAdded,
   notifyMemberRemoved,
+  notifyTwoStepReset,
 } from "./team-notify.server";
 
 type Sent = { to: string; subject: string; text: string; html: string };
@@ -85,6 +86,12 @@ describe("team emails (FR-TM-4, FR-CRM-11, D45)", () => {
     await notifyContactsExported({ actorEmail: "admin@x.com", rows: 42 });
     expect(sent()[0].subject).toBe("[Staging] CRM contacts exported with contact details");
     expect(sent()[0].text).toContain("admin@x.com downloaded 42 CRM contacts");
+  });
+
+  it("a two-step reset tells the managers who reset whose (D46)", async () => {
+    await notifyTwoStepReset({ actorEmail: "owner@x.com", memberEmail: "b@x.com" });
+    expect(sent()[0].subject).toBe("[Staging] Two-step sign-in reset: b@x.com");
+    expect(sent()[0].text).toContain("owner@x.com reset b@x.com's two-step sign-in.");
   });
 
   it("text in the HTML part is escaped", async () => {

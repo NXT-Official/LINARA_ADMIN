@@ -195,3 +195,20 @@ export function notifyContactsExported(input: { actorEmail: string; rows: number
     note: "The file holds personal data covered by the Data Privacy Act. It should be stored securely and deleted when no longer needed.",
   });
 }
+
+export function notifyTwoStepReset(input: {
+  actorEmail: string;
+  memberEmail: string;
+}): Promise<void> {
+  return notifyManagers({
+    subject: `Two-step sign-in reset: ${input.memberEmail}`,
+    preview: `${input.actorEmail} reset ${input.memberEmail}'s two-step sign-in.`,
+    heading: "A two-step sign-in was reset",
+    intro: `${input.actorEmail} reset ${input.memberEmail}'s two-step sign-in. They were signed out everywhere and will set up a new authenticator on their next sign-in.`,
+    details: [
+      ["Member", input.memberEmail],
+      ["Reset by", input.actorEmail],
+      ["When", now()],
+    ],
+  });
+}

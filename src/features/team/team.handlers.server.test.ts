@@ -11,11 +11,20 @@ const m = vi.hoisted(() => ({
   getUserById: vi.fn(),
   added: vi.fn(),
   removed: vi.fn(),
+  reset: vi.fn(),
+  listFactors: vi.fn(),
+  deleteFactor: vi.fn(),
+  audit: vi.fn(),
+}));
+
+vi.mock("@/features/audit/audit.server", () => ({
+  writeAudit: (...a: unknown[]) => m.audit(...a),
 }));
 
 vi.mock("./team-notify.server", () => ({
   notifyMemberAdded: (...a: unknown[]) => m.added(...a),
   notifyMemberRemoved: (...a: unknown[]) => m.removed(...a),
+  notifyTwoStepReset: (...a: unknown[]) => m.reset(...a),
 }));
 
 vi.mock("@/features/auth/session.server", () => ({
@@ -33,7 +42,13 @@ vi.mock("@/lib/server-env.server", () => ({
 vi.mock("@/lib/supabase-admin.server", () => ({
   getAdminClient: () => ({
     rpc: m.rpc,
-    auth: { admin: { inviteUserByEmail: m.invite, getUserById: m.getUserById } },
+    auth: {
+      admin: {
+        inviteUserByEmail: m.invite,
+        getUserById: m.getUserById,
+        mfa: { listFactors: m.listFactors, deleteFactor: m.deleteFactor },
+      },
+    },
     from: (table: string) => ({
       select: () => ({
         eq: () => ({
@@ -54,6 +69,7 @@ import {
   listAdminsHandler,
   listTeamNamesHandler,
   removeAdminHandler,
+  resetTwoStepHandler,
 } from "./team.handlers.server";
 
 const ME = { userId: "me", email: "me@console.example.com", preset: "admin" };
@@ -456,5 +472,81 @@ describe("listTeamNamesHandler (owner and assignee names)", () => {
       members: [{ userId: "me", email: "me@console.example.com", isYou: true }],
     });
     expect(m.requireStaff).toHaveBeenCalledWith("dashboard.view");
+  });
+});
+
+describe("resetTwoStepHandler (D46)", () => {
+  const SUPER = { ...ME, preset: "super_admin" };
+
+  beforeEach(() => {
+    m.requireStaff.mockResolvedValue(SUPER);
+    m.member = { user_id: B };
+    m.listFactors.mockResolvedValue({
+      data: { factors: [{ id: "f1" }, { id: "f2" }] },
+      error: null,
+    });
+    m.deleteFactor.mockResolvedValue({ error: null });
+    m.getUserById.mockResolvedValue({
+      data: { user: { email: "b@console.example.com" } },
+      error: null,
+    });
+  });
+
+  it("removes every factor, ends sessions, records and emails, after the code", async () => {
+    await expect(resetTwoStepHandler({ userId: B, code: "123456" })).resolves.toEqual({ ok: true });
+    expect(m.requireStaff).toHaveBeenCalledWith("team.manage");
+    expect(m.rate).toHaveBeenCalledWith("team_change", { adminId: "me" });
+    expect(m.freshCode).toHaveBeenCalledWith(SUPER, "123456");
+    expect(m.deleteFactor).toHaveBeenCalledWith({ id: "f1", userId: B });
+    expect(m.deleteFactor).toHaveBeenCalledWith({ id: "f2", userId: B });
+    expect(m.rpc).toHaveBeenCalledWith("staff_end_sessions", { p_user_id: B });
+    expect(m.audit).toHaveBeenCalledWith({
+      actorId: "me",
+      action: "staff.two_step_reset",
+      targetType: "staff",
+      targetId: B,
+      metadata: { factors_removed: 2 },
+    });
+    expect(m.reset).toHaveBeenCalledWith({
+      actorEmail: "me@console.example.com",
+      memberEmail: "b@console.example.com",
+    });
+  });
+
+  it("only the super admin can do it, even an admin can't", async () => {
+    m.requireStaff.mockResolvedValue(ME);
+    await expect(resetTwoStepHandler({ userId: B, code: "123456" })).resolves.toEqual({
+      ok: false,
+      code: "not_allowed",
+      message: "Only the super admin can reset two-step sign-in.",
+    });
+    expect(m.freshCode).not.toHaveBeenCalled();
+    expect(m.deleteFactor).not.toHaveBeenCalled();
+  });
+
+  it("not for yourself", async () => {
+    await expect(resetTwoStepHandler({ userId: "me", code: "123456" })).resolves.toMatchObject({
+      ok: false,
+      message: "You can't reset your own two-step sign-in.",
+    });
+    expect(m.deleteFactor).not.toHaveBeenCalled();
+  });
+
+  it("only for a team member", async () => {
+    m.member = null;
+    await expect(resetTwoStepHandler({ userId: B, code: "123456" })).resolves.toMatchObject({
+      ok: false,
+      code: "not_found",
+    });
+    expect(m.listFactors).not.toHaveBeenCalled();
+  });
+
+  it("a wrong code stops it", async () => {
+    m.freshCode.mockRejectedValue(new ConsoleError("conflict", "That code didn't work."));
+    await expect(resetTwoStepHandler({ userId: B, code: "000000" })).resolves.toMatchObject({
+      ok: false,
+    });
+    expect(m.deleteFactor).not.toHaveBeenCalled();
+    expect(m.audit).not.toHaveBeenCalled();
   });
 });

@@ -15,8 +15,14 @@ import { formatDate, formatRelativeDay } from "@/lib/format";
 
 import { sortMembers, type MemberSort } from "../members-sort";
 import { setMemberRoleFn } from "../roles.actions";
-import { assignableRoles, canChangeMember, needsCode, type RoleRow } from "../roles.types";
-import { addAdminFn, removeAdminFn } from "../team.actions";
+import {
+  assignableRoles,
+  canChangeMember,
+  canResetTwoStep,
+  needsCode,
+  type RoleRow,
+} from "../roles.types";
+import { addAdminFn, removeAdminFn, resetTwoStepFn } from "../team.actions";
 import type { AddOutcome, AdminRow } from "../team.handlers.server";
 import { TEAM_KEYS } from "../team-keys";
 import { RolePicker } from "./role-picker";
@@ -151,6 +157,42 @@ function ChangeRoleDialog({ member, roles }: { member: AdminRow; roles: RoleRow[
   );
 }
 
+/** D46: the super admin clears a member's authenticator, for a lost or new phone. */
+function ResetTwoStepDialog({ member }: { member: AdminRow }) {
+  const refresh = useRefreshTeam();
+  const [code, setCode] = useState("");
+  return (
+    <FormDialog
+      trigger={
+        <Button size="sm" variant="outline" className="relative z-10">
+          Reset two-step
+        </Button>
+      }
+      title={`Reset ${member.email}'s two-step sign-in`}
+      description="Their authenticator is removed and they're signed out everywhere. On their next sign-in they scan a new QR code. The team's managers are emailed and the reset is recorded in the audit log."
+      submitLabel="Reset two-step sign-in"
+      done="Two-step sign-in reset"
+      destructive
+      canSubmit={code.length === 6}
+      onSubmit={async () => {
+        const res = await resetTwoStepFn({ data: { userId: member.userId, code } });
+        setCode("");
+        if (res.ok) await refresh();
+        return res;
+      }}
+    >
+      {(id) => (
+        <CodeField
+          id={id("code")}
+          value={code}
+          onChange={setCode}
+          hint="The 6-digit code in your authenticator app. It confirms it's you resetting theirs."
+        />
+      )}
+    </FormDialog>
+  );
+}
+
 /** FR-TM-3: ends their sessions at once; needs the code. */
 function RemoveMemberDialog({ member }: { member: AdminRow }) {
   const refresh = useRefreshTeam();
@@ -240,6 +282,7 @@ export function MembersTab({
           return <span className="text-xs text-muted-foreground">{verdict.why}</span>;
         return (
           <span className="inline-flex flex-wrap justify-end gap-2">
+            {canResetTwoStep(actor, a) ? <ResetTwoStepDialog member={a} /> : null}
             <ChangeRoleDialog member={a} roles={giveable} />
             <RemoveMemberDialog member={a} />
           </span>

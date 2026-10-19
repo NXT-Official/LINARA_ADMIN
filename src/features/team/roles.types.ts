@@ -48,3 +48,14 @@ export function canChangeMember(
 export function needsCode(role: RoleRow | undefined): boolean {
   return !!role && role.preset !== "sales" && role.preset !== "support";
 }
+
+/**
+ * Whether the row offers Reset two-step (D46): only the super admin, only for
+ * someone else, and only once they have set it up. The server checks again.
+ */
+export function canResetTwoStep(
+  actor: { userId: string; preset: RolePreset | null },
+  member: { userId: string; twoStepSetUp: boolean },
+): boolean {
+  return actor.preset === "super_admin" && actor.userId !== member.userId && member.twoStepSetUp;
+}

@@ -1,3 +1,4 @@
+import { writeAudit } from "@/features/audit/audit.server";
 import { checkRateLimit } from "@/features/auth/rate-limit.server";
 import { requireFreshCode } from "@/features/auth/reauth.server";
 import { requireStaff } from "@/features/auth/session.server";
@@ -15,7 +16,7 @@ import { serverEnv } from "@/lib/server-env.server";
 import { getAdminClient } from "@/lib/supabase-admin.server";
 
 import { assignableRoles, needsCode, type RoleRow } from "./roles.types";
-import { notifyMemberAdded, notifyMemberRemoved } from "./team-notify.server";
+import { notifyMemberAdded, notifyMemberRemoved, notifyTwoStepReset } from "./team-notify.server";
 
 /** The Team screen's members (FR-TM-1 to FR-TM-3, D28, D31, D39). */
 
@@ -264,6 +265,66 @@ export function removeAdminHandler(input: RemoveAdminInput): Promise<{ ok: true 
     await notifyMemberRemoved({
       actorEmail: staff.email,
       memberEmail: removed?.user?.email ?? "A team member",
+    });
+    return { ok: true as const };
+  });
+}
+
+export type ResetTwoStepInput = { userId: string; code: string };
+
+/**
+ * The super admin clears a member's two-step sign-in, for a lost or new phone
+ * (D46). Their authenticator is removed and every session ends; on their next
+ * sign-in they set two-step up again. Needs the super admin's own code.
+ */
+export function resetTwoStepHandler(input: ResetTwoStepInput): Promise<{ ok: true } | PublicError> {
+  return run(async () => {
+    const staff = await requireStaff("team.manage");
+    if (staff.preset !== "super_admin") {
+      throw new ConsoleError("not_allowed", "Only the super admin can reset two-step sign-in.");
+    }
+    if (input.userId === staff.userId) {
+      throw new ConsoleError("conflict", "You can't reset your own two-step sign-in.");
+    }
+    if (!isUuid(input.userId))
+      throw new ConsoleError("not_found", "That person isn't on the team.");
+    await checkRateLimit("team_change", { adminId: staff.userId });
+    await requireFreshCode(staff, input.code);
+
+    const admin = getAdminClient();
+    const { data: member, error: memberError } = await admin
+      .from("staff_roles")
+      .select("user_id")
+      .eq("user_id", input.userId)
+      .maybeSingle();
+    if (memberError) throw new Error(memberError.message);
+    if (!member) throw new ConsoleError("not_found", "That person isn't on the team.");
+
+    const { data: factors, error: listError } = await admin.auth.admin.mfa.listFactors({
+      userId: input.userId,
+    });
+    if (listError) throw new Error(listError.message);
+    for (const factor of factors?.factors ?? []) {
+      const { error } = await admin.auth.admin.mfa.deleteFactor({
+        id: factor.id,
+        userId: input.userId,
+      });
+      if (error) throw new Error(error.message);
+    }
+    // Signed out everywhere, so nobody keeps a session from the old phone.
+    await admin.rpc("staff_end_sessions", { p_user_id: input.userId });
+
+    await writeAudit({
+      actorId: staff.userId,
+      action: "staff.two_step_reset",
+      targetType: "staff",
+      targetId: input.userId,
+      metadata: { factors_removed: factors?.factors?.length ?? 0 },
+    });
+    const { data: target } = await admin.auth.admin.getUserById(input.userId);
+    await notifyTwoStepReset({
+      actorEmail: staff.email,
+      memberEmail: target?.user?.email ?? "A team member",
     });
     return { ok: true as const };
   });

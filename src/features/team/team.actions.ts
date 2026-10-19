@@ -5,8 +5,10 @@ import {
   listAdminsHandler,
   listTeamNamesHandler,
   removeAdminHandler,
+  resetTwoStepHandler,
   type AddAdminInput,
   type RemoveAdminInput,
+  type ResetTwoStepInput,
 } from "./team.handlers.server";
 
 export const listAdminsFn = createServerFn({ method: "GET" }).handler(() => listAdminsHandler());
@@ -22,3 +24,7 @@ export const addAdminFn = createServerFn({ method: "POST" })
 export const removeAdminFn = createServerFn({ method: "POST" })
   .validator((d: RemoveAdminInput) => d)
   .handler(({ data }) => removeAdminHandler(data));
+
+export const resetTwoStepFn = createServerFn({ method: "POST" })
+  .validator((d: ResetTwoStepInput) => d)
+  .handler(({ data }) => resetTwoStepHandler(data));

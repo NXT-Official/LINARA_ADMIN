@@ -27,7 +27,13 @@ import {
   setMemberRoleHandler,
   updateRoleHandler,
 } from "./roles.handlers.server";
-import { assignableRoles, canChangeMember, needsCode, type RoleRow } from "./roles.types";
+import {
+  assignableRoles,
+  canChangeMember,
+  canResetTwoStep,
+  needsCode,
+  type RoleRow,
+} from "./roles.types";
 
 const ME = { userId: "me", email: "mod@x.com", preset: "mods" };
 const ROLE = "7f0c2a7e-1b2c-4d5e-8f90-0000000000a1";
@@ -279,6 +285,15 @@ describe("D39 rules in the browser", () => {
     expect(canChangeMember(superAdmin, superAdmin)).toEqual({ ok: false, why: "This is you." });
     expect(canChangeMember(superAdmin, { userId: "x", preset: "admin" })).toEqual({ ok: true });
     expect(canChangeMember(superAdmin, { userId: "x", preset: "mods" })).toEqual({ ok: true });
+  });
+
+  it("canResetTwoStep: super admin only, someone else, already set up (D46)", () => {
+    const superAdmin = { userId: "s", preset: "super_admin" as const };
+    const admin = { userId: "a", preset: "admin" as const };
+    expect(canResetTwoStep(superAdmin, { userId: "x", twoStepSetUp: true })).toBe(true);
+    expect(canResetTwoStep(superAdmin, { userId: "x", twoStepSetUp: false })).toBe(false);
+    expect(canResetTwoStep(superAdmin, { userId: "s", twoStepSetUp: true })).toBe(false);
+    expect(canResetTwoStep(admin, { userId: "x", twoStepSetUp: true })).toBe(false);
   });
 
   it("needsCode for any new access but sales and support (spec 0.19)", () => {

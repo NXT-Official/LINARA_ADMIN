@@ -1,0 +1,35 @@
+src/features/faq/components/faq-dialog.tsx
+  s_015ef908465883::t_765335e66d7440 1-125
+src/routes/_authed/faqs.tsx
+  s_015ef908465883::t_c9636d38cf3e54 1-9
+src/features/faq/faq.input.ts
+  s_015ef908465883::t_9384213880805c 1-36
+src/features/faq/faq.handlers.server.ts
+  s_015ef908465883::t_4c2694ca9fb6eb 1-83
+src/features/faq/faq.types.ts
+  s_015ef908465883::t_4841ea71bb3968 1-24
+src/features/faq/pages/faqs-page.tsx
+  s_015ef908465883::t_7cfe5b139fd0d6 1-175
+src/features/faq/faq.handlers.server.test.ts
+  s_015ef908465883::t_04e64d5dc5a211 1-134
+src/features/faq/pages/faqs-page.test.tsx
+  s_015ef908465883::t_93c2c93ddf9287 1-140
+src/features/faq/faq.actions.ts
+  s_015ef908465883::t_e322233804eac1 1-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "22f384253eed3e7f118d21eec5f8b6c3e87288e9",
+  "prompts": {},
+  "sessions": {
+    "s_015ef908465883": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bc0c8d9c-45ff-47d9-bb1d-e5046b9ee7e4",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "naaxtech <naaxtech.official@gmail.com>"
+    }
+  }
+}

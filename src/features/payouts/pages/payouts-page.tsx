@@ -3,11 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 
 import { DataTable, ListPager, type Column } from "@/components/shared/data-table";
 import { ExportCsvButton } from "@/components/shared/export-button";
+import { RefreshButton } from "@/components/shared/refresh-button";
 import { HiddenValue } from "@/components/shared/hidden-value";
 import { ListToolbar, SegmentedFilter } from "@/components/shared/list-toolbar";
 import { RecordLink } from "@/components/shared/links";
 import { PageHeader, Surface } from "@/components/shared/page";
-import { EmptyState } from "@/components/shared/states";
+import { EmptyState, TableSkeleton } from "@/components/shared/states";
 import { StatusChip } from "@/components/shared/status-chip";
 import { PAYOUT_PROBLEM_TONE } from "@/components/shared/tones";
 import { PAYOUT_PROBLEM_LABEL } from "@/data/labels";
@@ -37,7 +38,7 @@ export function PayoutsPage({ initial = {} }: { initial?: PayoutFilters }) {
   const page = paging.key === filterKey ? paging.page : 0;
 
   const input: ListPayoutProblemsInput = { page, ...(kind !== "all" ? { kind } : {}) };
-  const { data, isPending, isFetching } = useQuery({
+  const { data, isPending, isFetching, dataUpdatedAt } = useQuery({
     queryKey: ["payouts", "problems", input],
     queryFn: () => listPayoutProblemsFn({ data: input }),
     placeholderData: (prev) => prev,
@@ -121,7 +122,12 @@ export function PayoutsPage({ initial = {} }: { initial?: PayoutFilters }) {
       <PageHeader
         title="Payouts"
         description="Wage payouts that failed, came back unclear, have been sending for over an hour, or got no answer from Xendit in a day. This screen only reads Linara's records and can't change a payout."
-        actions={<ExportCsvButton slug="payout-problems" columns={PAYOUT_CSV} rows={rows} />}
+        actions={
+          <>
+            <RefreshButton queryKeys={[["payouts"]]} updatedAt={dataUpdatedAt} />
+            <ExportCsvButton slug="payout-problems" columns={PAYOUT_CSV} rows={rows} />
+          </>
+        }
       />
       <Surface flush>
         <div className="space-y-3 pt-5">
@@ -149,7 +155,7 @@ export function PayoutsPage({ initial = {} }: { initial?: PayoutFilters }) {
                 rowKey={(p) => p.attemptId}
                 empty={
                   isPending ? (
-                    <EmptyState title="Loading payouts" />
+                    <TableSkeleton label="Loading payouts" />
                   ) : (
                     <EmptyState title="No payout problems">
                       Every recent payout went through.

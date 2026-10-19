@@ -3,10 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 
 import { DataTable, ListPager, type Column } from "@/components/shared/data-table";
 import { ExportCsvButton } from "@/components/shared/export-button";
+import { RefreshButton } from "@/components/shared/refresh-button";
 import { ListToolbar, SearchField, SegmentedFilter } from "@/components/shared/list-toolbar";
 import { RowLink } from "@/components/shared/links";
 import { PageHeader, Surface } from "@/components/shared/page";
-import { EmptyState } from "@/components/shared/states";
+import { EmptyState, TableSkeleton } from "@/components/shared/states";
 import { StatusChip } from "@/components/shared/status-chip";
 import { USER_KIND_LABEL } from "@/data/labels";
 import { formatDate, formatRelativeDay } from "@/lib/format";
@@ -94,7 +95,7 @@ export function UsersPage() {
     ...(kind ? { kind } : {}),
     ...(status === "suspended" ? { suspended: true } : {}),
   };
-  const { data, isPending, isFetching } = useQuery({
+  const { data, isPending, isFetching, dataUpdatedAt } = useQuery({
     queryKey: ["users", input],
     queryFn: () => listUsersFn({ data: input }),
     placeholderData: (prev) => prev,
@@ -106,7 +107,12 @@ export function UsersPage() {
       <PageHeader
         title="Users"
         description="Everyone with a Linara account: household managers and helpers."
-        actions={<ExportCsvButton slug="users" columns={USER_CSV} rows={rows} />}
+        actions={
+          <>
+            <RefreshButton queryKeys={[["users"]]} updatedAt={dataUpdatedAt} />
+            <ExportCsvButton slug="users" columns={USER_CSV} rows={rows} />
+          </>
+        }
       />
       <Surface flush>
         <div className="space-y-3 pt-5">
@@ -140,9 +146,13 @@ export function UsersPage() {
                 columns={columns}
                 rowKey={(u) => u.userId}
                 empty={
-                  <EmptyState title={isPending ? "Loading users" : "No users match"}>
-                    {isPending ? null : "Try another filter, or clear the search."}
-                  </EmptyState>
+                  isPending ? (
+                    <TableSkeleton label="Loading users" />
+                  ) : (
+                    <EmptyState title="No users match">
+                      Try another filter, or clear the search.
+                    </EmptyState>
+                  )
                 }
                 footer={
                   <ListPager

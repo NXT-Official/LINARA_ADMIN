@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { SegmentedFilter } from "@/components/shared/list-toolbar";
 import { PageHeader, Surface } from "@/components/shared/page";
+import { RefreshButton } from "@/components/shared/refresh-button";
 import { EmptyState } from "@/components/shared/states";
 import { useStaff } from "@/features/auth/use-can";
 
@@ -29,6 +30,12 @@ export function TeamPage({ tab: initialTab = "members" }: { tab?: TeamTab }) {
       <PageHeader
         title="Team"
         description="People who can open the Business Console, and what each role lets them see and do."
+        actions={
+          <RefreshButton
+            queryKeys={[TEAM_KEYS.members, TEAM_KEYS.roles]}
+            updatedAt={members.dataUpdatedAt}
+          />
+        }
       />
       <Surface flush>
         <div className="space-y-3 pt-5">

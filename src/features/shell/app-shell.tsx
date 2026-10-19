@@ -148,7 +148,8 @@ function AccountMenu({ staff }: { staff: ShellStaff }) {
         <DropdownMenuItem
           onSelect={async () => {
             await signOutFn().catch(() => undefined);
-            queryClient.removeQueries({ queryKey: ["console-session"] });
+            // Nothing loaded for this admin outlives their session (D41).
+            queryClient.clear();
             navigate({ to: "/sign-in" });
           }}
         >

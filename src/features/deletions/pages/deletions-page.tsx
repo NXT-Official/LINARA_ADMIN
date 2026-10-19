@@ -3,11 +3,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { DataTable, ListPager, type Column } from "@/components/shared/data-table";
 import { ExportCsvButton } from "@/components/shared/export-button";
+import { RefreshButton } from "@/components/shared/refresh-button";
 import { FormDialog } from "@/components/shared/form";
 import { RecordLink } from "@/components/shared/links";
 import { ListToolbar, SegmentedFilter } from "@/components/shared/list-toolbar";
 import { PageHeader, Surface } from "@/components/shared/page";
-import { EmptyState } from "@/components/shared/states";
+import { EmptyState, TableSkeleton } from "@/components/shared/states";
 import { StatusChip } from "@/components/shared/status-chip";
 import { Button } from "@/components/ui/button";
 import { USER_KIND_LABEL } from "@/data/labels";
@@ -128,13 +129,16 @@ export function DeletionsPage() {
   const page = paging.view === view ? paging.page : 0;
 
   const input = { view, page };
-  const { data, isPending, isFetching } = useQuery({
+  const { data, isPending, isFetching, dataUpdatedAt } = useQuery({
     queryKey: ["deletions", input],
     queryFn: () => listDeletionsFn({ data: input }),
     placeholderData: (prev) => prev,
   });
   const rows = data?.ok ? data.requests : [];
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ["deletions"] });
+  // Processing removes an account everywhere: users, households, CRM, support
+  // and the dashboard all reload, not only this list (D41).
+  const refresh = () =>
+    queryClient.invalidateQueries({ predicate: (q) => q.queryKey[0] !== "console-session" });
 
   const who: Column<DeletionRow> = {
     key: "who",
@@ -217,7 +221,12 @@ export function DeletionsPage() {
       <PageHeader
         title="Deletion requests"
         description={`Users ask to delete their account in the app. Each request has to be processed within ${DUE_DAYS} days.`}
-        actions={<ExportCsvButton slug="deletion-requests" columns={DELETION_CSV} rows={rows} />}
+        actions={
+          <>
+            <RefreshButton queryKeys={[["deletions"]]} updatedAt={dataUpdatedAt} />
+            <ExportCsvButton slug="deletion-requests" columns={DELETION_CSV} rows={rows} />
+          </>
+        }
       />
       {outcome ? (
         <p
@@ -254,15 +263,15 @@ export function DeletionsPage() {
                 columns={view === "pending" ? pendingColumns : historyColumns}
                 rowKey={(r) => r.requestId}
                 empty={
-                  <EmptyState
-                    title={
-                      isPending
-                        ? "Loading requests"
-                        : view === "pending"
-                          ? "No requests waiting"
-                          : "No finished requests yet"
-                    }
-                  />
+                  isPending ? (
+                    <TableSkeleton label="Loading requests" />
+                  ) : (
+                    <EmptyState
+                      title={
+                        view === "pending" ? "No requests waiting" : "No finished requests yet"
+                      }
+                    />
+                  )
                 }
                 footer={
                   <ListPager

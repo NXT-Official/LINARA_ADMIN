@@ -4,7 +4,7 @@ import { Plus } from "lucide-react";
 
 import { DataTable, type Column } from "@/components/shared/data-table";
 import { Field, FormDialog } from "@/components/shared/form";
-import { EmptyState } from "@/components/shared/states";
+import { EmptyState, TableSkeleton } from "@/components/shared/states";
 import { StatusChip } from "@/components/shared/status-chip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -255,7 +255,13 @@ export function MembersTab({
         rows={members}
         columns={columns}
         rowKey={(a) => a.userId}
-        empty={<EmptyState title={loading ? "Loading the team" : "No members found"} />}
+        empty={
+          loading ? (
+            <TableSkeleton label="Loading the team" rows={4} />
+          ) : (
+            <EmptyState title="No members found" />
+          )
+        }
       />
     </>
   );

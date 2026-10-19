@@ -17,12 +17,14 @@ const getNonce = createIsomorphicFn()
   .client(() => undefined);
 
 export const getRouter = () => {
-  // Screens re-read data at most every 30 seconds and never just because the
+  // Loaded data stays in this tab until the screen's Refresh button, a change
+  // made on the console, or signing out (D41). Never re-read just because the
   // window regained focus; only outside-service failures retry, once (D31).
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: 30_000,
+        staleTime: Infinity,
+        gcTime: Infinity,
         refetchOnWindowFocus: false,
         retry: (count, error) =>
           count < 1 && (error as { code?: string } | null)?.code === "outside_service",

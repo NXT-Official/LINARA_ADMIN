@@ -2,9 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 
 import { ChartSurface, ColumnChart, type ChartPoint } from "@/components/shared/charts";
 import { ExportCsvButton } from "@/components/shared/export-button";
+import { RefreshButton } from "@/components/shared/refresh-button";
 import { RecordLink } from "@/components/shared/links";
 import { PageHeader, Surface } from "@/components/shared/page";
-import { EmptyState } from "@/components/shared/states";
+import { EmptyState, FiguresSkeleton } from "@/components/shared/states";
 import { AI_FEATURE_LABEL } from "@/data/labels";
 import { formatCount, formatDateTime } from "@/lib/format";
 
@@ -63,7 +64,10 @@ function UserLink({ userId, name }: { userId: string; name: string | null }) {
 }
 
 export function AiUsagePage() {
-  const { data, isPending } = useQuery({ queryKey: ["ai", "usage"], queryFn: () => aiUsageFn() });
+  const { data, isPending, dataUpdatedAt } = useQuery({
+    queryKey: ["ai", "usage"],
+    queryFn: () => aiUsageFn(),
+  });
   const usage = data?.ok ? data.usage : null;
 
   return (
@@ -72,22 +76,29 @@ export function AiUsagePage() {
         title="AI usage"
         description={`Linara keeps AI call records for 48 hours, so nothing older shows here. Cost isn't recorded. Limits: ${AI_HOURLY_LIMIT} calls an hour per feature, ${AI_DAILY_LIMIT} a day per user.`}
         actions={
-          usage ? (
-            <ExportCsvButton
-              slug="ai-calls-by-feature"
-              columns={AI_HOURLY_CSV}
-              rows={usage.hourly}
-            />
-          ) : null
+          <>
+            <RefreshButton queryKeys={[["ai"]]} updatedAt={dataUpdatedAt} />
+            {usage ? (
+              <ExportCsvButton
+                slug="ai-calls-by-feature"
+                columns={AI_HOURLY_CSV}
+                rows={usage.hourly}
+              />
+            ) : null}
+          </>
         }
       />
       {usage ? (
         <Usage usage={usage} />
       ) : (
         <Surface>
-          <EmptyState title={isPending ? "Loading AI usage" : "AI usage didn't load"}>
-            {data && !data.ok ? data.message : null}
-          </EmptyState>
+          {isPending ? (
+            <FiguresSkeleton label="Loading AI usage" rows={5} />
+          ) : (
+            <EmptyState title="AI usage didn't load">
+              {data && !data.ok ? data.message : null}
+            </EmptyState>
+          )}
         </Surface>
       )}
     </>

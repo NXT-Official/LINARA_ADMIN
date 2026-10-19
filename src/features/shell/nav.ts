@@ -2,6 +2,7 @@ import {
   Activity,
   BadgeAlert,
   Building2,
+  CreditCard,
   ContactRound,
   LayoutDashboard,
   LifeBuoy,
@@ -42,6 +43,7 @@ export const NAV_GROUPS: { label: string | null; items: NavItem[] }[] = [
       { to: "/deletions", label: "Deletion requests", icon: Trash2, permission: "deletions.view" },
       { to: "/payouts", label: "Payouts", icon: BadgeAlert, permission: "payouts.view" },
       { to: "/ai", label: "AI usage", icon: Activity, permission: "ai.view" },
+      { to: "/billing", label: "Subscriptions", icon: CreditCard, permission: "pay.view" },
     ],
   },
   {

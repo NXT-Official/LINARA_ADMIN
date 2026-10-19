@@ -3,10 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 
 import { DataTable, ListPager, type Column } from "@/components/shared/data-table";
 import { ExportCsvButton } from "@/components/shared/export-button";
+import { RefreshButton } from "@/components/shared/refresh-button";
 import { ListToolbar, SearchField } from "@/components/shared/list-toolbar";
 import { RowLink } from "@/components/shared/links";
 import { PageHeader, Surface } from "@/components/shared/page";
-import { EmptyState } from "@/components/shared/states";
+import { EmptyState, TableSkeleton } from "@/components/shared/states";
 import { formatDate, formatRelativeDay } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
 
@@ -48,7 +49,7 @@ export function HouseholdsPage() {
   const page = paging.key === (search ?? "") ? paging.page : 0;
 
   const input = { page, ...(search ? { search } : {}) };
-  const { data, isPending, isFetching } = useQuery({
+  const { data, isPending, isFetching, dataUpdatedAt } = useQuery({
     queryKey: ["households", input],
     queryFn: () => listHouseholdsFn({ data: input }),
     placeholderData: (prev) => prev,
@@ -60,7 +61,12 @@ export function HouseholdsPage() {
       <PageHeader
         title="Households"
         description="Every home on Linara. Read-only: households are run from the household app."
-        actions={<ExportCsvButton slug="households" columns={HOUSEHOLD_CSV} rows={rows} />}
+        actions={
+          <>
+            <RefreshButton queryKeys={[["households"]]} updatedAt={dataUpdatedAt} />
+            <ExportCsvButton slug="households" columns={HOUSEHOLD_CSV} rows={rows} />
+          </>
+        }
       />
       <Surface flush>
         <div className="space-y-3 pt-5">
@@ -79,9 +85,13 @@ export function HouseholdsPage() {
                 columns={columns}
                 rowKey={(h) => h.householdId}
                 empty={
-                  <EmptyState title={isPending ? "Loading households" : "No households match"}>
-                    {isPending ? null : "Clear the search to see them all."}
-                  </EmptyState>
+                  isPending ? (
+                    <TableSkeleton label="Loading households" />
+                  ) : (
+                    <EmptyState title="No households match">
+                      Clear the search to see them all.
+                    </EmptyState>
+                  )
                 }
                 footer={
                   <ListPager

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Plus } from "lucide-react";
 
 import { DataTable, type Column } from "@/components/shared/data-table";
-import { EmptyState } from "@/components/shared/states";
+import { EmptyState, TableSkeleton } from "@/components/shared/states";
 import { StatusChip } from "@/components/shared/status-chip";
 import { Button } from "@/components/ui/button";
 import {
@@ -132,7 +132,13 @@ export function RolesTab({ roles, loading }: { roles: RoleRow[]; loading: boolea
         rows={roles}
         columns={columns}
         rowKey={(r) => r.roleId}
-        empty={<EmptyState title={loading ? "Loading roles" : "No roles found"} />}
+        empty={
+          loading ? (
+            <TableSkeleton label="Loading roles" rows={4} />
+          ) : (
+            <EmptyState title="No roles found" />
+          )
+        }
       />
       {preset ? (
         <PresetDialog

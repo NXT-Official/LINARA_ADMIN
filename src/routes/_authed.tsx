@@ -20,7 +20,8 @@ export const Route = createFileRoute("/_authed")({
       staleTime: 60_000,
     });
     if (!session.ok) {
-      context.queryClient.removeQueries({ queryKey: ["console-session"] });
+      // Ended or signed out elsewhere: drop everything cached for that session (D41).
+      context.queryClient.clear();
       throw redirect({ to: "/sign-in", search: { reason: session.reason } });
     }
     return { staff: session.staff };

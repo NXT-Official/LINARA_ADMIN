@@ -5,11 +5,12 @@ import { Download, MoreHorizontal, Plus, Upload } from "lucide-react";
 
 import { DataTable, ListPager, type Column } from "@/components/shared/data-table";
 import { ExportCsvButton } from "@/components/shared/export-button";
+import { RefreshButton } from "@/components/shared/refresh-button";
 import { SelectField } from "@/components/shared/form";
 import { ListToolbar, SearchField, SegmentedFilter } from "@/components/shared/list-toolbar";
 import { RowLink } from "@/components/shared/links";
 import { PageHeader, Surface } from "@/components/shared/page";
-import { EmptyState } from "@/components/shared/states";
+import { EmptyState, TableSkeleton } from "@/components/shared/states";
 import { StatusChip } from "@/components/shared/status-chip";
 import { STAGE_TONE } from "@/components/shared/tones";
 import { Button } from "@/components/ui/button";
@@ -93,7 +94,7 @@ export function ContactsPage({ initial = {} }: { initial?: ContactFilters }) {
   const page = paging.key === filterKey ? paging.page : 0;
 
   const input: ListContactsInput = { page, ...filters };
-  const { data, isPending, isFetching } = useQuery({
+  const { data, isPending, isFetching, dataUpdatedAt } = useQuery({
     queryKey: ["crm", "contacts", input],
     queryFn: () => listContactsFn({ data: input }),
     placeholderData: (prev) => prev,
@@ -184,6 +185,7 @@ export function ContactsPage({ initial = {} }: { initial?: ContactFilters }) {
         description="Leads and customers in one list. Every manager on Linara shows here as a customer."
         actions={
           <>
+            <RefreshButton queryKeys={[["crm"]]} updatedAt={dataUpdatedAt} />
             <ExportCsvButton slug="crm-contacts" columns={CONTACT_CSV} rows={rows} />
             {can("crm.write") || can("crm.export") ? (
               <DropdownMenu>
@@ -301,9 +303,13 @@ export function ContactsPage({ initial = {} }: { initial?: ContactFilters }) {
                 columns={columns}
                 rowKey={(c) => c.contactId ?? `user-${c.userId}`}
                 empty={
-                  <EmptyState title={isPending ? "Loading contacts" : "No contacts match"}>
-                    {isPending ? null : "Try another filter, or clear the search."}
-                  </EmptyState>
+                  isPending ? (
+                    <TableSkeleton label="Loading contacts" />
+                  ) : (
+                    <EmptyState title="No contacts match">
+                      Try another filter, or clear the search.
+                    </EmptyState>
+                  )
                 }
                 footer={
                   <ListPager

@@ -16,6 +16,7 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
 import { Route as AuthedAiRouteImport } from './routes/_authed/ai'
 import { Route as AuthedAuditRouteImport } from './routes/_authed/audit'
+import { Route as AuthedBillingRouteImport } from './routes/_authed/billing'
 import { Route as AuthedDeletionsRouteImport } from './routes/_authed/deletions'
 import { Route as AuthedPayoutsRouteImport } from './routes/_authed/payouts'
 import { Route as AuthedTeamRouteImport } from './routes/_authed/team'
@@ -65,6 +66,11 @@ const AuthedAiRoute = AuthedAiRouteImport.update({
 const AuthedAuditRoute = AuthedAuditRouteImport.update({
   id: '/audit',
   path: '/audit',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedBillingRoute = AuthedBillingRouteImport.update({
+  id: '/billing',
+  path: '/billing',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedDeletionsRoute = AuthedDeletionsRouteImport.update({
@@ -156,6 +162,7 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/ai': typeof AuthedAiRoute
   '/audit': typeof AuthedAuditRoute
+  '/billing': typeof AuthedBillingRoute
   '/deletions': typeof AuthedDeletionsRoute
   '/payouts': typeof AuthedPayoutsRoute
   '/team': typeof AuthedTeamRoute
@@ -179,6 +186,7 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/ai': typeof AuthedAiRoute
   '/audit': typeof AuthedAuditRoute
+  '/billing': typeof AuthedBillingRoute
   '/deletions': typeof AuthedDeletionsRoute
   '/payouts': typeof AuthedPayoutsRoute
   '/team': typeof AuthedTeamRoute
@@ -205,6 +213,7 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/_authed/ai': typeof AuthedAiRoute
   '/_authed/audit': typeof AuthedAuditRoute
+  '/_authed/billing': typeof AuthedBillingRoute
   '/_authed/deletions': typeof AuthedDeletionsRoute
   '/_authed/payouts': typeof AuthedPayoutsRoute
   '/_authed/team': typeof AuthedTeamRoute
@@ -232,6 +241,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/ai'
     | '/audit'
+    | '/billing'
     | '/deletions'
     | '/payouts'
     | '/team'
@@ -255,6 +265,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/ai'
     | '/audit'
+    | '/billing'
     | '/deletions'
     | '/payouts'
     | '/team'
@@ -280,6 +291,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/_authed/ai'
     | '/_authed/audit'
+    | '/_authed/billing'
     | '/_authed/deletions'
     | '/_authed/payouts'
     | '/_authed/team'
@@ -358,6 +370,13 @@ declare module '@tanstack/react-router' {
       path: '/audit'
       fullPath: '/audit'
       preLoaderRoute: typeof AuthedAuditRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/billing': {
+      id: '/_authed/billing'
+      path: '/billing'
+      fullPath: '/billing'
+      preLoaderRoute: typeof AuthedBillingRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/deletions': {
@@ -478,6 +497,7 @@ declare module '@tanstack/react-router' {
 interface AuthedRouteChildren {
   AuthedAiRoute: typeof AuthedAiRoute
   AuthedAuditRoute: typeof AuthedAuditRoute
+  AuthedBillingRoute: typeof AuthedBillingRoute
   AuthedDeletionsRoute: typeof AuthedDeletionsRoute
   AuthedPayoutsRoute: typeof AuthedPayoutsRoute
   AuthedTeamRoute: typeof AuthedTeamRoute
@@ -497,6 +517,7 @@ interface AuthedRouteChildren {
 const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedAiRoute: AuthedAiRoute,
   AuthedAuditRoute: AuthedAuditRoute,
+  AuthedBillingRoute: AuthedBillingRoute,
   AuthedDeletionsRoute: AuthedDeletionsRoute,
   AuthedPayoutsRoute: AuthedPayoutsRoute,
   AuthedTeamRoute: AuthedTeamRoute,

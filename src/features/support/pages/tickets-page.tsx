@@ -5,10 +5,11 @@ import { Plus } from "lucide-react";
 
 import { DataTable, ListPager, type Column } from "@/components/shared/data-table";
 import { ExportCsvButton } from "@/components/shared/export-button";
+import { RefreshButton } from "@/components/shared/refresh-button";
 import { ListToolbar, SearchField, SegmentedFilter } from "@/components/shared/list-toolbar";
 import { RowLink } from "@/components/shared/links";
 import { PageHeader, Surface } from "@/components/shared/page";
-import { EmptyState } from "@/components/shared/states";
+import { EmptyState, TableSkeleton } from "@/components/shared/states";
 import { StatusChip } from "@/components/shared/status-chip";
 import { PRIORITY_TONE, TICKET_STATUS_TONE } from "@/components/shared/tones";
 import { Button } from "@/components/ui/button";
@@ -50,7 +51,7 @@ export function TicketsPage({ initial = {} }: { initial?: TicketFilters }) {
   const page = paging.key === filterKey ? paging.page : 0;
 
   const input: ListTicketsInput = { page, ...filters };
-  const { data, isPending, isFetching } = useQuery({
+  const { data, isPending, isFetching, dataUpdatedAt } = useQuery({
     queryKey: ["support", "tickets", input],
     queryFn: () => listTicketsFn({ data: input }),
     placeholderData: (prev) => prev,
@@ -111,6 +112,7 @@ export function TicketsPage({ initial = {} }: { initial?: TicketFilters }) {
         description="Requests from Messenger, Viber, email and calls. Reply on the original channel, then log it as a note."
         actions={
           <>
+            <RefreshButton queryKeys={[["support"]]} updatedAt={dataUpdatedAt} />
             <ExportCsvButton slug="support-tickets" columns={TICKET_CSV} rows={rows} />
             {can("support.write") ? (
               <LogTicketDialog
@@ -173,9 +175,13 @@ export function TicketsPage({ initial = {} }: { initial?: TicketFilters }) {
                 columns={columns}
                 rowKey={(t) => t.ticketId}
                 empty={
-                  <EmptyState title={isPending ? "Loading tickets" : "No tickets match"}>
-                    {isPending ? null : "Try another filter, or clear the search."}
-                  </EmptyState>
+                  isPending ? (
+                    <TableSkeleton label="Loading tickets" />
+                  ) : (
+                    <EmptyState title="No tickets match">
+                      Try another filter, or clear the search.
+                    </EmptyState>
+                  )
                 }
                 footer={
                   <ListPager

@@ -1,0 +1,23 @@
+supabase/tests/billing-subscriptions.test.mjs
+  s_015ef908465883::t_8f58a0dc9d58ef 142,224-228,1239-1241,1904-1907
+  s_015ef908465883::t_e78bfcd8a4639f 1826-1831,1835-1836,1838
+  s_015ef908465883::t_1fde020d4bf16a 1-141,143-223,229-1238,1242-1825,1832-1834,1837,1839-1903,1908-1925
+supabase/017-billing-subscriptions.sql
+  s_015ef908465883::t_25080627389264 1-1225
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "25ac79ffc15ff6c4412ede21c8f7b03a2c49d418",
+  "prompts": {},
+  "sessions": {
+    "s_015ef908465883": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bc0c8d9c-45ff-47d9-bb1d-e5046b9ee7e4",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "naaxtech <naaxtech.official@gmail.com>"
+    }
+  }
+}

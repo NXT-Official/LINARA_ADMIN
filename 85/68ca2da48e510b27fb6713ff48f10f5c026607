@@ -1,0 +1,52 @@
+src/features/plans/plans.handlers.server.ts
+  s_015ef908465883::t_5f96e727953261 1-127
+src/features/plans/components/settings-dialog.tsx
+  s_015ef908465883::t_9fc1c66a4476b3 1-160
+src/features/plans/pages/plans-page.test.tsx
+  s_015ef908465883::t_a440beb82d2c9e 174
+  s_015ef908465883::t_2f425825d8823a 1-173,175-278
+src/features/plans/plans.input.ts
+  s_015ef908465883::t_4e58511cd80f0b 1-97
+src/lib/money.ts
+  s_015ef908465883::t_10f2c718ad5d4e 1-34
+src/lib/money.test.ts
+  s_015ef908465883::t_4b0bdc61a5bc32 1-27
+src/features/plans/pages/plans-page.tsx
+  s_015ef908465883::t_f79f14d400ab5f 1-260
+src/routes/_authed/plans.tsx
+  s_015ef908465883::t_a337a59c484ff9 1-9
+src/features/plans/plans.actions.ts
+  s_015ef908465883::t_433cc43cf448e8 1-28
+src/features/plans/plans-keys.ts
+  s_015ef908465883::t_71f7961e0e806e 1-2
+src/routeTree.gen.ts
+  s_015ef908465883::t_09154091340264 20-21,77-86,172-173,197-198,225-226,254-255,279-280,306-307,394-407,520-521,541-542
+src/features/plans/plans.pricing.test.ts
+  s_015ef908465883::t_bbb86949b553d1 1-61
+src/features/plans/plans.handlers.server.test.ts
+  s_015ef908465883::t_f7eed27d83d04e 1-244
+src/features/plans/plans.types.ts
+  s_015ef908465883::t_dea5450ddae780 1-96
+src/features/plans/components/plan-dialog.tsx
+  s_015ef908465883::t_fad9d36d746aee 1-390
+src/features/plans/plans.pricing.ts
+  s_015ef908465883::t_f64ae2a10f4a00 1-73
+src/features/plans/plans.test-utils.ts
+  s_015ef908465883::t_4deeaa4daf9d7c 1-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8568ca2da48e510b27fb6713ff48f10f5c026607",
+  "prompts": {},
+  "sessions": {
+    "s_015ef908465883": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bc0c8d9c-45ff-47d9-bb1d-e5046b9ee7e4",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "naaxtech <naaxtech.official@gmail.com>"
+    }
+  }
+}

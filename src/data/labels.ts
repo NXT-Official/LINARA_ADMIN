@@ -144,6 +144,8 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   "crm.exported": "Exported contacts with details",
   "crm.imported": "Imported leads",
   "crm.retention_ran": "Anonymised old leads",
+  "billing.granted": "Granted a plan",
+  "billing.marked_paid": "Marked an invoice paid",
   "deletion.processed": "Processed a deletion",
   "auth.signed_in": "Signed in",
   "auth.signed_out": "Signed out",

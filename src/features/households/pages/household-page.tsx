@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/shared/states";
 import { StatusChip } from "@/components/shared/status-chip";
 import { HELPER_STATUS_TONE } from "@/components/shared/tones";
 import { HELPER_STATUS_LABEL, USER_KIND_LABEL } from "@/data/labels";
+import { HouseholdBillingSection } from "@/features/billing/components/household-billing";
 import { AuditTrail } from "@/features/audit/components/audit-trail";
 import { RecordTickets } from "@/features/support/components/record-tickets";
 import { payRevealer } from "@/features/pay/pay-reveal";
@@ -70,6 +71,8 @@ function HouseholdDetailView({ household }: { household: HouseholdDetail }) {
               </ul>
             )}
           </Surface>
+
+          <HouseholdBillingSection householdId={household.householdId} />
 
           <RecordTickets filter={{ householdId: household.householdId }} />
 

@@ -1,0 +1,39 @@
+src/features/exports.test.ts
+  s_015ef908465883::t_e27d6d7e6dbbb0 1-3,204-208,212-213
+  s_015ef908465883::t_b9d515c840b869 209-211
+  s_015ef908465883::t_2028c1fbbaba6a 214
+src/data/types.ts
+  s_015ef908465883::t_b9d515c840b869 146-157
+README.md
+  s_015ef908465883::t_5eede7e9885c94 4-5,10
+e2e/helpers.ts
+  s_015ef908465883::t_5c21c49bd6dc30 55-57
+src/data/labels.ts
+  s_015ef908465883::t_9d382fb3993d0f 149-158
+src/features/audit/pages/audit-page.tsx
+  s_015ef908465883::t_ea553b4dbd9a9c 37-40
+src/features/shell/nav.ts
+  s_015ef908465883::t_572f740032d24c 4,6,12,50-57
+src/features/shell/route-permissions.test.ts
+  s_015ef908465883::t_9e4d5635c19cd5 21,31-37
+src/routeTree.gen.ts
+  s_015ef908465883::t_bb9465f9916d8f 23,93-97,181,207,236,266,292,320,427-433,542,564
+supabase/README.md
+  s_015ef908465883::t_3d0c03c8f3e1ac 25-30,34-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fdbf8a72f0d79c2779ee93b42ff18b7bbd61ce5b",
+  "prompts": {},
+  "sessions": {
+    "s_015ef908465883": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bc0c8d9c-45ff-47d9-bb1d-e5046b9ee7e4",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "naaxtech <naaxtech.official@gmail.com>"
+    }
+  }
+}

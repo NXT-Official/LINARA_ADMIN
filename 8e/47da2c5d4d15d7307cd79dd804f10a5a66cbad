@@ -1,0 +1,23 @@
+src/features/finance/components/model-price-dialog.tsx
+  s_015ef908465883::t_3c5b7f770acb03 18,37-46,51-56
+src/features/finance/components/cost-dialog.tsx
+  s_015ef908465883::t_3c5b7f770acb03 25,44-53,58-63
+src/features/finance/pages/finance-page.test.tsx
+  s_015ef908465883::t_3c5b7f770acb03 212-242,247-251,253
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8e47da2c5d4d15d7307cd79dd804f10a5a66cbad",
+  "prompts": {},
+  "sessions": {
+    "s_015ef908465883": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bc0c8d9c-45ff-47d9-bb1d-e5046b9ee7e4",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "naaxtech <naaxtech.official@gmail.com>"
+    }
+  }
+}

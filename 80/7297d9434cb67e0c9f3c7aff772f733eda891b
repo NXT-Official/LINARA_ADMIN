@@ -1,0 +1,50 @@
+src/features/support/support.handlers.server.test.ts
+  s_015ef908465883::t_4c158f003e0b6a 16-17,89,131,258-372
+  s_015ef908465883::t_343dd84806a8d5 373
+src/features/support/components/record-tickets.tsx
+  s_015ef908465883::t_59c2a23630273a 10,73,77-81,85
+  s_015ef908465883::t_669c80ef2f8ad6 74-76,82-84
+src/features/support/support.input.ts
+  s_015ef908465883::t_6f382ab5417338 46-52
+src/features/support/components/log-ticket-dialog.tsx
+  s_015ef908465883::t_6f382ab5417338 14-16,93
+src/features/support/pages/tickets-page.tsx
+  s_015ef908465883::t_59c2a23630273a 28-29,59-61,72-79,105-115,133
+src/data/types.ts
+  s_015ef908465883::t_6f382ab5417338 90,92
+src/features/support/support.types.ts
+  s_015ef908465883::t_6f382ab5417338 13,22,46-48,53-62,70-71
+src/features/support/support.actions.ts
+  s_015ef908465883::t_6f382ab5417338 9-10,62-69
+src/data/labels.ts
+  s_015ef908465883::t_6f382ab5417338 73,83
+src/features/support/pages/ticket-page.tsx
+  s_015ef908465883::t_6090555d3a813d 1,20-28,38-39,48,50-53,80-81,83-121,172-241
+src/features/support/support.handlers.server.ts
+  s_015ef908465883::t_4c158f003e0b6a 206-213
+  s_015ef908465883::t_6f382ab5417338 10,23,74-75,96-97,171-179,214,338-365
+src/features/exports.test.ts
+  s_015ef908465883::t_6f382ab5417338 51-52
+src/features/support/components/record-tickets.test.tsx
+  s_015ef908465883::t_3a85685b325374 63-86
+src/features/support/pages/ticket-page.test.tsx
+  s_015ef908465883::t_f926fb03e7426d 18-19,29-30,57-58,88-116,133-136,263-328
+src/features/support/pages/tickets-page.test.tsx
+  s_015ef908465883::t_116e3c86f7c8c8 49-50,151-181
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "807297d9434cb67e0c9f3c7aff772f733eda891b",
+  "prompts": {},
+  "sessions": {
+    "s_015ef908465883": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bc0c8d9c-45ff-47d9-bb1d-e5046b9ee7e4",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "naaxtech <naaxtech.official@gmail.com>"
+    }
+  }
+}

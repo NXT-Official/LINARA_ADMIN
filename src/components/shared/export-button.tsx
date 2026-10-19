@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { recordExportFn } from "@/features/audit/audit.actions";
+import { useT } from "@/lib/i18n/i18n";
 import { csvFilename, downloadCsv, toCsv, type CsvColumn } from "@/lib/csv";
 import { cn } from "@/lib/utils";
 
@@ -17,7 +18,7 @@ export function ExportCsvButton<T>({
   slug,
   columns,
   rows,
-  label = "Export CSV",
+  label,
   size = "default",
   className,
 }: {
@@ -29,6 +30,7 @@ export function ExportCsvButton<T>({
   size?: "default" | "sm";
   className?: string;
 }) {
+  const t = useT();
   const [pending, setPending] = useState(false);
   return (
     <Button
@@ -45,20 +47,23 @@ export function ExportCsvButton<T>({
             return;
           }
         } catch {
-          toast.error("The export couldn't be recorded, so it didn't run. Try again.");
+          toast.error(t("export.notRecorded"));
           return;
         } finally {
           setPending(false);
         }
         const name = csvFilename(slug);
         downloadCsv(name, toCsv(columns, rows));
-        toast.success("CSV downloaded", {
-          description: `${name}, ${rows.length} ${rows.length === 1 ? "row" : "rows"}. No names or contact details.`,
+        toast.success(t("export.downloaded"), {
+          description:
+            rows.length === 1
+              ? t("export.downloadedOne", { name })
+              : t("export.downloadedMany", { name, count: rows.length }),
         });
       }}
     >
       <Download />
-      {label}
+      {label ?? t("export.csv")}
     </Button>
   );
 }

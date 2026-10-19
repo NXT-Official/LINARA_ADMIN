@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 
+import { useT } from "@/lib/i18n/i18n";
 import { sampleToast } from "@/lib/sample-toast";
 
 /** A labelled field. The label sits above, sentence case (LINARA DESIGN.md, Inputs). */
@@ -58,10 +59,11 @@ export function SelectField<V extends string>({
   options: { value: V; label: string }[];
   placeholder?: string;
 }) {
+  const t = useT();
   return (
     <Select value={value || undefined} onValueChange={(v) => onChange(v as V)}>
       <SelectTrigger id={id}>
-        <SelectValue placeholder={placeholder ?? "Choose"} />
+        <SelectValue placeholder={placeholder ?? t("form.choose")} />
       </SelectTrigger>
       <SelectContent>
         {options.map((o) => (
@@ -109,6 +111,7 @@ export function FormDialog({
   canSubmit?: boolean;
   children: ReactNode | ((id: (name: string) => string) => ReactNode);
 }) {
+  const t = useT();
   const [openState, setOpenState] = useState(false);
   const open = openProp ?? openState;
   const setOpen = (v: boolean) => {
@@ -138,7 +141,7 @@ export function FormDialog({
         setError(res.message);
       }
     } catch {
-      setError("Something went wrong on our side. Try again.");
+      setError(t("common.unexpectedError"));
     } finally {
       setPending(false);
     }
@@ -167,14 +170,14 @@ export function FormDialog({
           ) : null}
           <DialogFooter className="gap-2 pt-2 sm:gap-0">
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-              Cancel
+              {t("form.cancel")}
             </Button>
             <Button
               type="submit"
               variant={destructive ? "destructive" : "default"}
               disabled={!canSubmit || pending}
             >
-              {pending ? "Working" : submitLabel}
+              {pending ? t("form.working") : submitLabel}
             </Button>
           </DialogFooter>
         </form>

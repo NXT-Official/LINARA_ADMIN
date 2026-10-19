@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/i18n/i18n";
 import { cn } from "@/lib/utils";
 
 export type Column<T> = {
@@ -121,9 +122,10 @@ export function DataTable<T>({
 
 /** "Showing 1 to 8 of 8". Server pagination (50 a page, NFR-7) plugs in here. */
 export function ListFooter({ shown, total }: { shown: number; total: number }) {
+  const t = useT();
   return (
     <p className="text-xs text-muted-foreground">
-      {total === 0 ? "No rows" : `Showing 1 to ${shown} of ${total}`}
+      {total === 0 ? t("list.noRows") : t("list.showing", { shown, total })}
     </p>
   );
 }
@@ -143,26 +145,27 @@ export function ListPager({
   busy: boolean;
   onPage: (page: number) => void;
 }) {
+  const t = useT();
   return (
     <div className="flex items-center justify-between gap-2">
       <Button
         size="sm"
         variant="outline"
-        aria-label="Previous page"
+        aria-label={t("list.previousPage")}
         disabled={page === 0 || busy}
         onClick={() => onPage(Math.max(0, page - 1))}
       >
-        Previous
+        {t("list.previous")}
       </Button>
-      <span className="text-xs text-muted-foreground">Page {page + 1}</span>
+      <span className="text-xs text-muted-foreground">{t("list.page", { page: page + 1 })}</span>
       <Button
         size="sm"
         variant="outline"
-        aria-label="Next page"
+        aria-label={t("list.nextPage")}
         disabled={!hasMore || busy}
         onClick={() => onPage(page + 1)}
       >
-        Next
+        {t("list.next")}
       </Button>
     </div>
   );

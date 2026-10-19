@@ -2,13 +2,12 @@ import { useIsFetching, useQueryClient, type QueryKey } from "@tanstack/react-qu
 import { RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { useLocale, useT } from "@/lib/i18n/i18n";
+import { localeInfo } from "@/lib/i18n/locales";
 import { cn } from "@/lib/utils";
 
-const timeFmt = new Intl.DateTimeFormat("en-PH", {
-  timeZone: "Asia/Manila",
-  hour: "numeric",
-  minute: "2-digit",
-});
+const timeFmt = (intl: string) =>
+  new Intl.DateTimeFormat(intl, { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit" });
 
 /**
  * Reloads one screen's data. Loaded data stays cached until this is pressed or
@@ -26,6 +25,8 @@ export function RefreshButton({
   updatedAt?: number;
   className?: string;
 }) {
+  const t = useT();
+  const { locale } = useLocale();
   const queryClient = useQueryClient();
   const fetching =
     useIsFetching({
@@ -37,7 +38,9 @@ export function RefreshButton({
     <div className={cn("flex items-center gap-2", className)}>
       {updatedAt ? (
         <span className="text-xs text-muted-foreground">
-          Loaded {timeFmt.format(new Date(updatedAt))}
+          {t("refresh.loaded", {
+            time: timeFmt(localeInfo(locale).intl).format(new Date(updatedAt)),
+          })}
         </span>
       ) : null}
       <Button
@@ -48,7 +51,7 @@ export function RefreshButton({
         }
       >
         <RefreshCw aria-hidden="true" className={cn(fetching && "animate-spin")} />
-        {fetching ? "Refreshing" : "Refresh"}
+        {fetching ? t("refresh.refreshing") : t("refresh.refresh")}
       </Button>
     </div>
   );

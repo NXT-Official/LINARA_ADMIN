@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { EnvBadge } from "@/components/shared/env-badge";
+import { LanguageMenu } from "@/components/shared/language-menu";
 import { Logo } from "@/components/shared/logo";
 
 /** The frame around sign-in, two-step and reset: one quiet surface, the brand above it. */
@@ -19,7 +20,10 @@ export function AuthLayout({
     <main className="flex min-h-screen flex-col px-4 py-8 sm:py-12">
       <div className="mx-auto flex w-full max-w-sm items-center justify-between">
         <Logo />
-        <EnvBadge />
+        <div className="flex items-center gap-1">
+          <EnvBadge />
+          <LanguageMenu />
+        </div>
       </div>
       <div className="mx-auto mt-10 w-full max-w-sm sm:mt-16">
         <h1 className="text-2xl text-foreground">{title}</h1>

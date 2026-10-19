@@ -4,6 +4,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/lib/i18n/i18n";
 
 import { setPasswordFromLinkFn } from "../auth.actions";
 import { AuthLayout } from "./auth-layout";
@@ -27,6 +28,7 @@ function takeTokensFromHash(): Tokens | null {
 
 /** The page behind a password-reset link and an admin invite link (S-4, FR-TM-2). */
 export function SetPasswordForm({ purpose }: { purpose: "recovery" | "invite" }) {
+  const t = useT();
   const navigate = useNavigate();
   const [tokens, setTokens] = useState<Tokens | null | undefined>(undefined);
   const [password, setPassword] = useState("");
@@ -36,11 +38,10 @@ export function SetPasswordForm({ purpose }: { purpose: "recovery" | "invite" })
 
   useEffect(() => setTokens(takeTokensFromHash()), []);
 
-  const title = purpose === "invite" ? "Welcome to the Business Console" : "Choose a new password";
-  const description =
-    purpose === "invite"
-      ? "Choose a password for your console account. Next you'll set up two-step sign-in."
-      : "Choose a new password for your console account.";
+  const title = t(purpose === "invite" ? "setPassword.inviteTitle" : "setPassword.recoveryTitle");
+  const description = t(
+    purpose === "invite" ? "setPassword.inviteDescription" : "setPassword.recoveryDescription",
+  );
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -48,7 +49,7 @@ export function SetPasswordForm({ purpose }: { purpose: "recovery" | "invite" })
     // Compares the two fields this person just typed, in their own browser.
     // eslint-disable-next-line security/detect-possible-timing-attacks
     if (password !== confirm) {
-      setError("The two passwords don't match.");
+      setError(t("setPassword.mismatch"));
       return;
     }
     setPending(true);
@@ -58,14 +59,13 @@ export function SetPasswordForm({ purpose }: { purpose: "recovery" | "invite" })
       if (res.ok) {
         navigate({
           to: res.next,
-          search:
-            res.next === "/sign-in" ? { reason: "Password changed. Sign in with it now." } : {},
+          search: res.next === "/sign-in" ? { reason: t("setPassword.changed") } : {},
         });
         return;
       }
       setError(res.message);
     } catch {
-      setError("Something went wrong on our side. Try again.");
+      setError(t("common.unexpectedError"));
     }
     setPending(false);
   }
@@ -76,11 +76,11 @@ export function SetPasswordForm({ purpose }: { purpose: "recovery" | "invite" })
         title={title}
         footer={
           <Link to="/forgot-password" className="font-semibold text-pine hover:underline">
-            Ask for a new link
+            {t("setPassword.newLink")}
           </Link>
         }
       >
-        <FormError message="This link has expired or was already used. Ask for a new one." />
+        <FormError message={t("setPassword.expired")} />
       </AuthLayout>
     );
   }
@@ -89,7 +89,7 @@ export function SetPasswordForm({ purpose }: { purpose: "recovery" | "invite" })
     <AuthLayout title={title} description={description}>
       <form onSubmit={submit} className="space-y-4">
         <div className="space-y-1.5">
-          <Label htmlFor="password">New password</Label>
+          <Label htmlFor="password">{t("setPassword.new")}</Label>
           <Input
             id="password"
             type="password"
@@ -100,10 +100,10 @@ export function SetPasswordForm({ purpose }: { purpose: "recovery" | "invite" })
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-          <p className="text-xs text-muted-foreground">At least 12 characters.</p>
+          <p className="text-xs text-muted-foreground">{t("setPassword.minLength")}</p>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="confirm">Type it again</Label>
+          <Label htmlFor="confirm">{t("setPassword.again")}</Label>
           <Input
             id="confirm"
             type="password"
@@ -115,7 +115,9 @@ export function SetPasswordForm({ purpose }: { purpose: "recovery" | "invite" })
         </div>
         <FormError message={error} />
         <Button type="submit" className="w-full" disabled={!tokens || pending}>
-          {pending ? "Saving" : purpose === "invite" ? "Save and continue" : "Save password"}
+          {pending
+            ? t("setPassword.saving")
+            : t(purpose === "invite" ? "setPassword.saveContinue" : "setPassword.save")}
         </Button>
       </form>
     </AuthLayout>

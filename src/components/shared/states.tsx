@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Lock } from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/lib/i18n/i18n";
 
 import { RecordLink } from "./links";
 
@@ -81,22 +82,24 @@ export function DetailSkeleton({ label }: { label: string }) {
  * (FR-DB-9).
  */
 export function Unavailable({ reason }: { reason: string }) {
+  const t = useT();
   return (
     <span className="text-sm text-muted-foreground" title={reason}>
-      Unavailable <span className="sr-only">: {reason}</span>
+      {t("states.unavailable")} <span className="sr-only">: {reason}</span>
     </span>
   );
 }
 
 /** A screen the admin's role doesn't cover (spec §7.3, per-screen check). */
-export function RestrictedPanel({ what }: { what: string }) {
+export function RestrictedPanel() {
+  const t = useT();
   return (
     <div className="mx-auto max-w-md rounded-3xl bg-card p-7 text-center shadow-soft">
       <Lock className="mx-auto h-5 w-5 text-muted-foreground" aria-hidden="true" />
-      <h1 className="mt-3 text-xl text-foreground">Restricted</h1>
-      <p className="mt-2 text-sm text-muted-foreground">Your role doesn't cover {what}.</p>
+      <h1 className="mt-3 text-xl text-foreground">{t("states.restricted")}</h1>
+      <p className="mt-2 text-sm text-muted-foreground">{t("states.notCovered")}</p>
       <p className="mt-1 text-sm text-muted-foreground">
-        Ask an admin if you need it. <RecordLink to="/">Go to the dashboard</RecordLink>
+        {t("states.askAdmin")} <RecordLink to="/">{t("states.goToDashboard")}</RecordLink>
       </p>
     </div>
   );

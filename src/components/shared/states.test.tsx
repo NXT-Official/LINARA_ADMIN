@@ -13,7 +13,7 @@ import { RestrictedPanel } from "./states";
 
 describe("RestrictedPanel (FR-RL-7)", () => {
   it("says the role doesn't cover the screen and links to the dashboard", () => {
-    render(<RestrictedPanel what="this screen" />);
+    render(<RestrictedPanel />);
     expect(screen.getByText("Your role doesn't cover this screen.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Go to the dashboard" })).toHaveAttribute("href", "/");
   });

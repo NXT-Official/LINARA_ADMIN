@@ -14,43 +14,51 @@ import {
 } from "lucide-react";
 
 import type { Permission } from "@/features/auth/permissions";
+import type { MessageKey } from "@/lib/i18n/messages";
 
 export type NavItem = {
   to: string;
-  label: string;
+  label: MessageKey;
   icon: LucideIcon;
   permission: Permission;
 };
 
 /** Grouped by what the business team is doing, not by table. */
-export const NAV_GROUPS: { label: string | null; items: NavItem[] }[] = [
+export const NAV_GROUPS: { label: MessageKey | null; items: NavItem[] }[] = [
   {
     label: null,
-    items: [{ to: "/", label: "Dashboard", icon: LayoutDashboard, permission: "dashboard.view" }],
-  },
-  {
-    label: "Customers",
     items: [
-      { to: "/crm", label: "CRM", icon: ContactRound, permission: "crm.view" },
-      { to: "/users", label: "Users", icon: Users, permission: "users.view" },
-      { to: "/households", label: "Households", icon: Building2, permission: "households.view" },
+      { to: "/", label: "nav.dashboard", icon: LayoutDashboard, permission: "dashboard.view" },
     ],
   },
   {
-    label: "Operations",
+    label: "nav.customers",
     items: [
-      { to: "/support", label: "Support", icon: LifeBuoy, permission: "support.view" },
-      { to: "/deletions", label: "Deletion requests", icon: Trash2, permission: "deletions.view" },
-      { to: "/payouts", label: "Payouts", icon: BadgeAlert, permission: "payouts.view" },
-      { to: "/ai", label: "AI usage", icon: Activity, permission: "ai.view" },
-      { to: "/billing", label: "Subscriptions", icon: CreditCard, permission: "pay.view" },
+      { to: "/crm", label: "nav.crm", icon: ContactRound, permission: "crm.view" },
+      { to: "/users", label: "nav.users", icon: Users, permission: "users.view" },
+      {
+        to: "/households",
+        label: "nav.households",
+        icon: Building2,
+        permission: "households.view",
+      },
     ],
   },
   {
-    label: "Admin",
+    label: "nav.operations",
     items: [
-      { to: "/team", label: "Team", icon: ShieldCheck, permission: "team.manage" },
-      { to: "/audit", label: "Audit log", icon: ScrollText, permission: "audit.view" },
+      { to: "/support", label: "nav.support", icon: LifeBuoy, permission: "support.view" },
+      { to: "/deletions", label: "nav.deletions", icon: Trash2, permission: "deletions.view" },
+      { to: "/payouts", label: "nav.payouts", icon: BadgeAlert, permission: "payouts.view" },
+      { to: "/ai", label: "nav.ai", icon: Activity, permission: "ai.view" },
+      { to: "/billing", label: "nav.billing", icon: CreditCard, permission: "pay.view" },
+    ],
+  },
+  {
+    label: "nav.admin",
+    items: [
+      { to: "/team", label: "nav.team", icon: ShieldCheck, permission: "team.manage" },
+      { to: "/audit", label: "nav.audit", icon: ScrollText, permission: "audit.view" },
     ],
   },
 ];

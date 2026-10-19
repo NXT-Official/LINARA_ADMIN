@@ -12,19 +12,21 @@ import { type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
+import { useT } from "@/lib/i18n/i18n";
+import { LocaleProvider } from "@/lib/i18n/locale-provider";
+import { readLocale } from "@/lib/i18n/locale-cookie";
 
 import appCss from "../styles.css?url";
 
 function NotFoundComponent() {
+  const t = useT();
   return (
     <main className="flex min-h-screen items-center justify-center px-4">
       <div className="max-w-md text-center">
-        <h1 className="text-xl text-foreground">Page not found</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          There's no page at this address in the console.
-        </p>
+        <h1 className="text-xl text-foreground">{t("root.notFoundTitle")}</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{t("root.notFoundBody")}</p>
         <Button asChild className="mt-6">
-          <Link to="/">Go to the console</Link>
+          <Link to="/">{t("common.goToConsole")}</Link>
         </Button>
       </div>
     </main>
@@ -34,14 +36,13 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: ErrorComponentProps) {
   console.error(error);
   const router = useRouter();
+  const t = useT();
 
   return (
     <main className="flex min-h-screen items-center justify-center px-4">
       <div className="max-w-md text-center">
-        <h1 className="text-xl text-foreground">This page didn't load</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Something went wrong on our end. Try again, or go back to the console.
-        </p>
+        <h1 className="text-xl text-foreground">{t("root.errorTitle")}</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{t("root.errorBody")}</p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <Button
             onClick={() => {
@@ -49,10 +50,10 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
               reset();
             }}
           >
-            Try again
+            {t("common.tryAgain")}
           </Button>
           <Button asChild variant="outline">
-            <Link to="/">Go to the console</Link>
+            <Link to="/">{t("common.goToConsole")}</Link>
           </Button>
         </div>
       </div>
@@ -82,6 +83,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
     ],
   }),
+  // The admin's language, from its cookie, so pages arrive already in it (D42).
+  beforeLoad: () => ({ locale: readLocale() }),
   shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
@@ -89,14 +92,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 });
 
 function RootShell({ children }: { children: ReactNode }) {
+  const locale = Route.useRouteContext({ select: (c) => c.locale });
   return (
-    <html lang="en">
+    <html lang={locale}>
       <head>
         <HeadContent />
       </head>
       <body>
-        {children}
-        <Scripts />
+        <LocaleProvider initial={locale}>
+          {children}
+          <Scripts />
+        </LocaleProvider>
       </body>
     </html>
   );

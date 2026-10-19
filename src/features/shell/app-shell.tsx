@@ -4,6 +4,7 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { ChevronDown, LogOut, Menu } from "lucide-react";
 
 import { EnvBadge } from "@/components/shared/env-badge";
+import { LanguageMenu } from "@/components/shared/language-menu";
 import { LogoMark } from "@/components/shared/logo";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +19,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { signOutFn } from "@/features/auth/auth.actions";
 import { can } from "@/features/auth/permissions";
 import type { SessionStaff } from "@/features/auth/use-can";
+import { useT } from "@/lib/i18n/i18n";
 import { cn } from "@/lib/utils";
 
 import { NAV_GROUPS, type NavItem } from "./nav";
@@ -27,6 +29,7 @@ function isActive(pathname: string, to: string) {
 }
 
 function Brand() {
+  const t = useT();
   return (
     <Link
       to="/"
@@ -38,7 +41,7 @@ function Brand() {
           linara
         </span>
         <span className="mt-0.5 block text-xs font-semibold text-muted-foreground">
-          Business Console
+          {t("shell.brandSubtitle")}
         </span>
       </span>
     </Link>
@@ -54,10 +57,11 @@ function NavList({
   permissions: readonly string[];
   onNavigate?: () => void;
 }) {
+  const t = useT();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   return (
-    <nav aria-label="Console" className="space-y-5">
+    <nav aria-label={t("shell.nav")} className="space-y-5">
       {NAV_GROUPS.map((group) => {
         const items = group.items.filter((i) => can(permissions, i.permission));
         if (items.length === 0) return null;
@@ -65,7 +69,7 @@ function NavList({
           <div key={group.label ?? "top"}>
             {group.label ? (
               <p className="px-3 pb-1.5 text-xs font-semibold text-muted-foreground">
-                {group.label}
+                {t(group.label)}
               </p>
             ) : null}
             <ul className="space-y-0.5">
@@ -94,6 +98,7 @@ function NavLink({
   active: boolean;
   onNavigate?: () => void;
 }) {
+  const t = useT();
   const Icon = item.icon;
   return (
     <li>
@@ -109,13 +114,14 @@ function NavLink({
         )}
       >
         <Icon className={cn("h-4 w-4 shrink-0", active && "text-pine")} aria-hidden="true" />
-        <span className="flex-1 truncate">{item.label}</span>
+        <span className="flex-1 truncate">{t(item.label)}</span>
       </Link>
     </li>
   );
 }
 
 function AccountMenu({ staff }: { staff: ShellStaff }) {
+  const t = useT();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   // Members have no stored name: the work email identifies them.
@@ -127,7 +133,7 @@ function AccountMenu({ staff }: { staff: ShellStaff }) {
         <button
           type="button"
           className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-full pl-1 pr-2 hover:bg-sand-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:h-11"
-          aria-label={`Account: ${staff.email}`}
+          aria-label={t("shell.account", { email: staff.email })}
         >
           <span className="grid h-8 w-8 place-items-center rounded-full bg-pine text-xs font-semibold text-primary-foreground">
             {initials}
@@ -138,7 +144,7 @@ function AccountMenu({ staff }: { staff: ShellStaff }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-60 rounded-xl">
         <DropdownMenuLabel className="font-normal">
-          <span className="block text-xs text-muted-foreground">Signed in as</span>
+          <span className="block text-xs text-muted-foreground">{t("shell.signedInAs")}</span>
           <span className="block truncate text-sm font-semibold text-foreground">
             {staff.email}
           </span>
@@ -154,7 +160,7 @@ function AccountMenu({ staff }: { staff: ShellStaff }) {
           }}
         >
           <LogOut aria-hidden="true" />
-          Sign out
+          {t("shell.signOut")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -166,6 +172,7 @@ function AccountMenu({ staff }: { staff: ShellStaff }) {
  * a header carrying the environment on every screen (NFR-8).
  */
 export function AppShell({ staff, children }: { staff: ShellStaff; children: ReactNode }) {
+  const t = useT();
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -181,8 +188,8 @@ export function AppShell({ staff, children }: { staff: ShellStaff; children: Rea
 
       <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
         <SheetContent side="left" className="w-72 overflow-y-auto bg-background px-3 py-5">
-          <SheetTitle className="sr-only">Menu</SheetTitle>
-          <SheetDescription className="sr-only">Console sections</SheetDescription>
+          <SheetTitle className="sr-only">{t("shell.menu")}</SheetTitle>
+          <SheetDescription className="sr-only">{t("shell.menuDescription")}</SheetDescription>
           <div className="px-3">
             <Brand />
           </div>
@@ -198,7 +205,7 @@ export function AppShell({ staff, children }: { staff: ShellStaff; children: Rea
             variant="ghost"
             size="icon"
             className="lg:hidden"
-            aria-label="Open menu"
+            aria-label={t("shell.openMenu")}
             onClick={() => setMenuOpen(true)}
           >
             <Menu />
@@ -208,6 +215,7 @@ export function AppShell({ staff, children }: { staff: ShellStaff; children: Rea
           </div>
           <div className="ml-auto flex items-center gap-2">
             <EnvBadge />
+            <LanguageMenu />
             <AccountMenu staff={staff} />
           </div>
         </header>

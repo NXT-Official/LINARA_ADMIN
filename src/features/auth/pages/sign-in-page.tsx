@@ -4,6 +4,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/lib/i18n/i18n";
 
 import { signInFn } from "../auth.actions";
 import { AuthLayout } from "../components/auth-layout";
@@ -11,6 +12,7 @@ import { CaptchaField, type CaptchaFieldHandle } from "../components/captcha-fie
 import { FormError } from "../components/form-error";
 
 export function SignInPage({ reason }: { reason?: string }) {
+  const t = useT();
   const navigate = useNavigate();
   const captcha = useRef<CaptchaFieldHandle>(null);
   const [email, setEmail] = useState("");
@@ -31,7 +33,7 @@ export function SignInPage({ reason }: { reason?: string }) {
       }
       setError(res.message);
     } catch {
-      setError("Something went wrong on our side. Try again.");
+      setError(t("common.unexpectedError"));
     }
     // A captcha token works once: get a fresh one for the next try.
     captcha.current?.reset();
@@ -40,11 +42,11 @@ export function SignInPage({ reason }: { reason?: string }) {
 
   return (
     <AuthLayout
-      title="Sign in to the Business Console"
-      description="Use your console work email. Household accounts can't sign in here."
+      title={t("signIn.title")}
+      description={t("signIn.description")}
       footer={
         <Link to="/forgot-password" className="font-semibold text-pine hover:underline">
-          Forgot your password?
+          {t("signIn.forgot")}
         </Link>
       }
     >
@@ -55,7 +57,7 @@ export function SignInPage({ reason }: { reason?: string }) {
           </p>
         ) : null}
         <div className="space-y-1.5">
-          <Label htmlFor="email">Work email</Label>
+          <Label htmlFor="email">{t("auth.workEmail")}</Label>
           <Input
             id="email"
             type="email"
@@ -66,7 +68,7 @@ export function SignInPage({ reason }: { reason?: string }) {
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="password">Password</Label>
+          <Label htmlFor="password">{t("auth.password")}</Label>
           <Input
             id="password"
             type="password"
@@ -79,7 +81,7 @@ export function SignInPage({ reason }: { reason?: string }) {
         <CaptchaField ref={captcha} onToken={setToken} />
         <FormError message={error} />
         <Button type="submit" className="w-full" disabled={!token || pending}>
-          {pending ? "Signing in" : "Continue"}
+          {pending ? t("signIn.signingIn") : t("signIn.continue")}
         </Button>
       </form>
     </AuthLayout>

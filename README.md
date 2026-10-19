@@ -1,13 +1,13 @@
 # LINARA_ADMIN: Linara Business Console
 
 The business-facing web console for the Linara platform: dashboard, CRM, user
-and household lookup, account actions, support tickets, payout triage, AI usage
-and the audit log. Used by the client's business team, never by household
+and household lookup, account actions, support tickets, payout triage, AI usage,
+plans and billing, finance, FAQs and the audit log. Used by the client's business team, never by household
 managers or helpers.
 
 It is the third Linara app, beside `../LINARA` (household web app, schema owner)
 and `../LINARA_MOBILE` (helper app). It shares their Supabase project and owns
-only its own `staff_`, `crm_` and `support_` tables.
+only its own `staff_`, `crm_`, `support_` (including `support_ticket_messages`), `billing_` and `faq_` tables.
 
 **Status:** Phase 0 (setup) done. Frontend design in progress on sample data.
 

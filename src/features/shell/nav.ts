@@ -1,12 +1,15 @@
 import {
   Activity,
   BadgeAlert,
+  BarChart3,
   Building2,
+  CircleHelp,
   ContactRound,
   LayoutDashboard,
   LifeBuoy,
   ScrollText,
   ShieldCheck,
+  Tags,
   Trash2,
   Users,
   type LucideIcon,
@@ -42,6 +45,14 @@ export const NAV_GROUPS: { label: string | null; items: NavItem[] }[] = [
       { to: "/deletions", label: "Deletion requests", icon: Trash2, permission: "deletions.view" },
       { to: "/payouts", label: "Payouts", icon: BadgeAlert, permission: "payouts.view" },
       { to: "/ai", label: "AI usage", icon: Activity, permission: "ai.view" },
+    ],
+  },
+  {
+    label: "Business",
+    items: [
+      { to: "/plans", label: "Plans", icon: Tags, permission: "billing.view" },
+      { to: "/finance", label: "Finance", icon: BarChart3, permission: "finance.view" },
+      { to: "/faqs", label: "FAQs", icon: CircleHelp, permission: "faq.manage" },
     ],
   },
   {

@@ -1,3 +1,6 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import * as sample from "@/data/sample";
@@ -197,6 +200,17 @@ describe("one-click exports (FR-EX-1)", () => {
       for (const value of forbidden) expect(lower).not.toContain(value.toLowerCase());
     });
   }
+
+  it("finance has no export, so no amounts leave in a CSV", () => {
+    const dir = join(process.cwd(), "src/features/finance");
+    const files = readdirSync(dir, { recursive: true, encoding: "utf8" }).filter((f) =>
+      /\.(ts|tsx)$/.test(f),
+    );
+    const offenders = files.filter((f) =>
+      /_CSV\b|\.export\./.test(f + readFileSync(join(dir, f), "utf8")),
+    );
+    expect(offenders).toEqual([]);
+  });
 
   it("has a header and a row per record", () => {
     expect(exports.users.split("\r\n")).toHaveLength(sample.users.length + 1);

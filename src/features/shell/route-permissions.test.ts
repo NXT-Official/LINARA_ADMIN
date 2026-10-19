@@ -18,7 +18,7 @@ const leaves = (Object.values(router.routesById) as unknown as AnyRoute[]).filte
 );
 describe("every signed-in screen names a permission (spec §7.3, step 2)", () => {
   it("finds the signed-in screens", () => {
-    expect(leaves.length).toBe(16);
+    expect(leaves.length).toBe(19);
   });
 
   it("each one has a known permission", () => {
@@ -26,6 +26,13 @@ describe("every signed-in screen names a permission (spec §7.3, step 2)", () =>
       .filter((r) => !PERMISSIONS.includes(r.options?.staticData?.permission as Permission))
       .map((r) => r.id);
     expect(missing).toEqual([]);
+  });
+
+  it("the business screens are in the nav", () => {
+    const items = NAV_GROUPS.flatMap((g) => g.items).map((i) => `${i.to}:${i.permission}`);
+    expect(items).toEqual(
+      expect.arrayContaining(["/plans:billing.view", "/finance:finance.view", "/faqs:faq.manage"]),
+    );
   });
 
   it("each nav item asks for the same permission as its screen", () => {

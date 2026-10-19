@@ -52,5 +52,8 @@ export const SIGNED_IN_SCREENS = [
   ["/payouts", "Payouts"],
   ["/ai", "AI usage"],
   ["/audit", "Audit log"],
+  ["/plans", "Plans"],
+  ["/finance", "Finance"],
+  ["/faqs", "FAQs"],
   ["/team", "Team"],
 ] as const;

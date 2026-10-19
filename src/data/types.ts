@@ -143,7 +143,18 @@ export type AuditEntry = {
   actorId: string;
   action: string;
   targetType:
-    "user" | "household" | "ticket" | "contact" | "staff" | "helper" | "payout" | "export";
+    | "user"
+    | "household"
+    | "ticket"
+    | "contact"
+    | "staff"
+    | "helper"
+    | "payout"
+    | "export"
+    | "invoice"
+    | "plan"
+    | "settings"
+    | "faq";
   targetId: string;
   reason: string | null;
   at: string;

@@ -34,6 +34,10 @@ const TARGET_LABEL: Record<string, string> = {
   import: "Import",
   helper: "Helper",
   auth: "Sign-in",
+  invoice: "Invoice",
+  plan: "Plan",
+  settings: "Settings",
+  faq: "FAQ",
 };
 
 function FilterLabel({ htmlFor, children }: { htmlFor: string; children: string }) {

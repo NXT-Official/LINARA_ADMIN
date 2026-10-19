@@ -22,8 +22,27 @@ rows are listed in spec D28 and D33. The CRM's write rules are in D34.
 | `012-operations.sql`       | Phase 6: payout problems (latest attempt per payslip, no amounts), their counts, and AI usage for the last 48 hours with limit hits (D38). Reads only. Run after 011. |
 | `013-roles.sql`            | Phase 7: `staff_role_defs` with four locked presets and custom roles, one role per member (existing admins become Admin), and team and role changes that enforce D39 and record themselves. Replaces `staff_touch_session` and `staff_list_admins`. Run after 012. |
 | `014-roles-fixes.sql`      | Phase 7 review fixes: the table refuses `team.manage` on a custom role, only the admin and mods presets manage the team, a missing code flag counts as no code, and the code covers creating a custom role and giving admin, mods or a custom role (spec 0.19), and the Team screen wording in the deletion and assignee messages (spec 0.20). Replaces six functions with the same signatures, and `staff_create_role` (gains `p_code_checked`). Run after 013. |
+| `015-business-permissions.sql` | Phase 8: `staff_known_permissions()` gains `billing.view`, `billing.manage`, `finance.view` and `faq.manage` (16 to 20); presets updated. Run after 014. |
+| `016-billing-plans.sql`     | `billing_plans` and `billing_settings` (free-tier switch), closed to app roles; audited `billing_*` write functions and the public plan reads. Run after 015. |
+| `017-billing-subscriptions.sql` | `billing_subscriptions`, `billing_subscription_homes` and `billing_invoices` (numbered `LIN-<year>-000001`), household entitlements, quote, start, renew, cancel. Run after 016. |
+| `018-billing-finance.sql`   | `billing_cost_entries`, `billing_model_prices`, `billing_ai_usage` and `billing_finance` (revenue, cost, margin). Run after 017. |
+| `019-support-in-app.sql`    | `support_ticket_messages`, the `in_app` channel and `billing` category, unread counts, and `household_support_*` functions. Run after 015. |
+| `020-faq.sql`               | `faq_items` and staff FAQ functions; `faq_public_list()` is readable by `anon`. Run after 015. |
 
 Each file runs in one transaction: it applies completely or not at all.
+
+## Shared with LINARA
+
+The household app calls `billing_public_plans`, `billing_settings_public`,
+`billing_my_billing`, `billing_quote`, `billing_trial_eligible`,
+`billing_start`, `billing_attach_session`, `billing_renew`, `billing_cancel`,
+`faq_public_list` and `household_support_*`. Its seat-limit trigger calls
+`billing_household_entitlements`. Its edge functions call
+`billing_record_invoice_result` and `billing_record_ai_usage` (service role).
+Migrations 016 to 020 are shared schema: apply them here first, then LINARA's
+`add-seat-limits.sql`. Before applying 017 run
+`SELECT to_regclass('public.platform_invoices')` and stop if it is not NULL (an
+older draft was applied).
 
 ## Applying a file
 

@@ -33,7 +33,9 @@ function PresetDialog({
         <DialogHeader className="pr-8 text-left">
           <DialogTitle className="font-display text-xl font-normal">{role.name}</DialogTitle>
           <DialogDescription>
-            A preset role. It can't be changed; duplicate it to make a custom role.
+            {role.preset === "super_admin"
+              ? "A preset role held by one account. It can't be changed, given or removed from the console."
+              : "A preset role. It can't be changed; duplicate it to make a custom role."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -55,15 +57,19 @@ function PresetDialog({
             <p className="text-sm text-foreground">
               {role.preset === "mods"
                 ? "Manages the team, giving only sales, support and custom roles."
-                : "Manages the team and every role."}
+                : role.preset === "admin"
+                  ? "Manages the team, giving every role but admin."
+                  : "Manages the team and gives every role, admin included."}
             </p>
           ) : null}
         </div>
-        <div className="flex justify-end">
-          <Button variant="outline" onClick={onDuplicate}>
-            Duplicate
-          </Button>
-        </div>
+        {role.preset === "super_admin" ? null : (
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={onDuplicate}>
+              Duplicate
+            </Button>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

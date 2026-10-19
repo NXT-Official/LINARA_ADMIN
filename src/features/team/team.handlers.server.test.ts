@@ -255,6 +255,32 @@ describe("addAdminHandler (FR-TM-2, D39)", () => {
     expect(m.freshCode).not.toHaveBeenCalled();
   });
 
+  it("an admin can't give admin; only the super admin can (D44)", async () => {
+    m.role = { name: "Admin", preset: "admin", permissions: ["dashboard.view", "team.manage"] };
+    await expect(
+      addAdminHandler({ email: "new@x.com", roleId: ROLE, code: "123456" }),
+    ).resolves.toEqual({
+      ok: false,
+      code: "conflict",
+      message: "Only the super admin can give the admin role.",
+    });
+    expect(m.invite).not.toHaveBeenCalled();
+    expect(m.freshCode).not.toHaveBeenCalled();
+  });
+
+  it("the super admin role is refused before any email, even for an admin (D43)", async () => {
+    m.role = { name: "Super admin", preset: "super_admin", permissions: ["dashboard.view"] };
+    await expect(
+      addAdminHandler({ email: "new@x.com", roleId: ROLE, code: "123456" }),
+    ).resolves.toEqual({
+      ok: false,
+      code: "conflict",
+      message: "The super admin role can't be given from the console.",
+    });
+    expect(m.invite).not.toHaveBeenCalled();
+    expect(m.freshCode).not.toHaveBeenCalled();
+  });
+
   it("a role that needs the code is refused before any email when it's missing", async () => {
     m.role = { name: "Lead desk", preset: null, permissions: ["dashboard.view"] };
     await expect(addAdminHandler({ email: "new@x.com", roleId: ROLE })).resolves.toEqual({

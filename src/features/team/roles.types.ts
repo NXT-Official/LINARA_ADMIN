@@ -13,13 +13,20 @@ export type RoleRow = {
 
 const GUARDED: readonly (RolePreset | null)[] = ["admin", "mods"];
 
+/** In team rules the super admin acts as an admin (D43). */
+const isAdmin = (preset: RolePreset | null) => preset === "admin" || preset === "super_admin";
+
 /**
- * The roles a member may give (D39): admins give any, mods give sales, support
- * and custom roles, nobody else gives any. SQL enforces the same rule.
+ * The roles a member may give (D39): the super admin gives any but its own,
+ * admins give any but admin (D44), mods give sales, support and custom roles,
+ * nobody else gives any. Nobody gives super admin from the console (D43). SQL
+ * enforces the same rules.
  */
 export function assignableRoles(actorPreset: RolePreset | null, roles: RoleRow[]): RoleRow[] {
-  if (actorPreset === "admin") return roles;
-  if (actorPreset === "mods") return roles.filter((r) => !GUARDED.includes(r.preset));
+  const giveable = roles.filter((r) => r.preset !== "super_admin");
+  if (actorPreset === "super_admin") return giveable;
+  if (actorPreset === "admin") return giveable.filter((r) => r.preset !== "admin");
+  if (actorPreset === "mods") return giveable.filter((r) => !GUARDED.includes(r.preset));
   return [];
 }
 
@@ -29,7 +36,10 @@ export function canChangeMember(
   member: { userId: string; preset: RolePreset | null },
 ): { ok: true } | { ok: false; why: string } {
   if (actor.userId === member.userId) return { ok: false, why: "This is you." };
-  if (actor.preset === "admin") return { ok: true };
+  if (member.preset === "super_admin") {
+    return { ok: false, why: "The super admin can't be changed or removed." };
+  }
+  if (isAdmin(actor.preset)) return { ok: true };
   if (actor.preset === "mods" && !GUARDED.includes(member.preset)) return { ok: true };
   return { ok: false, why: "Only admins can change admins and mods." };
 }

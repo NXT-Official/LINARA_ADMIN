@@ -229,7 +229,6 @@ const ROLES = [role("admin"), role("mods"), role("sales"), role("support"), role
 describe("D39 rules in the browser", () => {
   it("assignableRoles for admin and mods", () => {
     expect(assignableRoles("admin", ROLES).map((r) => r.name)).toEqual([
-      "admin",
       "mods",
       "sales",
       "support",
@@ -257,6 +256,29 @@ describe("D39 rules in the browser", () => {
     expect(canChangeMember(mod, { userId: "x", preset: "mods" })).toMatchObject({ ok: false });
     expect(canChangeMember(mod, { userId: "x", preset: "sales" })).toEqual({ ok: true });
     expect(canChangeMember(mod, { userId: "x", preset: null })).toEqual({ ok: true });
+  });
+
+  it("super admin is never given, changed or removed from the console (D43)", () => {
+    const withSuper = [role("super_admin", "Super admin"), ...ROLES];
+    const superAdmin = { userId: "s", preset: "super_admin" as const };
+    const admin = { userId: "a", preset: "admin" as const };
+    expect(assignableRoles("super_admin", withSuper).map((r) => r.name)).toEqual([
+      "admin",
+      "mods",
+      "sales",
+      "support",
+      "Leads",
+    ]);
+    expect(assignableRoles("admin", withSuper).map((r) => r.preset)).not.toContain("super_admin");
+    // Only the super admin gives admin (D44).
+    expect(assignableRoles("admin", withSuper).map((r) => r.preset)).not.toContain("admin");
+    expect(canChangeMember(admin, { userId: "s", preset: "super_admin" })).toEqual({
+      ok: false,
+      why: "The super admin can't be changed or removed.",
+    });
+    expect(canChangeMember(superAdmin, superAdmin)).toEqual({ ok: false, why: "This is you." });
+    expect(canChangeMember(superAdmin, { userId: "x", preset: "admin" })).toEqual({ ok: true });
+    expect(canChangeMember(superAdmin, { userId: "x", preset: "mods" })).toEqual({ ok: true });
   });
 
   it("needsCode for any new access but sales and support (spec 0.19)", () => {

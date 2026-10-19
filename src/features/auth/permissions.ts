@@ -25,8 +25,11 @@ export const PERMISSIONS = [
 
 export type Permission = (typeof PERMISSIONS)[number];
 
-/** The four locked presets (§4.2). Custom roles have none. */
-export type RolePreset = "admin" | "mods" | "sales" | "support";
+/**
+ * The locked presets (§4.2). Custom roles have none. Super admin is held by one
+ * account and is given, moved or removed only from the SQL editor (D43).
+ */
+export type RolePreset = "super_admin" | "admin" | "mods" | "sales" | "support";
 
 export function can(
   permissions: readonly string[] | null | undefined,

@@ -187,8 +187,16 @@ export function addAdminHandler(
       memberCount: 0,
       updatedAt: "",
     };
+    if (role.preset === "super_admin") {
+      throw new ConsoleError("conflict", "The super admin role can't be given from the console.");
+    }
     if (assignableRoles(staff.preset, [row]).length === 0) {
-      throw new ConsoleError("conflict", "Mods can't give the admin or mods role.");
+      throw new ConsoleError(
+        "conflict",
+        staff.preset === "admin"
+          ? "Only the super admin can give the admin role."
+          : "Mods can't give the admin or mods role.",
+      );
     }
     if (needsCode(row) && !input.code) {
       throw new ConsoleError("conflict", "Enter your two-step code to make this change.");

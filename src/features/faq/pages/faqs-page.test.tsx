@@ -137,4 +137,37 @@ describe("FaqsPage", () => {
     renderPage();
     expect(await screen.findByText("The FAQs didn't load")).toBeInTheDocument();
   });
+
+  it("Edit after a publish shows the saved state and saves it unchanged", async () => {
+    m.list.mockResolvedValueOnce({ ok: true, faqs: FAQS }).mockResolvedValue({
+      ok: true,
+      faqs: FAQS.map((f) => (f.id === "f2" ? { ...f, published: true } : f)),
+    });
+    renderPage();
+    const row = (await screen.findByText("What is a Pass?")).closest("li")!;
+    fireEvent.click(within(row).getByRole("button", { name: "Publish" }));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("FAQ published"));
+    const after = (await screen.findByText("What is a Pass?")).closest("li")!;
+    await waitFor(() => expect(within(after).getByText("Published")).toBeInTheDocument());
+    fireEvent.click(within(after).getByRole("button", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("checkbox")).toBeChecked();
+    m.save.mockClear();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save FAQ" }));
+    await waitFor(() => expect(m.save).toHaveBeenCalled());
+    expect(m.save.mock.calls[0]?.[0].data).toMatchObject({ id: "f2", published: true });
+  });
+
+  it("a cancelled edit does not keep its unsaved text", async () => {
+    renderPage();
+    const row = (await screen.findByText("What is a Pass?")).closest("li")!;
+    fireEvent.click(within(row).getByRole("button", { name: "Edit" }));
+    let dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("Question"), { target: { value: "Changed" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    fireEvent.click(within(row).getByRole("button", { name: "Edit" }));
+    dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByLabelText("Question")).toHaveValue("What is a Pass?");
+  });
 });

@@ -19,16 +19,31 @@ export function FaqDialog({
   categories: string[];
   onSaved: () => Promise<void> | void;
 }) {
+  const [open, setOpen] = useState(false);
   const [question, setQuestion] = useState(entry?.question ?? "");
   const [answer, setAnswer] = useState(entry?.answer ?? "");
   const [category, setCategory] = useState(entry?.category ?? DEFAULT_CATEGORY);
   const [order, setOrder] = useState(String(entry?.sortOrder ?? 0));
   const [published, setPublished] = useState(entry?.published ?? false);
+
+  /** Every open starts from the saved entry, so a refetch or a cancelled edit never lingers. */
+  function reset() {
+    setQuestion(entry?.question ?? "");
+    setAnswer(entry?.answer ?? "");
+    setCategory(entry?.category ?? DEFAULT_CATEGORY);
+    setOrder(String(entry?.sortOrder ?? 0));
+    setPublished(entry?.published ?? false);
+  }
   const sortOrder = Number(order);
   const orderOk = order.trim() !== "" && Number.isInteger(sortOrder);
   return (
     <FormDialog
       trigger={trigger}
+      open={open}
+      onOpenChange={(next) => {
+        if (next) reset();
+        setOpen(next);
+      }}
       title={entry ? "Edit FAQ" : "New FAQ"}
       description="Published questions show on the public Help page. Drafts stay here."
       submitLabel={entry ? "Save FAQ" : "Add FAQ"}
@@ -49,6 +64,7 @@ export function FaqDialog({
         if (!entry) {
           setQuestion("");
           setAnswer("");
+          setCategory(DEFAULT_CATEGORY);
           setOrder("0");
           setPublished(false);
         }

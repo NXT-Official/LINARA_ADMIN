@@ -1,0 +1,83 @@
+src/features/billing/components/revoke-plan-dialog.tsx
+  s_015ef908465883::t_d89cc4d5d7d27e 1-72
+src/data/types.ts
+  s_015ef908465883::t_aff52cd30a117d 157-160
+src/features/audit/audit.utils.test.ts
+  s_015ef908465883::t_bf76b322b0e2b7 6,46-73
+src/features/audit/audit.utils.ts
+  s_015ef908465883::t_8519156abc8102 3-24,48-54
+src/features/audit/pages/audit-page.tsx
+  s_015ef908465883::t_7fae4f3a69fcd1 21
+src/features/auth/permissions.test.ts
+  s_015ef908465883::t_8259e4591f21d0 44-45
+src/features/auth/permissions.ts
+  s_015ef908465883::t_b382f16cf8254f 62
+src/features/billing/billing.actions.ts
+  s_015ef908465883::t_7d751616f3436e 7,9,22-25
+src/features/billing/billing.handlers.server.test.ts
+  s_015ef908465883::t_8e2d771bd15b21 37,90-106,150-153,233-240,244-245,276-333
+src/features/billing/billing.handlers.server.ts
+  s_015ef908465883::t_0dbe9c5cfbb6cb 12,15,25,28,79,139,198-212
+src/features/billing/billing.input.ts
+  s_015ef908465883::t_f8d5ea4c5888c3 4,30-35,44,87-97
+src/features/billing/billing.types.ts
+  s_015ef908465883::t_9dc0a66c48b031 6-8,39-40,71
+src/features/billing/components/grant-plan-dialog.tsx
+  s_015ef908465883::t_ff1e83bba2e6bc 12,18,22,38,43,130-133
+src/features/billing/components/household-billing.test.tsx
+  s_015ef908465883::t_4930f53025698a 19,26,97,139,183,324-342,356-537
+src/features/billing/components/household-billing.tsx
+  s_015ef908465883::t_c20b393b4918da 12,15,19-30,67-69,121-144,153-158,165-166,190-198,203
+src/features/faq/faq.handlers.server.test.ts
+  s_015ef908465883::t_a9b51eae122ac6 3,11,28,131-145
+src/features/faq/faq.handlers.server.ts
+  s_015ef908465883::t_1732cdcc98c9f5 24-28
+src/features/finance/pages/finance-page.test.tsx
+  s_015ef908465883::t_4e4a36733631f2 250-251,253-270
+src/features/finance/pages/finance-page.tsx
+  s_015ef908465883::t_e12b77d6a18ce7 106-110,313,451-455,511,558
+src/features/plans/pages/plans-page.test.tsx
+  s_015ef908465883::t_aafc0276d9ab74 112
+src/features/plans/pages/plans-page.tsx
+  s_015ef908465883::t_90c4264db2c957 34
+src/features/support/pages/ticket-page.test.tsx
+  s_015ef908465883::t_0a40f406268b20 298-315
+src/features/support/pages/ticket-page.tsx
+  s_015ef908465883::t_7fc80b78728466 437-440
+src/features/support/support.handlers.server.test.ts
+  s_015ef908465883::t_e9a19719e393ba 260,264,267-278
+src/features/support/support.input.ts
+  s_015ef908465883::t_d846e6046f041a 72-75
+supabase/016-billing-plans.sql
+  s_015ef908465883::t_f12038bae04865 187-190,212,281-282,286-292
+supabase/017-billing-subscriptions.sql
+  s_015ef908465883::t_1aef3eb54881e4 70-73,396-398,479-503,681-682,711,1020-1023,1032-1037,1054-1058,1375-1376,1388,1394-1396,1407-1410
+supabase/018-billing-finance.sql
+  s_015ef908465883::t_d3cb8ce3c7eb69 23-24
+supabase/019-support-in-app.sql
+  s_015ef908465883::t_36bbdaae996790 1-2,27-32,373-374,396-417
+supabase/README.md
+  s_015ef908465883::t_bdf46a02769f00 29-30
+supabase/tests/billing-plans.test.mjs
+  s_015ef908465883::t_fce5272e842076 205
+supabase/tests/billing-subscriptions.test.mjs
+  s_015ef908465883::t_a543f796184db7 19-22,1887,1890-1891,1894-1902,1929-1939,2326-2441
+supabase/tests/support-in-app.test.mjs
+  s_015ef908465883::t_92b866adff0c52 6-9,643-754
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fca7519b8faf54bb24f02a5501fc3c36b0f929aa",
+  "prompts": {},
+  "sessions": {
+    "s_015ef908465883": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bc0c8d9c-45ff-47d9-bb1d-e5046b9ee7e4",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "naaxtech <naaxtech.official@gmail.com>"
+    }
+  }
+}

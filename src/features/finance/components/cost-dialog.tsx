@@ -22,7 +22,7 @@ function thisMonth(): string {
 /**
  * Add a cost (cost = null) or edit one. A cost belongs to a month; it counts
  * toward COGS in any range that includes that month's first day. Mount it
- * only while open so each opening starts from what is saved.
+ * only while open when editing; the add dialog stays mounted, so it resets on every open.
  */
 export function CostDialog({
   cost,
@@ -41,12 +41,26 @@ export function CostDialog({
   const [label, setLabel] = useState(cost?.label ?? "");
   const [amount, setAmount] = useState(cost ? pesosText(cost.amountCentavos) : "");
   const [note, setNote] = useState(cost?.note ?? "");
+  const [innerOpen, setInnerOpen] = useState(false);
+
+  /** Every open starts from the saved cost, or empty for an add. */
+  function reset() {
+    setMonth(cost ? cost.month.slice(0, 7) : thisMonth());
+    setCategory(cost?.category ?? "infra");
+    setLabel(cost?.label ?? "");
+    setAmount(cost ? pesosText(cost.amountCentavos) : "");
+    setNote(cost?.note ?? "");
+  }
 
   return (
     <FormDialog
       trigger={trigger}
-      open={open}
-      onOpenChange={onOpenChange}
+      open={open ?? innerOpen}
+      onOpenChange={(next) => {
+        if (next) reset();
+        setInnerOpen(next);
+        onOpenChange?.(next);
+      }}
       title={cost ? "Edit cost" : "Add cost"}
       description="A cost you pay to run Linara, counted in the month you pick."
       submitLabel={cost ? "Save cost" : "Add cost"}

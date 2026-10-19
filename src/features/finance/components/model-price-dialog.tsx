@@ -15,6 +15,7 @@ const pesosText = (centavos: number) => (centavos / 100).toFixed(2);
 /**
  * Set what one AI model costs (price = null adds a model). Prices are pesos,
  * stored as centavos; they apply to calls made after the change.
+ * The add dialog stays mounted, so it resets on every open.
  */
 export function ModelPriceDialog({
   price,
@@ -33,12 +34,26 @@ export function ModelPriceDialog({
   const [output, setOutput] = useState(price ? pesosText(price.outputCentavosPer1m) : "0.00");
   const [audio, setAudio] = useState(price ? pesosText(price.audioCentavosPerMinute) : "0.00");
   const [note, setNote] = useState(price?.note ?? "");
+  const [innerOpen, setInnerOpen] = useState(false);
+
+  /** Every open starts from the saved price, or empty for an add. */
+  function reset() {
+    setModel(price?.model ?? "");
+    setInput(price ? pesosText(price.inputCentavosPer1m) : "0.00");
+    setOutput(price ? pesosText(price.outputCentavosPer1m) : "0.00");
+    setAudio(price ? pesosText(price.audioCentavosPerMinute) : "0.00");
+    setNote(price?.note ?? "");
+  }
 
   return (
     <FormDialog
       trigger={trigger}
-      open={open}
-      onOpenChange={onOpenChange}
+      open={open ?? innerOpen}
+      onOpenChange={(next) => {
+        if (next) reset();
+        setInnerOpen(next);
+        onOpenChange?.(next);
+      }}
       title={price ? `Edit ${price.model}` : "Add model price"}
       description="What this model costs, so AI calls can be priced. Applies to calls made from now on."
       submitLabel="Save price"

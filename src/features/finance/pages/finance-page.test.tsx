@@ -209,15 +209,47 @@ describe("Finance page", () => {
     });
   });
 
+  it("add resets on every open and the second save sends only the second values", async () => {
+    renderPage();
+    await screen.findByText("₱697.00");
+    const addAndSave = async (label: string, amount: string) => {
+      fireEvent.click(screen.getByRole("button", { name: "Add cost" }));
+      const dialog = await screen.findByRole("dialog");
+      expect(within(dialog).getByLabelText("Label")).toHaveValue("");
+      fireEvent.change(within(dialog).getByLabelText("Label"), { target: { value: label } });
+      fireEvent.change(within(dialog).getByLabelText("Amount (pesos)"), {
+        target: { value: amount },
+      });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Add cost" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    };
+    await addAndSave("First", "10");
+    await addAndSave("Second", "20.50");
+    expect(m.saveCost).toHaveBeenCalledTimes(2);
+    expect(m.saveCost.mock.calls[0]?.[0].data).toMatchObject({
+      label: "First",
+      amountCentavos: 1000,
+    });
+    expect(m.saveCost.mock.calls[1]?.[0].data).toMatchObject({
+      label: "Second",
+      amountCentavos: 2050,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add cost" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByLabelText("Label")).toHaveValue("");
+    expect(within(dialog).getByLabelText("Amount (pesos)")).toHaveValue("");
+  });
+
   it("an inverted custom range asks for the dates and does not query", async () => {
     renderPage();
     await screen.findByText("₱697.00");
     fireEvent.click(screen.getByRole("radio", { name: "Custom" }));
-    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-12-31" } });
-    fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-01-01" } });
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-01-01" } });
+    fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-12-31" } });
+    await waitFor(() => expect(m.figures.mock.calls.at(-1)?.[0].data.to).toBe("2026-12-31"));
+    const before = m.figures.mock.calls.length;
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2027-01-01" } });
     expect(await screen.findByRole("alert")).toHaveTextContent("Start must be on or before");
-    const calls = m.figures.mock.calls.length;
-    expect(m.figures.mock.calls.at(-1)?.[0].data.from).not.toBe("2026-12-31");
-    expect(m.figures.mock.calls.length).toBe(calls);
+    expect(m.figures.mock.calls.length).toBe(before);
   });
 });

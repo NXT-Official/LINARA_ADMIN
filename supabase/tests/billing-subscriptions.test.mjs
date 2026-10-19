@@ -12,8 +12,11 @@
 // gets concrete seats, a deleted owner leaves the revenue record, entitlements
 // fall back to the free tier, a paid plan cancels an abandoned checkout for its
 // homes (a late payment of it is noted for a refund), a renewal replaces
-// nothing, Xendit confirming a manual mark asks staff to check, and applying the
-// file again leaves the data alone. Ported from LINARA 594daf6
+// nothing, Xendit confirming a manual mark asks staff to check, a trial gives
+// only the plan's included seats, seat counts stay within 0 to 1000, a first
+// payment from a buyer who has since handed over replaces nothing, staff revoke
+// a subscription at once, the server key is nobody's household, and applying
+// the file again leaves the data alone. Ported from LINARA 594daf6
 // supabase/tests/subscriptions.test.mjs (S-22, S-27).
 //
 //   node supabase/tests/billing-subscriptions.test.mjs
@@ -178,6 +181,8 @@ const grant = (household, plan, helpers, managers, endSql, note, reason) =>
   ]);
 const markPaid = (invoiceId, channel, note, reason = "Paid by GCash to the owner") =>
   svcRpc(`public.billing_mark_paid($1, $2, $3, $4, $5)`, [A1, invoiceId, channel, note, reason]);
+const revoke = (subscriptionId, reason) =>
+  svcRpc(`public.billing_revoke($1, $2, $3)`, [A1, subscriptionId, reason]);
 const householdDetail = (household, nowSql = "now()") =>
   svcRpc(`public.billing_household_detail($1, $2, ${nowSql})`, [A1, household]);
 const invoiceDetail = (invoiceId) =>
@@ -243,6 +248,7 @@ const SERVER_FNS = [
   "public.billing_record_invoice_result(text, text, text, bigint, timestamptz, text, jsonb)",
   "public.billing_grant(uuid, uuid, uuid, int, int, timestamptz, text, text)",
   "public.billing_mark_paid(uuid, uuid, text, text, text)",
+  "public.billing_revoke(uuid, uuid, text)",
   "public.billing_household_detail(uuid, uuid, timestamptz)",
   "public.billing_invoice_detail(uuid, uuid)",
   "public.billing_audit(uuid, text, text, text, text, jsonb)",
@@ -252,6 +258,7 @@ const SERVER_FNS = [
   "public.billing_peso(bigint)",
   "public.billing_add_note(text, text)",
   "public.billing_text(text, text, int)",
+  "public.billing_check_seats(int, int)",
   "public.billing_next_invoice_number()",
   "public.billing_price(public.billing_plans, int, int, int)",
   "public.billing_new_invoice(uuid, timestamptz, jsonb)",
@@ -308,6 +315,8 @@ for (const role of ["anon", "authenticated"]) {
     `billing_record_invoice_result('sub_x_1', 'ps', 'PAID', 1, now(), 'GCASH', '{}'::jsonb)`,
     `billing_grant('${A1}', '${H2}', gen_random_uuid(), 1, 1, NULL, 'x', 'reason')`,
     `billing_mark_paid('${A1}', gen_random_uuid(), 'gcash', 'x', 'reason')`,
+    `billing_revoke('${A1}', gen_random_uuid(), 'reason')`,
+    `billing_check_seats(1, 1)`,
     `billing_household_detail('${A1}', '${H1}', now())`,
     `billing_invoice_detail('${A1}', gen_random_uuid())`,
     `billing_audit('${A1}', 'x', 'invoice', 'y', 'r', '{}'::jsonb)`,
@@ -463,6 +472,32 @@ await expectError(
   /^PLAN_NOT_ACTIVE/,
 );
 await expectError("quote: no homes raises NOT_FOUND", () => quote(MONTHLY, 1, 1, []), /^NOT_FOUND/);
+for (const [label, helpers, managers, pattern] of [
+  ["1001 helper seats", 1001, 2, /^BAD_SEATS:helper$/],
+  ["-1 helper seats", -1, 2, /^BAD_SEATS:helper$/],
+  ["1001 manager seats", 1, 1001, /^BAD_SEATS:manager$/],
+  ["-1 manager seats", 1, -1, /^BAD_SEATS:manager$/],
+]) {
+  await expectError(
+    `quote: ${label} raises BAD_SEATS`,
+    () => quote(BIG, helpers, managers, [H1]),
+    pattern,
+  );
+}
+check(
+  "quote: 1000 seats is the most you can ask for",
+  (await quote(MONTHLY, 1000, 2, [H1])).helper_seats === 1000,
+);
+await expectError(
+  "quote: the server key (no signed-in user) raises NOT_FOUND",
+  () => svcRpc(`public.billing_quote($1, 1, 2, $2::uuid[])`, [MONTHLY, [H1]]),
+  /^NOT_FOUND/,
+);
+await expectError(
+  "start: 1001 helper seats raises BAD_SEATS",
+  () => start(MONTHLY, 1001, 2, [H1]),
+  /^BAD_SEATS:helper$/,
+);
 
 // --- Starting -----------------------------------------------------------------------------
 as(C);
@@ -665,6 +700,41 @@ await expectError(
       ]),
     ),
   /permission denied/,
+);
+
+// The server key runs the household functions with no auth.uid(): it is nobody's household.
+await expectError(
+  "server key: billing_my_billing raises NOT_FOUND",
+  () => svcRpc(`public.billing_my_billing($1)`, [H1]),
+  /^NOT_FOUND/,
+);
+await expectError(
+  "server key: billing_renew raises NOT_FOUND",
+  () => svcRpc(`public.billing_renew($1)`, [s1.subscription_id]),
+  /^NOT_FOUND/,
+);
+await expectError(
+  "server key: billing_attach_session raises NOT_FOUND",
+  () =>
+    svc(`SELECT public.billing_attach_session($1, 'ps_svc', $2, now() + interval '1 day', NULL)`, [
+      s1.invoice_id,
+      XENDIT("ps_svc"),
+    ]),
+  /^NOT_FOUND/,
+);
+await expectError(
+  "server key: billing_start raises NOT_PRIMARY",
+  () => svcRpc(`public.billing_start($1, 1, 2, $2::uuid[])`, [MONTHLY, [H1]]),
+  /^NOT_PRIMARY/,
+);
+check(
+  "server key: billing_trial_eligible is false",
+  (await svcRpc(`public.billing_trial_eligible($1, $2::uuid[])`, [STARTER, [H5]])) === false,
+);
+check(
+  "server key: and none of that changed anything",
+  (await invoiceRow(s1.invoice_id)).xendit_session_id === null &&
+    (await one(`SELECT count(*)::int AS n FROM public.billing_subscriptions`)).n === 2,
 );
 
 // --- Attaching the Xendit session ---------------------------------------------------------
@@ -1312,6 +1382,16 @@ await expectError(
   /^Manager seats can't be negative\.$/,
 );
 await expectError(
+  "grant: more than 1000 helper seats are refused",
+  () => grant(H2, MONTHLY, 1001, 2, "NULL", "x", "Pilot household"),
+  /^Helper seats can be 1000 at most/,
+);
+await expectError(
+  "grant: more than 1000 manager seats are refused",
+  () => grant(H2, MONTHLY, 2, 1001, "NULL", "x", "Pilot household"),
+  /^Manager seats can be 1000 at most/,
+);
+await expectError(
   "grant: an unknown plan is refused",
   () => grant(H2, "30000000-0000-0000-0000-000000000003", 2, 2, "NULL", "x", "Pilot household"),
   /^That plan doesn't exist\.$/,
@@ -1685,6 +1765,84 @@ check(
   openPaid,
 );
 
+// --- Staff revoke a subscription -----------------------------------------------------------------
+const farmComp = await grant(H6, MONTHLY, 2, 2, THIRTY_DAYS, "farm pilot", "Farm pilot");
+as(P);
+check("revoke: the comp covers H6 first", (await entitlements(H6)).source === "subscription");
+const rFarm = await renew(farmComp.subscription_id);
+for (const role of ["anon", "authenticated"]) {
+  await expectError(
+    `revoke: ${role} can't run it`,
+    () =>
+      asRole(role, P, () =>
+        q(`SELECT public.billing_revoke($1, $2, 'x')`, [P, farmComp.subscription_id]),
+      ),
+    /permission denied/,
+  );
+}
+await expectError(
+  "revoke: without a reason is refused in a sentence",
+  () => revoke(farmComp.subscription_id, "  "),
+  /^Give a reason for revoking this plan\.$/,
+);
+await expectError(
+  "revoke: an unknown subscription is refused in a sentence",
+  () => revoke("30000000-0000-0000-0000-000000000005", "Pilot ended early"),
+  /^That subscription doesn't exist\.$/,
+);
+check(
+  "revoke: refusals changed nothing",
+  (await subRow(farmComp.subscription_id)).status === "active" &&
+    (await invoiceRow(rFarm.invoice_id)).status === "pending",
+);
+await revoke(farmComp.subscription_id, "Pilot ended early");
+const farmRevoked = await one(
+  `SELECT status, canceled_at IS NOT NULL AS canceled, current_period_end <= now() AS ended, note
+   FROM public.billing_subscriptions WHERE id = $1`,
+  [farmComp.subscription_id],
+);
+check(
+  "revoke: the comp is canceled and ended now, the reason noted",
+  farmRevoked.status === "canceled" &&
+    farmRevoked.canceled &&
+    farmRevoked.ended &&
+    farmRevoked.note === "farm pilot\nRevoked by staff: Pilot ended early",
+  farmRevoked,
+);
+check("revoke: H6 falls back to the free tier", (await entitlements(H6)).source === "free");
+const rFarmRow = await invoiceRow(rFarm.invoice_id);
+check(
+  "revoke: its pending renewal invoice expires, marked revoked",
+  rFarmRow.status === "expired" && rFarmRow.raw_callback.revoked_by === A1,
+  rFarmRow,
+);
+const lateOnRevoked = await pay(rFarm.external_id, "PAID", null, "xs_farm");
+const farmAfter = await subRow(farmComp.subscription_id);
+check(
+  "revoke: paying its invoice later is not applied: it stays ended, a refund is noted",
+  lateOnRevoked.applied === false &&
+    farmAfter.status === "canceled" &&
+    farmAfter.note.includes(
+      `Late payment: session xs_farm paid invoice ${rFarm.invoice_number} on `,
+    ) &&
+    farmAfter.note.endsWith("after its plan was revoked; refund in Xendit") &&
+    (await entitlements(H6)).source === "free",
+  { lateOnRevoked, note: farmAfter.note },
+);
+check(
+  "revoke: nor can staff mark that invoice paid",
+  (await markPaid(rFarm.invoice_id, "gcash", "late")).applied === false &&
+    (await subRow(farmComp.subscription_id)).status === "canceled",
+);
+// A paid plan with time left ends now too.
+await revoke(openComp.subscription_id, "Chargeback");
+as(M2);
+check(
+  "revoke: a paid subscription mid-period ends now, back to the free tier",
+  (await subRow(openComp.subscription_id)).status === "canceled" &&
+    (await entitlements(H2)).source === "free",
+);
+
 // --- Deleting the owner's account keeps the revenue record ---------------------------------------
 const s6Invoices = async () =>
   (
@@ -1807,6 +1965,120 @@ check(
     (await invoiceRow(narrowPending.invoice_id)).status === "pending",
 );
 
+// --- A trial is the plan as it comes --------------------------------------------------------------
+const X = "00000000-0000-0000-0000-0000000000b9"; // primary of H13 and H14
+const Y = "00000000-0000-0000-0000-0000000000ba"; // primary of H15, later hands over
+const Z = "00000000-0000-0000-0000-0000000000bb"; // co-manager of H15, later its primary
+const H13 = "10000000-0000-0000-0000-000000000013";
+const H14 = "10000000-0000-0000-0000-000000000014";
+const H15 = "10000000-0000-0000-0000-000000000015";
+await db.exec(`
+  INSERT INTO auth.users (id, email) VALUES
+    ('${X}', 'xian@example.com'), ('${Y}', 'yna@example.com'), ('${Z}', 'zed@example.com');
+  INSERT INTO public.households (id, name) VALUES
+    ('${H13}', 'Go Household'), ('${H14}', 'Go Annex'), ('${H15}', 'Ong Household');
+  INSERT INTO public.household_managers (household_id, user_id, role) VALUES
+    ('${H13}', '${X}', 'primary_manager'), ('${H14}', '${X}', 'primary_manager'),
+    ('${H15}', '${Y}', 'primary_manager'), ('${H15}', '${Z}', 'co_manager');
+`);
+const TRY = (
+  await one(
+    `INSERT INTO public.billing_plans
+       (name, interval, base_centavos, included_helpers, extra_helper_centavos,
+        included_managers, extra_manager_centavos, included_homes, extra_home_centavos,
+        trial_days, status, is_public)
+     VALUES ('Try it', 'monthly', 19900, 1, 5000, 1, 5000, 1, 10000, 7, 'active', false)
+     RETURNING id`,
+  )
+).id;
+as(X);
+await expectError(
+  "trial: 1001 helper seats raises BAD_SEATS",
+  () => start(TRY, 1001, 1, [H13]),
+  /^BAD_SEATS:helper$/,
+);
+await expectError(
+  "trial: -1 manager seats raises BAD_SEATS",
+  () => start(TRY, 1, -1, [H13]),
+  /^BAD_SEATS:manager$/,
+);
+await expectError(
+  "trial: more homes than the plan includes raises SEATS_OVER_PLAN:home (extra homes aren't free)",
+  () => start(TRY, 1, 1, [H13, H14]),
+  /^SEATS_OVER_PLAN:home$/,
+);
+check(
+  "trial: the refusals started nothing",
+  (
+    await one(
+      `SELECT count(*)::int AS n FROM public.billing_subscriptions WHERE owner_user_id = $1`,
+      [X],
+    )
+  ).n === 0,
+);
+const tTry = await start(TRY, 5, 3, [H13]);
+const tTryRow = await subRow(tTry.subscription_id);
+check(
+  "trial: 5 helpers and 3 managers asked for, the plan's included 1 and 1 given, at the base price",
+  tTry.status === "trialing" &&
+    tTry.invoice_id === null &&
+    tTryRow.helper_seats === 1 &&
+    tTryRow.manager_seats === 1 &&
+    tTryRow.home_seats === 1 &&
+    Number(tTryRow.amount_centavos) === 19900,
+  tTryRow,
+);
+const eTry = await entitlements(H13);
+check(
+  "trial: the household gets the included seats only",
+  eTry.status === "trialing" && eTry.helper_seats === 1 && eTry.manager_seats === 1,
+  eTry,
+);
+const paidTry = await start(TRY, 5, 3, [H13]);
+const paidTryRow = await subRow(paidTry.subscription_id);
+check(
+  "trial: a paid checkout of the same plan keeps the seats asked for, priced",
+  paidTry.status === "pending" &&
+    paidTryRow.helper_seats === 5 &&
+    paidTryRow.manager_seats === 3 &&
+    Number(paidTryRow.amount_centavos) === 19900 + 4 * 5000 + 2 * 5000,
+  paidTryRow,
+);
+
+// --- A first payment from a buyer who has since handed over replaces nothing --------------------
+as(Y);
+const ongRunning = await start(MONTHLY, 1, 2, [H15]);
+await pay(ongRunning.external_id, "PAID", null, "xs_ong_1");
+const ongStale = await start(MONTHLY, 3, 2, [H15]);
+await attach(ongStale.invoice_id, "xs_ong_2", XENDIT("xs_ong_2"));
+await setPrimary(H15, Z, Y);
+const stalePaid = await pay(ongStale.external_id, "PAID", null, "xs_ong_2");
+const ongRunningAfter = await subRow(ongRunning.subscription_id);
+const ongStaleAfter = await subRow(ongStale.subscription_id);
+check(
+  "stale buyer: the payment is still applied and activates (the money was received)",
+  stalePaid.applied === true &&
+    stalePaid.subscription_status === "active" &&
+    ongStaleAfter.helper_seats === 3,
+  { stalePaid, ongStaleAfter },
+);
+check(
+  "stale buyer: the household's running plan is not replaced",
+  ongRunningAfter.status === "active" &&
+    ongRunningAfter.canceled_at === null &&
+    ongRunningAfter.note === null,
+  ongRunningAfter,
+);
+check(
+  "stale buyer: a note asks staff to check with the household (and shows as needing attention)",
+  ongStaleAfter.note ===
+    `Paid after the buyer stopped managing ${H15}; check with the household, and refund in Xendit if the plan wasn't wanted` &&
+    (await householdDetail(H15)).notes.some(
+      (n) => n.subscription_id === ongStale.subscription_id && /refund/i.test(n.note),
+    ),
+  ongStaleAfter.note,
+);
+
 // --- LINARA's seat-limit trigger reads any household's entitlements -------------------------------
 // Stands in for add-seat-limits.sql: a SECURITY DEFINER trigger asking for the
 // household being written to, whoever writes.
@@ -1850,10 +2122,21 @@ const log = await q(
 );
 const grants = log.filter((a) => a.action === "billing.granted");
 const marks = log.filter((a) => a.action === "billing.marked_paid");
+const revokes = log.filter((a) => a.action === "billing.revoked");
 check(
-  "only the two grants and the one applied mark were audited (refusals and repeats weren't)",
-  log.length === 3 && grants.length === 2 && marks.length === 1,
+  "only the three grants, the one applied mark and the two revokes were audited (refusals and repeats weren't)",
+  log.length === 6 && grants.length === 3 && marks.length === 1 && revokes.length === 2,
   log,
+);
+check(
+  "a revoke's audit row names the subscription and plan, with the reason",
+  revokes[0].actor_user_id === A1 &&
+    revokes[0].target_type === "subscription" &&
+    revokes[0].target_id === farmComp.subscription_id &&
+    revokes[0].reason === "Pilot ended early" &&
+    JSON.stringify(revokes[0].metadata) ===
+      JSON.stringify({ plan_id: MONTHLY, subscription_id: farmComp.subscription_id }),
+  revokes[0],
 );
 check(
   "a grant's audit row names the household, plan, subscription and invoice, with the reason",

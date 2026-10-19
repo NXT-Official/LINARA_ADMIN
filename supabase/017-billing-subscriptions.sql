@@ -19,9 +19,11 @@
 --   Household functions (documented exception to the console's staff-only
 --   rule): granted to authenticated, they check auth.uid() themselves and
 --   refuse with 'CODE:detail' (NOT_PRIMARY, PLAN_NOT_ACTIVE,
---   SEATS_OVER_PLAN:<kind>, ONE_TIME_PLAN, NOT_FOUND, BAD_URL, BAD_SESSION);
---   the web matches the prefix.
---     billing_quote, billing_trial_eligible,
+--   SEATS_OVER_PLAN:<kind>, ONE_TIME_PLAN, NOT_FOUND, BAD_URL, BAD_SESSION,
+--   BAD_SEATS:<kind>); the web matches the prefix. Seat counts asked for are
+--   0 to 1000 (NULL: the plan's included seats).
+--     billing_quote ............. any signed-in user
+--     billing_trial_eligible,
 --     billing_start ............. a primary manager of every home
 --     billing_attach_session, billing_renew,
 --     billing_cancel ............ the current primary manager of every home the
@@ -37,9 +39,10 @@
 --     payer_email, xendit_session_id, paid_centavos, paid_channel or quote.
 --   billing_record_invoice_result: the Xendit webhook, service_role only.
 --   Staff (service_role only, p_actor first, plain-sentence refusals):
---     billing_grant, billing_mark_paid audit in the same transaction with ids
---     and the reason only, never amounts (S-22); billing_household_detail and
---     billing_invoice_detail read the notes and raw callbacks.
+--     billing_grant, billing_mark_paid and billing_revoke audit in the same
+--     transaction with ids and the reason only, never amounts (S-22);
+--     billing_household_detail and billing_invoice_detail read the notes and
+--     raw callbacks.
 --
 -- Seats: NULL means unlimited, on a plan (included_*) and on a subscription
 -- (helper_seats, manager_seats). Seats are PER HOME, on purpose: a
@@ -55,14 +58,21 @@
 -- all among its homes ends then, any checkout on those homes never paid for
 -- (pending) is canceled, and their pending invoices expire (changing plan starts
 -- a new period on payment). A renewal replaces nothing. A subscription that
--- also covers a home the payer's doesn't is left alone. Each invoice start and
--- renew make carries the quote it was priced from (billing_invoices.quote);
--- paying it in full sets the subscription's seats to that quote's.
+-- also covers a home the payer's doesn't is left alone. Nor does a first
+-- payment replace anything when the buyer is no longer the primary manager of
+-- every home it covers (handed over or left since the checkout began): the
+-- money was received, so it still activates, noted for staff to check with the
+-- household. Each invoice start and renew make carries the quote it was priced
+-- from (billing_invoices.quote); paying it in full sets the subscription's
+-- seats to that quote's. Staff end any subscription at once with
+-- billing_revoke; its pending invoices expire, so paying one later is a late
+-- payment to refund.
 --
 -- Trials: a plan's trial is given only when none of the homes has had a
 -- subscription that started, and the buyer has never owned one that started.
 -- A checkout that was never paid (pending, or canceled before it started)
--- doesn't use it up.
+-- doesn't use it up. A trial is the plan as it comes: its included seats
+-- whatever was asked for, and no more homes than it includes.
 --
 -- Entitlement: a subscription covers its homes once it has started (paid,
 -- comped or trialing, so current_period_start is set; a pending or underpaid
@@ -238,6 +248,19 @@ BEGIN
     RETURN s;
 END $$;
 
+-- Seat counts a household asks for: NULL (the plan's included) or 0 to 1000.
+CREATE OR REPLACE FUNCTION public.billing_check_seats(p_helper_seats INT, p_manager_seats INT)
+RETURNS VOID
+LANGUAGE plpgsql IMMUTABLE SET search_path = '' AS $$
+BEGIN
+    IF p_helper_seats < 0 OR p_helper_seats > 1000 THEN
+        RAISE EXCEPTION 'BAD_SEATS:helper';
+    END IF;
+    IF p_manager_seats < 0 OR p_manager_seats > 1000 THEN
+        RAISE EXCEPTION 'BAD_SEATS:manager';
+    END IF;
+END $$;
+
 -- LIN-2026-000001: the next number of the current Manila year. The upsert
 -- locks that year's counter row, so concurrent callers queue and never share a
 -- number. Past 999999 the number just grows a digit.
@@ -352,13 +375,17 @@ END $$;
 --     had never started; a renewal replaces nothing) every other running
 --     subscription whose homes are all among this one's ends now, replaced,
 --     every checkout never paid for (pending, never started) on those homes is
---     canceled, and their pending invoices expire, marked replaced.
+--     canceled, and their pending invoices expire, marked replaced. That needs
+--     the buyer to be primary manager of every covered home NOW, not only
+--     when the checkout began: otherwise nothing is replaced and a note asks
+--     staff to check with the household.
 --   PAID, another amount: the payment is recorded and the subscription marked
 --     past_due with a note for staff; its period doesn't move.
---   PAID on an invoice already paid, or expired by a replacement: not applied.
---     From a Xendit session (p_xendit_id set) it is money taken for nothing
---     when the invoice was marked paid by hand, was paid by another session, or
---     was replaced: noted once on the subscription for staff to refund, and its
+--   PAID on an invoice already paid, or expired by a replacement or a staff
+--     revoke: not applied. From a Xendit session (p_xendit_id set) it is money
+--     taken for nothing when the invoice was marked paid by hand, was paid by
+--     another session, or was replaced or revoked: noted once on the
+--     subscription for staff to refund, and its
 --     callback kept on the invoice (raw_callback when that's empty, else under
 --     'callback_<session>'). The session stored on an invoice marked paid by
 --     hand is Xendit confirming that payment, which may or may not be a second
@@ -380,6 +407,8 @@ DECLARE
     v_replaced BOOLEAN;
     v_confirmed BOOLEAN;
     v_first BOOLEAN;
+    v_stale BOOLEAN;
+    v_lost TEXT;
     v_paid_on TEXT;
     v_duplicate TEXT;
     v_marker TEXT;
@@ -408,8 +437,10 @@ BEGIN
                                   'subscription_status', v_sub.status);
     END IF;
 
+    -- Expired by a replacement or by a staff revoke: its plan is over.
     v_replaced := v_invoice.status = 'expired'
-                  AND coalesce(v_invoice.raw_callback ? 'replaced_by', false);
+                  AND coalesce(v_invoice.raw_callback ? 'replaced_by'
+                               OR v_invoice.raw_callback ? 'revoked_by', false);
     IF v_invoice.status = 'paid' OR v_replaced THEN
         v_confirmed := NOT v_replaced
                        AND v_invoice.paid_channel LIKE 'manual:%'
@@ -428,8 +459,10 @@ BEGIN
                                  'YYYY-MM-DD');
             v_duplicate := CASE
                 WHEN v_replaced
-                THEN format('Late payment: session %s paid invoice %s on %s after its plan was replaced; refund in Xendit',
-                            v_session, v_invoice.invoice_number, v_paid_on)
+                THEN format('Late payment: session %s paid invoice %s on %s after its plan was %s; refund in Xendit',
+                            v_session, v_invoice.invoice_number, v_paid_on,
+                            CASE WHEN v_invoice.raw_callback ? 'revoked_by' THEN 'revoked'
+                                 ELSE 'replaced' END)
                 WHEN v_confirmed
                 THEN format('Xendit confirmed session %s after invoice %s was marked paid by hand on %s; check Xendit and refund if the hand-marked payment was separate',
                             v_session, v_invoice.invoice_number,
@@ -463,6 +496,20 @@ BEGIN
                         ELSE now() END;
         v_end := public.billing_period_end(v_start, v_interval);
         v_first := v_sub.current_period_start IS NULL;
+        -- The buyer's authority now, not when the checkout began: a first
+        -- payment from someone no longer primary of every covered home still
+        -- buys the plan (the money was received) but replaces nothing.
+        v_stale := v_first AND NOT public.billing_can_manage(v_sub.owner_user_id, v_sub.id);
+        IF v_stale THEN
+            SELECT string_agg(sh.household_id::TEXT, ', ' ORDER BY sh.household_id)
+            INTO v_lost
+            FROM public.billing_subscription_homes sh
+            WHERE sh.subscription_id = v_sub.id
+              AND NOT EXISTS (SELECT 1 FROM public.household_managers hm
+                              WHERE hm.household_id = sh.household_id
+                                AND hm.user_id = v_sub.owner_user_id
+                                AND hm.role = 'primary_manager');
+        END IF;
 
         UPDATE public.billing_invoices
         SET status = 'paid',
@@ -488,7 +535,12 @@ BEGIN
                                  ELSE (v_invoice.quote ->> 'manager_seats')::INT END,
             home_seats = CASE WHEN v_invoice.quote ? 'home_seats'
                               THEN (v_invoice.quote ->> 'home_seats')::INT
-                              ELSE home_seats END
+                              ELSE home_seats END,
+            note = CASE WHEN v_stale
+                        THEN public.billing_add_note(note, format(
+                                 'Paid after the buyer stopped managing %s; check with the household, and refund in Xendit if the plan wasn''t wanted',
+                                 coalesce(v_lost, 'its homes')))
+                        ELSE note END
         WHERE id = v_sub.id
         RETURNING * INTO v_sub;
 
@@ -499,8 +551,8 @@ BEGIN
         -- paid for (pending, never started), so the link of an abandoned
         -- checkout cannot later activate the old plan over this one. Their
         -- pending invoices expire with them, marked replaced: paying one later
-        -- is a late payment to refund.
-        IF v_first THEN
+        -- is a late payment to refund. Not when the buyer's authority is stale.
+        IF v_first AND NOT v_stale THEN
             WITH replaced AS (
                 UPDATE public.billing_subscriptions o
                 SET status = 'canceled',
@@ -647,7 +699,8 @@ $$;
 
 -- ---------------------------------------------------------------- Household functions
 
--- The price of an active plan for these seats and homes, broken down. Read-only.
+-- The price of an active plan for these seats and homes, broken down, for a
+-- signed-in user. Read-only.
 CREATE OR REPLACE FUNCTION public.billing_quote(
     p_plan_id UUID, p_helper_seats INT, p_manager_seats INT, p_home_ids UUID[]
 ) RETURNS JSONB
@@ -656,6 +709,10 @@ DECLARE
     v_plan public.billing_plans%ROWTYPE;
     v_homes INT;
 BEGIN
+    IF auth.uid() IS NULL THEN
+        RAISE EXCEPTION 'NOT_FOUND:user';
+    END IF;
+    PERFORM public.billing_check_seats(p_helper_seats, p_manager_seats);
     SELECT * INTO v_plan FROM public.billing_plans WHERE id = p_plan_id;
     IF v_plan.id IS NULL OR v_plan.status <> 'active' THEN
         RAISE EXCEPTION 'PLAN_NOT_ACTIVE:plan';
@@ -700,7 +757,9 @@ $$;
 
 -- Buys a plan for homes the caller is primary manager of: a pending
 -- subscription and its first pending invoice, or a trial (no invoice) when
--- billing_trial_eligible says so.
+-- billing_trial_eligible says so. A trial is the plan as it comes: the seats
+-- asked for are ignored for its included ones (so a trial can't hand out
+-- seats nobody paid for), and it covers no more homes than the plan includes.
 CREATE OR REPLACE FUNCTION public.billing_start(
     p_plan_id UUID, p_helper_seats INT, p_manager_seats INT, p_home_ids UUID[]
 ) RETURNS JSONB
@@ -708,12 +767,13 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE
     v_uid UUID := auth.uid();
     v_homes UUID[];
+    v_plan public.billing_plans%ROWTYPE;
     v_quote JSONB;
-    v_trial_days INT;
     v_trial BOOLEAN;
     v_sub public.billing_subscriptions%ROWTYPE;
     v_invoice public.billing_invoices%ROWTYPE;
 BEGIN
+    PERFORM public.billing_check_seats(p_helper_seats, p_manager_seats);
     v_homes := ARRAY(SELECT DISTINCT h FROM unnest(p_home_ids) AS h WHERE h IS NOT NULL ORDER BY h);
     IF cardinality(v_homes) = 0 THEN
         RAISE EXCEPTION 'NOT_FOUND:home';
@@ -731,9 +791,21 @@ BEGIN
     PERFORM pg_advisory_xact_lock(hashtext('trial:' || v_uid::TEXT));
     PERFORM 1 FROM public.households WHERE id = ANY (v_homes) ORDER BY id FOR NO KEY UPDATE;
 
-    v_quote := public.billing_quote(p_plan_id, p_helper_seats, p_manager_seats, v_homes);
     v_trial := public.billing_trial_eligible(p_plan_id, v_homes);
-    SELECT p.trial_days INTO v_trial_days FROM public.billing_plans p WHERE p.id = p_plan_id;
+    IF v_trial THEN
+        SELECT * INTO v_plan FROM public.billing_plans WHERE id = p_plan_id;
+        IF v_plan.status <> 'active' THEN
+            RAISE EXCEPTION 'PLAN_NOT_ACTIVE:plan';
+        END IF;
+        IF v_plan.included_homes IS NOT NULL
+           AND cardinality(v_homes) > v_plan.included_homes THEN
+            RAISE EXCEPTION 'SEATS_OVER_PLAN:home';
+        END IF;
+        v_quote := public.billing_price(v_plan, v_plan.included_helpers,
+                                        v_plan.included_managers, cardinality(v_homes));
+    ELSE
+        v_quote := public.billing_quote(p_plan_id, p_helper_seats, p_manager_seats, v_homes);
+    END IF;
 
     INSERT INTO public.billing_subscriptions
         (plan_id, owner_user_id, status, helper_seats, manager_seats, home_seats, amount_centavos,
@@ -745,7 +817,7 @@ BEGIN
             (v_quote ->> 'home_seats')::INT,
             (v_quote ->> 'amount_centavos')::BIGINT,
             CASE WHEN v_trial THEN now() END,
-            CASE WHEN v_trial THEN now() + make_interval(days => v_trial_days) END)
+            CASE WHEN v_trial THEN now() + make_interval(days => v_plan.trial_days) END)
     RETURNING * INTO v_sub;
 
     INSERT INTO public.billing_subscription_homes (subscription_id, household_id)
@@ -1096,8 +1168,16 @@ BEGIN
     IF p_helper_seats < 0 THEN
         RAISE EXCEPTION 'Helper seats can''t be negative.' USING ERRCODE = 'P0001';
     END IF;
+    IF p_helper_seats > 1000 THEN
+        RAISE EXCEPTION 'Helper seats can be 1000 at most (leave them empty for unlimited).'
+            USING ERRCODE = 'P0001';
+    END IF;
     IF p_manager_seats < 0 THEN
         RAISE EXCEPTION 'Manager seats can''t be negative.' USING ERRCODE = 'P0001';
+    END IF;
+    IF p_manager_seats > 1000 THEN
+        RAISE EXCEPTION 'Manager seats can be 1000 at most (leave them empty for unlimited).'
+            USING ERRCODE = 'P0001';
     END IF;
     SELECT hm.user_id INTO v_owner FROM public.household_managers hm
     WHERE hm.household_id = p_household_id AND hm.role = 'primary_manager'
@@ -1135,10 +1215,44 @@ BEGIN
     RETURN jsonb_build_object('subscription_id', v_sub.id, 'invoice_id', v_invoice.id);
 END $$;
 
+-- Ends a subscription at once, whatever it is (a comp, a paid plan, a trial, a
+-- checkout never paid): canceled now, its period ended now (one already over
+-- stays over), the reason noted on it. Its pending invoices expire, marked
+-- revoked, so paying one later is a late payment to refund (see
+-- billing_settle_invoice), not a way back in.
+CREATE OR REPLACE FUNCTION public.billing_revoke(
+    p_actor UUID, p_subscription_id UUID, p_reason TEXT
+) RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE
+    v_reason TEXT := public.billing_text(p_reason, 'The reason', 300);
+    v_sub public.billing_subscriptions%ROWTYPE;
+BEGIN
+    IF v_reason IS NULL THEN
+        RAISE EXCEPTION 'Give a reason for revoking this plan.' USING ERRCODE = 'P0001';
+    END IF;
+    SELECT * INTO v_sub FROM public.billing_subscriptions WHERE id = p_subscription_id FOR UPDATE;
+    IF v_sub.id IS NULL THEN
+        RAISE EXCEPTION 'That subscription doesn''t exist.' USING ERRCODE = 'P0001';
+    END IF;
+    UPDATE public.billing_subscriptions
+    SET status = 'canceled',
+        canceled_at = now(),
+        current_period_end = LEAST(coalesce(current_period_end, now()), now()),
+        note = public.billing_add_note(note, 'Revoked by staff: ' || v_reason)
+    WHERE id = v_sub.id;
+    UPDATE public.billing_invoices
+    SET status = 'expired',
+        raw_callback = jsonb_build_object('revoked_by', p_actor, 'note', 'Revoked by staff')
+    WHERE subscription_id = v_sub.id AND status = 'pending';
+    PERFORM public.billing_audit(p_actor, 'billing.revoked', 'subscription', v_sub.id::TEXT,
+        v_reason, jsonb_build_object('subscription_id', v_sub.id, 'plan_id', v_sub.plan_id));
+END $$;
+
 -- A payment that came outside Xendit (a bank transfer, GCash to the owner): the
 -- same transition as a PAID callback for the invoiced amount. Audited when it
--- applies; an invoice already paid, or expired by a replacement, is reported
--- with applied false and nothing changes.
+-- applies; an invoice already paid, or expired by a replacement or a revoke, is
+-- reported with applied false and nothing changes.
 CREATE OR REPLACE FUNCTION public.billing_mark_paid(
     p_actor UUID, p_invoice_id UUID, p_channel TEXT, p_note TEXT, p_reason TEXT
 ) RETURNS JSONB
@@ -1186,6 +1300,7 @@ BEGIN
         'public.billing_peso(BIGINT)',
         'public.billing_add_note(TEXT, TEXT)',
         'public.billing_text(TEXT, TEXT, INT)',
+        'public.billing_check_seats(INT, INT)',
         'public.billing_next_invoice_number()',
         'public.billing_price(public.billing_plans, INT, INT, INT)',
         'public.billing_new_invoice(UUID, TIMESTAMPTZ, JSONB)',
@@ -1204,7 +1319,8 @@ BEGIN
         'public.billing_household_detail(UUID, UUID, TIMESTAMPTZ)',
         'public.billing_invoice_detail(UUID, UUID)',
         'public.billing_grant(UUID, UUID, UUID, INT, INT, TIMESTAMPTZ, TEXT, TEXT)',
-        'public.billing_mark_paid(UUID, UUID, TEXT, TEXT, TEXT)'
+        'public.billing_mark_paid(UUID, UUID, TEXT, TEXT, TEXT)',
+        'public.billing_revoke(UUID, UUID, TEXT)'
     ] LOOP
         EXECUTE format('REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC, anon, authenticated', f);
         EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO service_role', f);

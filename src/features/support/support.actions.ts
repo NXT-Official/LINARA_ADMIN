@@ -6,6 +6,8 @@ import {
   createTicketHandler,
   getTicketHandler,
   listTicketsHandler,
+  markTicketReadHandler,
+  replyToTicketHandler,
   setLinksHandler,
   setPriorityHandler,
   setStatusHandler,
@@ -57,3 +59,11 @@ export const setLinksFn = createServerFn({ method: "POST" })
 export const addNoteFn = createServerFn({ method: "POST" })
   .validator((d: { ticketId: string; body: string }) => d)
   .handler(({ data }) => addNoteHandler(data));
+
+export const replyToTicketFn = createServerFn({ method: "POST" })
+  .validator((d: { ticketId: string; body: string }) => d)
+  .handler(({ data }) => replyToTicketHandler(data));
+
+export const markTicketReadFn = createServerFn({ method: "POST" })
+  .validator((d: { ticketId: string }) => d)
+  .handler(({ data }) => markTicketReadHandler(data));

@@ -25,6 +25,8 @@ import type { ListTicketsInput } from "../support.handlers.server";
 import { ticketRef } from "../support.input";
 import type { TicketRow, TicketStatus } from "../support.types";
 
+const POLL_MS = 15_000;
+
 type View = "active" | TicketStatus;
 
 /** Filters the list can start with, from a dashboard figure (FR-DB-8). */
@@ -54,6 +56,9 @@ export function TicketsPage({ initial = {} }: { initial?: TicketFilters }) {
     queryKey: ["support", "tickets", input],
     queryFn: () => listTicketsFn({ data: input }),
     placeholderData: (prev) => prev,
+    // No realtime in the console: the inbox polls while the tab is in view.
+    refetchInterval: POLL_MS,
+    refetchIntervalInBackground: false,
   });
   const rows = data?.ok ? data.tickets : [];
 
@@ -64,7 +69,14 @@ export function TicketsPage({ initial = {} }: { initial?: TicketFilters }) {
       mobile: "primary",
       cell: (t) => (
         <div className="min-w-0">
-          <RowLink to={`/support/${t.ticketId}`}>{t.subject}</RowLink>
+          <div className="flex flex-wrap items-center gap-2">
+            <RowLink to={`/support/${t.ticketId}`}>{t.subject}</RowLink>
+            {t.staffUnread > 0 ? (
+              <StatusChip tone="attention">
+                <span aria-label={`${t.staffUnread} unread`}>{t.staffUnread} new</span>
+              </StatusChip>
+            ) : null}
+          </div>
           <div className="text-xs text-muted-foreground">
             {ticketRef(t.ref)}
             {t.contact ? `, ${t.contact}` : ""}
@@ -90,7 +102,17 @@ export function TicketsPage({ initial = {} }: { initial?: TicketFilters }) {
           <StatusChip tone={PRIORITY_TONE[t.priority]}>{PRIORITY_LABEL[t.priority]}</StatusChip>
         ),
     },
-    { key: "channel", header: "Channel", mobile: "hidden", cell: (t) => CHANNEL_LABEL[t.channel] },
+    {
+      key: "channel",
+      header: "Channel",
+      mobile: "hidden",
+      cell: (t) =>
+        t.channel === "in_app" ? (
+          <StatusChip tone="neutral">{CHANNEL_LABEL.in_app}</StatusChip>
+        ) : (
+          CHANNEL_LABEL[t.channel]
+        ),
+    },
     {
       key: "assignee",
       header: "Assigned to",
@@ -108,7 +130,7 @@ export function TicketsPage({ initial = {} }: { initial?: TicketFilters }) {
     <>
       <PageHeader
         title="Support"
-        description="Requests from Messenger, Viber, email and calls. Reply on the original channel, then log it as a note."
+        description="Requests from the app, Messenger, Viber, email and calls. Reply to app messages here; for the rest, reply on the original channel and log it as a note."
         actions={
           <>
             <ExportCsvButton slug="support-tickets" columns={TICKET_CSV} rows={rows} />

@@ -11,6 +11,9 @@ import type { TicketCategory, TicketChannel, TicketPriority } from "../support.t
 const opts = <K extends string>(labels: Record<K, string>) =>
   (Object.entries(labels) as [K, string][]).map(([value, label]) => ({ value, label }));
 
+/** In-app tickets start in the household's app, never from this form. */
+const { in_app: _inApp, ...LOGGABLE_CHANNELS } = CHANNEL_LABEL;
+
 /** What a ticket logged from a record's page is already linked to. */
 export type TicketLinks = { userId?: string; householdId?: string; contactId?: string };
 
@@ -87,7 +90,7 @@ export function LogTicketDialog({
                 id={id("channel")}
                 value={channel}
                 onChange={setChannel}
-                options={opts(CHANNEL_LABEL)}
+                options={opts(LOGGABLE_CHANNELS)}
               />
             </Field>
             <Field label="Category" htmlFor={id("category")}>

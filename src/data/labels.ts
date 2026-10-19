@@ -70,6 +70,7 @@ export const CHANNEL_LABEL: Record<TicketChannel, string> = {
   viber: "Viber",
   email: "Email",
   phone: "Phone",
+  in_app: "In-app",
   other: "Other",
 };
 
@@ -79,6 +80,7 @@ export const CATEGORY_LABEL: Record<TicketCategory, string> = {
   pay: "Pay",
   payout: "Payout",
   app_bug: "App bug",
+  billing: "Billing",
   deletion: "Deletion",
   other: "Other",
 };

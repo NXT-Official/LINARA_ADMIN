@@ -87,9 +87,9 @@ export type Contact = {
 };
 
 export type TicketStatus = "open" | "pending" | "resolved" | "closed";
-export type TicketChannel = "messenger" | "viber" | "email" | "phone" | "other";
+export type TicketChannel = "messenger" | "viber" | "email" | "phone" | "in_app" | "other";
 export type TicketCategory =
-  "account" | "tasks" | "pay" | "payout" | "app_bug" | "deletion" | "other";
+  "account" | "tasks" | "pay" | "payout" | "app_bug" | "billing" | "deletion" | "other";
 export type TicketPriority = "low" | "normal" | "high";
 
 export type Ticket = {

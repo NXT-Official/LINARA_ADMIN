@@ -7,6 +7,7 @@ import { getAdminClient } from "@/lib/supabase-admin.server";
 import {
   optionalId,
   parseNote,
+  parseReply,
   parsePriority,
   parseStatus,
   parseTicketInput,
@@ -19,6 +20,7 @@ import {
   type SupportCounts,
   type TicketCategory,
   type TicketDetail,
+  type TicketMessage,
   type TicketPriority,
   type TicketRow,
   type TicketStatus,
@@ -69,6 +71,8 @@ type DbTicketRow = {
   updated_at: string;
   resolved_at: string | null;
   note_count?: number;
+  staff_unread?: number;
+  last_message_at?: string | null;
 };
 
 export function toTicketRow(r: DbTicketRow): TicketRow {
@@ -89,6 +93,8 @@ export function toTicketRow(r: DbTicketRow): TicketRow {
     updatedAt: r.updated_at,
     resolvedAt: r.resolved_at,
     noteCount: r.note_count ?? 0,
+    staffUnread: r.staff_unread ?? 0,
+    lastMessageAt: r.last_message_at ?? null,
   };
 }
 
@@ -162,6 +168,15 @@ type DbTicketDetail = DbTicketRow & {
   household_name: string | null;
   contact_name: string | null;
   notes: { id: string; author_id: string; body: string; created_at: string }[];
+  messages?: {
+    id: string;
+    ticket_id: string;
+    author_id: string;
+    from_staff: boolean;
+    body: string;
+    created_at: string;
+  }[];
+  household_unread?: number;
 };
 
 export function getTicketHandler(input: {
@@ -188,6 +203,15 @@ export function getTicketHandler(input: {
           body: n.body,
           createdAt: n.created_at,
         })),
+        messages: (d.messages ?? []).map((g): TicketMessage => ({
+          id: g.id,
+          ticketId: g.ticket_id,
+          authorId: g.author_id,
+          fromStaff: g.from_staff,
+          body: g.body,
+          createdAt: g.created_at,
+        })),
+        householdUnread: d.household_unread ?? 0,
       },
     };
   });
@@ -309,5 +333,33 @@ export function addNoteHandler(input: {
       p_body: body,
     });
     return { ok: true as const, id: noteId };
+  });
+}
+
+/** A reply in an in-app conversation, sent to the household (support.write). */
+export function replyToTicketHandler(input: {
+  ticketId: string;
+  body: string;
+}): Promise<{ ok: true; id: string } | PublicError> {
+  return run(async () => {
+    const id = ticketId(input.ticketId);
+    const body = parseReply(input.body);
+    const staff = await requireStaff("support.write");
+    const messageId = await call<string>("support_reply", {
+      p_actor: staff.userId,
+      p_ticket_id: id,
+      p_body: body,
+    });
+    return { ok: true as const, id: messageId };
+  });
+}
+
+/** The team has seen the household's messages (support.view: reading is enough). */
+export function markTicketReadHandler(input: { ticketId: string }): Promise<Done> {
+  return run(async () => {
+    const id = ticketId(input.ticketId);
+    const staff = await requireStaff("support.view");
+    await call("support_staff_mark_read", { p_actor: staff.userId, p_ticket_id: id });
+    return { ok: true as const };
   });
 }

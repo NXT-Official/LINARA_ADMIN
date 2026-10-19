@@ -13,6 +13,8 @@ import { ConsoleError } from "@/lib/console-error";
 
 import {
   addNoteHandler,
+  markTicketReadHandler,
+  replyToTicketHandler,
   assignHandler,
   createTicketHandler,
   getTicketHandler,
@@ -84,7 +86,7 @@ describe("ticket input (FR-SP-1, FR-SP-2, FR-SP-6)", () => {
       { body: "" },
       { body: "x".repeat(5001) },
       { channel: "tiktok" },
-      { category: "billing" },
+      { category: "refunds" },
       { priority: "urgent" },
       { contact: "x".repeat(121) },
       { userId: "nope" },
@@ -126,7 +128,7 @@ describe("reads (support.view)", () => {
     for (const bad of [
       { status: "done" },
       { assignee: "theirs" },
-      { category: "billing" },
+      { category: "refunds" },
       { userId: "nope" },
       { search: "x" },
     ]) {
@@ -250,6 +252,122 @@ describe("writes (support.write, D37)", () => {
     m.rpc.mockResolvedValue({ data: null, error: { code: "42501", message: "denied" } });
     await expect(setStatusHandler({ ticketId: ID, status: "open" })).resolves.toMatchObject({
       code: "outside_service",
+    });
+  });
+});
+
+describe("in-app conversations", () => {
+  it("accepts the in-app channel and the billing category", () => {
+    const t = parseTicketInput({
+      subject: "Seats",
+      body: "x",
+      channel: "in_app",
+      category: "billing",
+    });
+    expect(t).toMatchObject({ channel: "in_app", category: "billing" });
+  });
+
+  it("maps messages, unread counts and the last message time", async () => {
+    m.rpc.mockResolvedValue({
+      data: {
+        ...dbRow(1),
+        channel: "in_app",
+        body: "b",
+        created_by: ME,
+        user_name: null,
+        household_name: null,
+        contact_name: null,
+        notes: [],
+        household_unread: 1,
+        staff_unread: 2,
+        last_message_at: "2026-10-15T02:00:00Z",
+        messages: [
+          {
+            id: "g1",
+            ticket_id: "t1",
+            author_id: ME,
+            from_staff: true,
+            body: "hi",
+            created_at: "2026-10-15T01:00:00Z",
+          },
+        ],
+      },
+      error: null,
+    });
+    const res = await getTicketHandler({ ticketId: ID });
+    expect(res).toMatchObject({
+      ok: true,
+      ticket: {
+        householdUnread: 1,
+        staffUnread: 2,
+        lastMessageAt: "2026-10-15T02:00:00Z",
+        messages: [{ id: "g1", ticketId: "t1", authorId: ME, fromStaff: true, body: "hi" }],
+      },
+    });
+  });
+
+  it("a list row carries the channel and unread count", async () => {
+    m.rpc.mockResolvedValue({
+      data: [
+        {
+          ...dbRow(1),
+          channel: "in_app",
+          staff_unread: 4,
+          last_message_at: "2026-10-15T02:00:00Z",
+        },
+      ],
+      error: null,
+    });
+    const res = await listTicketsHandler({ page: 0 });
+    expect(res).toMatchObject({
+      tickets: [{ channel: "in_app", staffUnread: 4, lastMessageAt: "2026-10-15T02:00:00Z" }],
+    });
+  });
+
+  it("replying needs support.write and sends the trimmed body", async () => {
+    m.rpc.mockResolvedValue({ data: "g9", error: null });
+    await expect(replyToTicketHandler({ ticketId: ID, body: "  Hello  " })).resolves.toEqual({
+      ok: true,
+      id: "g9",
+    });
+    expect(m.requireStaff).toHaveBeenCalledWith("support.write");
+    expect(m.rpc).toHaveBeenCalledWith("support_reply", {
+      p_actor: ME,
+      p_ticket_id: ID,
+      p_body: "Hello",
+    });
+  });
+
+  it("refuses an empty, oversized or misaddressed reply before any I/O", async () => {
+    for (const input of [
+      { ticketId: ID, body: "   " },
+      { ticketId: ID, body: "x".repeat(4001) },
+      { ticketId: "nope", body: "hi" },
+    ]) {
+      await expect(replyToTicketHandler(input)).resolves.toMatchObject({ ok: false });
+    }
+    expect(m.requireStaff).not.toHaveBeenCalled();
+    expect(m.rpc).not.toHaveBeenCalled();
+  });
+
+  it("a refused reply (not an app ticket) comes back as a conflict", async () => {
+    m.rpc.mockResolvedValue({ data: null, error: { code: "P0001", message: "Not from the app." } });
+    await expect(replyToTicketHandler({ ticketId: ID, body: "hi" })).resolves.toMatchObject({
+      ok: false,
+      code: "conflict",
+    });
+  });
+
+  it("marking read needs only support.view", async () => {
+    m.rpc.mockResolvedValue({ data: null, error: null });
+    await expect(markTicketReadHandler({ ticketId: ID })).resolves.toEqual({ ok: true });
+    expect(m.requireStaff).toHaveBeenCalledWith("support.view");
+    expect(m.rpc).toHaveBeenCalledWith("support_staff_mark_read", {
+      p_actor: ME,
+      p_ticket_id: ID,
+    });
+    await expect(markTicketReadHandler({ ticketId: "nope" })).resolves.toMatchObject({
+      code: "not_found",
     });
   });
 });

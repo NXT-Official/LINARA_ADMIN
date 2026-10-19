@@ -7,7 +7,7 @@ import { Surface } from "@/components/shared/page";
 import { StatusChip } from "@/components/shared/status-chip";
 import { TICKET_STATUS_TONE } from "@/components/shared/tones";
 import { Button } from "@/components/ui/button";
-import { TICKET_STATUS_LABEL } from "@/data/labels";
+import { CHANNEL_LABEL, TICKET_STATUS_LABEL } from "@/data/labels";
 
 import { listTicketsFn } from "../support.actions";
 import { ticketRef } from "../support.input";
@@ -70,9 +70,19 @@ export function RecordTickets({ filter }: { filter: TicketLinks }) {
               <RecordLink to={`/support/${t.ticketId}`} className="min-w-0 truncate">
                 {ticketRef(t.ref)} {t.subject}
               </RecordLink>
-              <StatusChip tone={TICKET_STATUS_TONE[t.status]}>
-                {TICKET_STATUS_LABEL[t.status]}
-              </StatusChip>
+              <span className="flex shrink-0 items-center gap-2">
+                {t.channel === "in_app" ? (
+                  <StatusChip tone="neutral">{CHANNEL_LABEL.in_app}</StatusChip>
+                ) : null}
+                {t.staffUnread > 0 ? (
+                  <StatusChip tone="attention">
+                    <span aria-label={`${t.staffUnread} unread`}>{t.staffUnread} new</span>
+                  </StatusChip>
+                ) : null}
+                <StatusChip tone={TICKET_STATUS_TONE[t.status]}>
+                  {TICKET_STATUS_LABEL[t.status]}
+                </StatusChip>
+              </span>
             </li>
           ))}
         </ul>

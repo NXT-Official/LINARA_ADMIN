@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -17,7 +17,15 @@ import { useAdmins } from "@/features/team/use-admins";
 import { formatDateTime } from "@/lib/format";
 
 import { LinksDialog } from "../components/links-dialog";
-import { addNoteFn, assignFn, getTicketFn, setPriorityFn, setStatusFn } from "../support.actions";
+import {
+  addNoteFn,
+  assignFn,
+  getTicketFn,
+  markTicketReadFn,
+  replyToTicketFn,
+  setPriorityFn,
+  setStatusFn,
+} from "../support.actions";
 import { ticketRef } from "../support.input";
 import {
   TICKET_PRIORITIES,
@@ -27,6 +35,8 @@ import {
   type TicketStatus,
 } from "../support.types";
 
+const POLL_MS = 15_000;
+
 const back = <BackLink to="/support">Support</BackLink>;
 
 const selectClass =
@@ -35,8 +45,12 @@ const selectClass =
 /** One ticket (FR-SP-3 to FR-SP-7). */
 export function TicketPage({ ticketId }: { ticketId: string }) {
   const { data, isPending } = useQuery({
-    queryKey: ["ticket", ticketId],
+    queryKey: ["support", "ticket", ticketId],
     queryFn: () => getTicketFn({ data: { ticketId } }),
+    // An open app conversation polls while the tab is in view (no realtime in the console).
+    refetchInterval: (q) =>
+      q.state.data?.ok && q.state.data.ticket.channel === "in_app" ? POLL_MS : false,
+    refetchIntervalInBackground: false,
   });
   if (isPending) return <PageHeader title="Loading ticket" back={back} />;
   if (!data?.ok) {
@@ -63,9 +77,48 @@ function TicketView({ ticket }: { ticket: TicketDetail }) {
   const [busy, setBusy] = useState(false);
 
   const refresh = async () => {
-    await queryClient.invalidateQueries({ queryKey: ["ticket", ticket.ticketId] });
-    await queryClient.invalidateQueries({ queryKey: ["support"] });
+    await queryClient.invalidateQueries({ queryKey: ["support", "ticket", ticket.ticketId] });
+    await queryClient.invalidateQueries({ queryKey: ["support", "tickets"] });
   };
+  const isInApp = ticket.channel === "in_app";
+  const [reply, setReply] = useState("");
+  const [sending, setSending] = useState(false);
+
+  // The team has now seen what the household wrote. Once per arrival, so a failed call can't loop.
+  const markedFor = useRef<string | null>(null);
+  const mark = `${ticket.lastMessageAt ?? ""}:${ticket.staffUnread}`;
+  useEffect(() => {
+    if (!isInApp || ticket.staffUnread === 0 || markedFor.current === mark) return;
+    markedFor.current = mark;
+    void (async () => {
+      try {
+        const res = await markTicketReadFn({ data: { ticketId: ticket.ticketId } });
+        if (res.ok) await queryClient.invalidateQueries({ queryKey: ["support"] });
+      } catch {
+        // Leaving it unread is safe; the next arrival tries again.
+      }
+    })();
+  }, [isInApp, mark, ticket.staffUnread, ticket.ticketId, queryClient]);
+
+  async function sendReply(e: FormEvent) {
+    e.preventDefault();
+    if (!reply.trim() || sending) return;
+    setSending(true);
+    try {
+      const res = await replyToTicketFn({ data: { ticketId: ticket.ticketId, body: reply } });
+      if (res.ok) {
+        setReply("");
+        toast.success("Reply sent");
+        await refresh();
+      } else {
+        toast.error(res.message);
+      }
+    } catch {
+      toast.error("Something went wrong on our side. Try again.");
+    } finally {
+      setSending(false);
+    }
+  }
   /** Runs one change and refreshes; a refusal shows its message. */
   async function change(run: () => Promise<{ ok: true } | { ok: false; message: string }>) {
     setBusy(true);
@@ -116,7 +169,76 @@ function TicketView({ ticket }: { ticket: TicketDetail }) {
             </p>
           </Surface>
 
-          <Surface title="Notes" description="Internal. The user never sees these." flush>
+          {isInApp ? (
+            <Surface
+              title="Conversation"
+              description="Messages from the household's app. Replies here are sent to them."
+              flush
+            >
+              {ticket.messages.length === 0 ? (
+                <p className="px-5 pb-3 text-sm text-muted-foreground sm:px-6">No messages yet.</p>
+              ) : (
+                <ol className="space-y-3 px-5 pb-4 sm:px-6">
+                  {ticket.messages.map((g) => (
+                    <li
+                      key={g.id}
+                      data-side={g.fromStaff ? "staff" : "household"}
+                      className={g.fromStaff ? "flex justify-end" : "flex justify-start"}
+                    >
+                      <div
+                        className={
+                          g.fromStaff
+                            ? "max-w-[85%] rounded-2xl bg-terracotta-soft px-4 py-2.5 text-hearth-ink"
+                            : "max-w-[85%] rounded-2xl bg-sand-deep px-4 py-2.5 text-foreground"
+                        }
+                      >
+                        <p className="text-xs font-semibold">
+                          {g.fromStaff ? admins.name(g.authorId) : "Household"}{" "}
+                          <span className="font-normal">{formatDateTime(g.createdAt)}</span>
+                        </p>
+                        {/* Plain text only (S-15). */}
+                        <p className="mt-1 whitespace-pre-line break-words text-sm">{g.body}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              )}
+              {canWrite ? (
+                <form
+                  onSubmit={sendReply}
+                  className="space-y-2 border-t border-border px-5 py-4 sm:px-6"
+                >
+                  <label
+                    htmlFor="ticket-reply"
+                    className="text-xs font-semibold text-muted-foreground"
+                  >
+                    Reply to the household
+                  </label>
+                  <Textarea
+                    id="ticket-reply"
+                    rows={3}
+                    maxLength={4000}
+                    value={reply}
+                    disabled={sending}
+                    onChange={(e) => setReply(e.target.value)}
+                  />
+                  <Button type="submit" disabled={sending || !reply.trim()}>
+                    {sending ? "Sending" : "Send reply"}
+                  </Button>
+                </form>
+              ) : null}
+            </Surface>
+          ) : null}
+
+          <Surface
+            title="Notes"
+            description={
+              isInApp
+                ? "Internal. The user never sees these. Replies in Conversation are sent to the household."
+                : "Internal. The user never sees these."
+            }
+            flush
+          >
             {ticket.notes.length === 0 ? (
               <p className="px-5 pb-3 text-sm text-muted-foreground sm:px-6">No notes yet.</p>
             ) : (

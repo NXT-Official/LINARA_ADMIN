@@ -48,6 +48,8 @@ const ticketRows: TicketRow[] = sample.tickets.map((t) => ({
   updatedAt: t.updatedAt,
   resolvedAt: null,
   noteCount: t.notes.length,
+  staffUnread: 0,
+  lastMessageAt: null,
 }));
 /** The sample deletion requests as the real list returns them (Phase 4). */
 const deletionRows: DeletionRow[] = sample.deletionRequests.map((r) => ({

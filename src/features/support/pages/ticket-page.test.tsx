@@ -15,6 +15,8 @@ const m = vi.hoisted(() => ({
   priority: vi.fn(),
   links: vi.fn(),
   note: vi.fn(),
+  reply: vi.fn(),
+  read: vi.fn(),
   users: vi.fn(),
 }));
 vi.mock("../support.actions", () => ({
@@ -24,6 +26,8 @@ vi.mock("../support.actions", () => ({
   setPriorityFn: (...a: unknown[]) => m.priority(...a),
   setLinksFn: (...a: unknown[]) => m.links(...a),
   addNoteFn: (...a: unknown[]) => m.note(...a),
+  replyToTicketFn: (...a: unknown[]) => m.reply(...a),
+  markTicketReadFn: (...a: unknown[]) => m.read(...a),
 }));
 vi.mock("@/features/users/users.actions", () => ({
   listUsersFn: (...a: unknown[]) => m.users(...a),
@@ -50,7 +54,8 @@ vi.mock("@/components/shared/links", () => {
   const A = ({ to, children }: { to: string; children: ReactNode }) => <a href={to}>{children}</a>;
   return { RowLink: A, RecordLink: A, BackLink: A };
 });
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+vi.mock("sonner", () => ({ toast }));
 
 import { TicketPage } from "./ticket-page";
 import { asRole } from "@/features/auth/staff.test-utils";
@@ -80,6 +85,35 @@ const ticket: TicketDetail = {
   notes: [
     { id: "n1", authorId: "a2", body: "Replied on Viber", createdAt: "2026-10-15T00:30:00Z" },
   ],
+  messages: [],
+  householdUnread: 0,
+  staffUnread: 0,
+  lastMessageAt: null,
+};
+const inApp: TicketDetail = {
+  ...ticket,
+  channel: "in_app",
+  status: "open",
+  staffUnread: 2,
+  lastMessageAt: "2026-10-15T02:00:00Z",
+  messages: [
+    {
+      id: "g1",
+      ticketId: ID,
+      authorId: "u1",
+      fromStaff: false,
+      body: "Where is my invite?",
+      createdAt: "2026-10-15T01:00:00Z",
+    },
+    {
+      id: "g2",
+      ticketId: ID,
+      authorId: "a2",
+      fromStaff: true,
+      body: "Sent it just now",
+      createdAt: "2026-10-15T01:30:00Z",
+    },
+  ],
 };
 
 function renderPage() {
@@ -96,6 +130,10 @@ beforeEach(() => {
   m.get.mockResolvedValue({ ok: true, ticket });
   for (const f of [m.status, m.assign, m.priority, m.links]) f.mockResolvedValue({ ok: true });
   m.note.mockResolvedValue({ ok: true, id: "n2" });
+  m.reply.mockResolvedValue({ ok: true, id: "g3" });
+  m.read.mockResolvedValue({ ok: true });
+  toast.success.mockReset();
+  toast.error.mockReset();
   m.users.mockResolvedValue({
     ok: true,
     hasMore: false,
@@ -219,6 +257,72 @@ describe("TicketPage (FR-SP-3 to FR-SP-7)", () => {
     m.get.mockResolvedValue({ ok: false, code: "not_found", message: "x" });
     renderPage();
     expect(await screen.findByRole("heading", { name: "Ticket not found" })).toBeInTheDocument();
+  });
+});
+
+describe("Conversation (in-app tickets)", () => {
+  it("shows household messages on the left and staff on the right, above the notes", async () => {
+    m.get.mockResolvedValue({ ok: true, ticket: inApp });
+    renderPage();
+    const mine = await screen.findByText("Where is my invite?");
+    expect(mine.closest("li")).toHaveAttribute("data-side", "household");
+    expect(screen.getByText("Sent it just now").closest("li")).toHaveAttribute(
+      "data-side",
+      "staff",
+    );
+    const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    expect(headings.indexOf("Conversation")).toBeLessThan(headings.indexOf("Notes"));
+    expect(screen.getByText(/Replies in Conversation are sent to the household/)).toBeVisible();
+    expect(screen.getByText(/The user never sees these/)).toBeVisible();
+  });
+
+  it("disables the form while sending, then clears it and toasts", async () => {
+    m.get.mockResolvedValue({ ok: true, ticket: inApp });
+    let settle: (v: unknown) => void = () => undefined;
+    m.reply.mockReturnValue(new Promise((r) => (settle = r)));
+    renderPage();
+    const box = await screen.findByLabelText("Reply to the household");
+    fireEvent.change(box, { target: { value: "On it" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send reply" }));
+    await waitFor(() =>
+      expect(m.reply).toHaveBeenCalledWith({ data: { ticketId: ID, body: "On it" } }),
+    );
+    expect(box).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Sending" })).toBeDisabled();
+    settle({ ok: true, id: "g3" });
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Reply sent"));
+    await waitFor(() => expect(screen.getByLabelText("Reply to the household")).toHaveValue(""));
+    expect(screen.getByLabelText("Reply to the household")).toBeEnabled();
+  });
+
+  it("marks the household's messages read once while they are unread", async () => {
+    m.get.mockResolvedValue({ ok: true, ticket: inApp });
+    renderPage();
+    await screen.findByText("Where is my invite?");
+    await waitFor(() => expect(m.read).toHaveBeenCalledWith({ data: { ticketId: ID } }));
+    expect(m.read).toHaveBeenCalledTimes(1);
+  });
+
+  it("is hidden for tickets that did not come from the app", async () => {
+    renderPage();
+    await screen.findByRole("heading", { name: /Can't add/ });
+    expect(screen.queryByRole("heading", { name: "Conversation" })).toBeNull();
+    expect(screen.queryByLabelText("Reply to the household")).toBeNull();
+    expect(screen.queryByText(/Replies in Conversation/)).toBeNull();
+    expect(m.read).not.toHaveBeenCalled();
+  });
+
+  it("a view-only role reads the conversation but can't reply", async () => {
+    m.get.mockResolvedValue({ ok: true, ticket: inApp });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <TicketPage ticketId={ID} />
+      </QueryClientProvider>,
+      { wrapper: asRole(["dashboard.view", "support.view"]) },
+    );
+    await screen.findByText("Where is my invite?");
+    expect(screen.queryByRole("button", { name: "Send reply" })).toBeNull();
   });
 });
 

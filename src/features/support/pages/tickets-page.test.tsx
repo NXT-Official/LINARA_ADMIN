@@ -46,6 +46,8 @@ const row = (over: Partial<TicketRow> = {}): TicketRow => ({
   updatedAt: "2026-10-15T00:00:00Z",
   resolvedAt: null,
   noteCount: 2,
+  staffUnread: 0,
+  lastMessageAt: null,
   ...over,
 });
 
@@ -145,5 +147,36 @@ describe("permissions (FR-RL-8)", () => {
     );
     await screen.findAllByRole("link", { name: "Payout missing" });
     expect(screen.queryByRole("button", { name: "Log ticket" })).toBeNull();
+  });
+
+  it("marks in-app tickets and shows how many household messages are unread", async () => {
+    m.list.mockResolvedValue({
+      ok: true,
+      hasMore: false,
+      tickets: [row({ channel: "in_app", staffUnread: 3, subject: "Seat help" })],
+    });
+    renderPage();
+    await screen.findAllByRole("link", { name: "Seat help" });
+    expect(screen.getAllByText("In-app").length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText("3 unread").length).toBeGreaterThan(0);
+  });
+
+  it("shows no unread chip when nothing is unread", async () => {
+    renderPage();
+    await screen.findAllByRole("link", { name: "Payout missing" });
+    expect(screen.queryByText(/ new$/)).toBeNull();
+  });
+
+  it("polls every 15 seconds, only while the tab is in view", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <TicketsPage initial={{}} />
+      </QueryClientProvider>,
+    );
+    await screen.findAllByRole("link", { name: "Payout missing" });
+    const q = client.getQueryCache().findAll({ queryKey: ["support", "tickets"] })[0];
+    expect(q?.observers[0]?.options.refetchInterval).toBe(15_000);
+    expect(q?.observers[0]?.options.refetchIntervalInBackground).toBe(false);
   });
 });

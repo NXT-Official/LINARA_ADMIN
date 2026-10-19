@@ -10,6 +10,7 @@ export const TICKET_CHANNELS: readonly TicketChannel[] = [
   "viber",
   "email",
   "phone",
+  "in_app",
   "other",
 ];
 export const TICKET_CATEGORIES: readonly TicketCategory[] = [
@@ -18,6 +19,7 @@ export const TICKET_CATEGORIES: readonly TicketCategory[] = [
   "pay",
   "payout",
   "app_bug",
+  "billing",
   "deletion",
   "other",
 ];
@@ -41,9 +43,22 @@ export type TicketRow = {
   updatedAt: string;
   resolvedAt: string | null;
   noteCount: number;
+  /** Household messages the team hasn't opened yet. */
+  staffUnread: number;
+  lastMessageAt: string | null;
 };
 
 export type TicketNote = { id: string; authorId: string; body: string; createdAt: string };
+
+/** One message in an in-app conversation. */
+export type TicketMessage = {
+  id: string;
+  ticketId: string;
+  authorId: string;
+  fromStaff: boolean;
+  body: string;
+  createdAt: string;
+};
 
 export type TicketDetail = Omit<TicketRow, "noteCount"> & {
   body: string;
@@ -52,6 +67,8 @@ export type TicketDetail = Omit<TicketRow, "noteCount"> & {
   householdName: string | null;
   contactName: string | null;
   notes: TicketNote[];
+  messages: TicketMessage[];
+  householdUnread: number;
 };
 
 export type SupportCounts = { open: number; pending: number; unassigned: number };

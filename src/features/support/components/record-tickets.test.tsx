@@ -60,6 +60,30 @@ describe("RecordTickets (FR-US-3, FR-HH-2, FR-CRM-12)", () => {
     expect(screen.getByRole("button", { name: "Log ticket" })).toBeInTheDocument();
   });
 
+  it("marks in-app tickets and shows unread messages", async () => {
+    m.list.mockResolvedValue({
+      ok: true,
+      hasMore: false,
+      tickets: [
+        {
+          ticketId: "t2",
+          ref: 1050,
+          subject: "Seat help",
+          status: "open",
+          priority: "normal",
+          channel: "in_app",
+          category: "billing",
+          staffUnread: 2,
+          updatedAt: "2026-10-15T00:00:00Z",
+        },
+      ],
+    });
+    renderPanel({ householdId: "h1" });
+    await screen.findByRole("link", { name: "LIN-1050 Seat help" });
+    expect(screen.getByText("In-app")).toBeInTheDocument();
+    expect(screen.getByLabelText("2 unread")).toBeInTheDocument();
+  });
+
   it("says when there are none", async () => {
     m.list.mockResolvedValue({ ok: true, hasMore: false, tickets: [] });
     renderPanel({ householdId: "h1" });

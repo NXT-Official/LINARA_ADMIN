@@ -43,6 +43,13 @@ export function parseNote(v: unknown): string {
   return body;
 }
 
+export function parseReply(v: unknown): string {
+  const body = text(v);
+  if (!body) throw bad("Write the reply.");
+  if (body.length > 4000) throw bad("Keep a reply to 4,000 characters.");
+  return body;
+}
+
 export type TicketInput = {
   subject: string;
   body: string;

@@ -1,0 +1,43 @@
+src/features/billing/billing.handlers.server.test.ts
+  s_015ef908465883::t_3dc5f6181e994f 1-279
+src/features/households/pages/household-page.tsx
+  s_015ef908465883::t_27a031cb54aaeb 11,75
+  s_015ef908465883::t_973945ee64e39b 76
+src/features/billing/components/household-billing.tsx
+  s_015ef908465883::t_ec3c8f3631110a 1-170
+src/features/billing/billing.types.ts
+  s_015ef908465883::t_74e19be70efe5f 1-65
+src/features/billing/components/grant-plan-dialog.tsx
+  s_015ef908465883::t_272be4737f7bcb 1-223
+src/features/billing/components/mark-paid-dialog.tsx
+  s_015ef908465883::t_e7f8ea5010740e 1-106
+src/features/billing/components/household-billing.test.tsx
+  s_015ef908465883::t_b5afef9affa59f 53-60,149,267,287
+  s_015ef908465883::t_7a173e0c5c0afb 1-52,61-148,150-249,251-266,268-286,288-331
+  s_015ef908465883::t_7bf410d3753e60 250
+src/features/billing/billing.handlers.server.ts
+  s_015ef908465883::t_8f6c694b20bb04 1-134,136-147,149-209
+  s_015ef908465883::t_5703971c0abcac 135,148
+src/features/billing/billing.input.ts
+  s_015ef908465883::t_94df5f003b08bf 1-92
+src/features/billing/billing.actions.ts
+  s_015ef908465883::t_537e7753e63d02 1-20
+src/data/labels.ts
+  s_015ef908465883::t_27a031cb54aaeb 147-148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2c71102afc7a7b9a6eae33590cc9edf631f51954",
+  "prompts": {},
+  "sessions": {
+    "s_015ef908465883": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bc0c8d9c-45ff-47d9-bb1d-e5046b9ee7e4",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "naaxtech <naaxtech.official@gmail.com>"
+    }
+  }
+}

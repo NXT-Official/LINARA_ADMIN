@@ -18,6 +18,7 @@ import { Route as AuthedAiRouteImport } from './routes/_authed/ai'
 import { Route as AuthedAuditRouteImport } from './routes/_authed/audit'
 import { Route as AuthedDeletionsRouteImport } from './routes/_authed/deletions'
 import { Route as AuthedFaqsRouteImport } from './routes/_authed/faqs'
+import { Route as AuthedFinanceRouteImport } from './routes/_authed/finance'
 import { Route as AuthedPlansRouteImport } from './routes/_authed/plans'
 import { Route as AuthedPayoutsRouteImport } from './routes/_authed/payouts'
 import { Route as AuthedTeamRouteImport } from './routes/_authed/team'
@@ -77,6 +78,11 @@ const AuthedDeletionsRoute = AuthedDeletionsRouteImport.update({
 const AuthedFaqsRoute = AuthedFaqsRouteImport.update({
   id: '/faqs',
   path: '/faqs',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedFinanceRoute = AuthedFinanceRouteImport.update({
+  id: '/finance',
+  path: '/finance',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedPlansRoute = AuthedPlansRouteImport.update({
@@ -170,6 +176,7 @@ export interface FileRoutesByFullPath {
   '/audit': typeof AuthedAuditRoute
   '/deletions': typeof AuthedDeletionsRoute
   '/faqs': typeof AuthedFaqsRoute
+  '/finance': typeof AuthedFinanceRoute
   '/plans': typeof AuthedPlansRoute
   '/payouts': typeof AuthedPayoutsRoute
   '/team': typeof AuthedTeamRoute
@@ -195,6 +202,7 @@ export interface FileRoutesByTo {
   '/audit': typeof AuthedAuditRoute
   '/deletions': typeof AuthedDeletionsRoute
   '/faqs': typeof AuthedFaqsRoute
+  '/finance': typeof AuthedFinanceRoute
   '/plans': typeof AuthedPlansRoute
   '/payouts': typeof AuthedPayoutsRoute
   '/team': typeof AuthedTeamRoute
@@ -223,6 +231,7 @@ export interface FileRoutesById {
   '/_authed/audit': typeof AuthedAuditRoute
   '/_authed/deletions': typeof AuthedDeletionsRoute
   '/_authed/faqs': typeof AuthedFaqsRoute
+  '/_authed/finance': typeof AuthedFinanceRoute
   '/_authed/plans': typeof AuthedPlansRoute
   '/_authed/payouts': typeof AuthedPayoutsRoute
   '/_authed/team': typeof AuthedTeamRoute
@@ -252,6 +261,7 @@ export interface FileRouteTypes {
     | '/audit'
     | '/deletions'
     | '/faqs'
+    | '/finance'
     | '/plans'
     | '/payouts'
     | '/team'
@@ -277,6 +287,7 @@ export interface FileRouteTypes {
     | '/audit'
     | '/deletions'
     | '/faqs'
+    | '/finance'
     | '/plans'
     | '/payouts'
     | '/team'
@@ -304,6 +315,7 @@ export interface FileRouteTypes {
     | '/_authed/audit'
     | '/_authed/deletions'
     | '/_authed/faqs'
+    | '/_authed/finance'
     | '/_authed/plans'
     | '/_authed/payouts'
     | '/_authed/team'
@@ -396,6 +408,13 @@ declare module '@tanstack/react-router' {
       path: '/faqs'
       fullPath: '/faqs'
       preLoaderRoute: typeof AuthedFaqsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/finance': {
+      id: '/_authed/finance'
+      path: '/finance'
+      fullPath: '/finance'
+      preLoaderRoute: typeof AuthedFinanceRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/plans': {
@@ -518,6 +537,7 @@ interface AuthedRouteChildren {
   AuthedAuditRoute: typeof AuthedAuditRoute
   AuthedDeletionsRoute: typeof AuthedDeletionsRoute
   AuthedFaqsRoute: typeof AuthedFaqsRoute
+  AuthedFinanceRoute: typeof AuthedFinanceRoute
   AuthedPlansRoute: typeof AuthedPlansRoute
   AuthedPayoutsRoute: typeof AuthedPayoutsRoute
   AuthedTeamRoute: typeof AuthedTeamRoute
@@ -539,6 +559,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedAuditRoute: AuthedAuditRoute,
   AuthedDeletionsRoute: AuthedDeletionsRoute,
   AuthedFaqsRoute: AuthedFaqsRoute,
+  AuthedFinanceRoute: AuthedFinanceRoute,
   AuthedPlansRoute: AuthedPlansRoute,
   AuthedPayoutsRoute: AuthedPayoutsRoute,
   AuthedTeamRoute: AuthedTeamRoute,

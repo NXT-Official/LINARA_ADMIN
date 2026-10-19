@@ -22,11 +22,25 @@ describe("permission editor data (FR-RL-3)", () => {
     const grouped = PERMISSION_GROUPS.flatMap((g) => g.permissions);
     expect(new Set(grouped).size).toBe(grouped.length);
     expect([...grouped].sort()).toEqual(PERMISSIONS.filter((p) => p !== "team.manage").sort());
-    expect(PERMISSION_GROUPS.map((g) => g.label)).toEqual(["Customers", "Operations", "Admin"]);
+    expect(PERMISSION_GROUPS.map((g) => g.label)).toEqual([
+      "Customers",
+      "Operations",
+      "Business",
+      "Admin",
+    ]);
+    expect(PERMISSIONS).toHaveLength(20);
+    expect(PERMISSION_GROUPS.find((g) => g.label === "Business")?.permissions).toEqual([
+      "billing.view",
+      "billing.manage",
+      "finance.view",
+      "faq.manage",
+    ]);
   });
 
   it("labels exist for every permission", () => {
     for (const p of PERMISSIONS) expect(PERMISSION_LABEL[p]).toMatch(/^[A-Z]/);
+    expect(PERMISSION_LABEL["billing.view"]).toBe("View plans and billing");
+    expect(PERMISSION_LABEL["faq.manage"]).toBe("Manage FAQs");
     expect(PERMISSION_LABEL["pay.view"]).toBe("Reveal wages, payslip amounts, payout accounts");
   });
 });

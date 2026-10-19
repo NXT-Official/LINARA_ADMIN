@@ -1,4 +1,4 @@
-// Runs 013-roles.sql and 014-roles-fixes.sql against a real Postgres (PGlite): four locked presets,
+// Runs 013-roles.sql, 014-roles-fixes.sql and 015-business-permissions.sql against a real Postgres (PGlite): four locked presets,
 // custom roles that can't manage the team, one role per member, the mod limits,
 // the last-admin rule, the two-step code flag, and an audit row for every change
 // with ids, role names and permission names only (§4.2, D39, FR-TM-2, FR-TM-3,
@@ -71,6 +71,7 @@ await db.exec(`
 `);
 await db.exec(readFileSync(resolve(REPO, "013-roles.sql"), "utf8"));
 await db.exec(readFileSync(resolve(REPO, "014-roles-fixes.sql"), "utf8"));
+await db.exec(readFileSync(resolve(REPO, "015-business-permissions.sql"), "utf8"));
 
 // --- presets (§4.2) ----------------------------------------------------------------------
 const TS = readFileSync(resolve(REPO, "../src/features/auth/permissions.ts"), "utf8");
@@ -80,7 +81,7 @@ const tsList = [
 const known = (await q(`SELECT public.staff_known_permissions() AS p`))[0].p;
 check(
   "the permission list matches permissions.ts",
-  tsList.length === 16 && [...tsList].sort().join() === [...known].sort().join(),
+  tsList.length === 20 && [...tsList].sort().join() === [...known].sort().join(),
   { tsList, known },
 );
 
@@ -89,8 +90,17 @@ const without = (...xs) => ALL.filter((p) => !xs.includes(p)).sort();
 const EXPECTED = {
   admin: [...ALL].sort(),
   mods: without("team.manage").concat("team.manage").sort(),
-  sales: ["crm.export", "crm.view", "crm.write", "dashboard.view", "households.view", "users.view"],
+  sales: [
+    "billing.view",
+    "crm.export",
+    "crm.view",
+    "crm.write",
+    "dashboard.view",
+    "households.view",
+    "users.view",
+  ],
   support: [
+    "billing.view",
     "crm.view",
     "dashboard.view",
     "deletions.view",

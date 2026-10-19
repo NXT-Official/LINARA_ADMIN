@@ -21,6 +21,10 @@ export const PERMISSIONS = [
   "ai.view",
   "audit.view",
   "team.manage",
+  "billing.view",
+  "billing.manage",
+  "finance.view",
+  "faq.manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -53,11 +57,15 @@ export const PERMISSION_LABEL: Record<Permission, string> = {
   "ai.view": "AI usage screen",
   "audit.view": "Audit log",
   "team.manage": "Team: add, remove, change roles; edit custom roles",
+  "billing.view": "View plans and billing",
+  "billing.manage": "Manage plans and billing",
+  "finance.view": "View finance",
+  "faq.manage": "Manage FAQs",
 };
 
 /** The role editor's checkboxes, grouped as in the sidebar. Never team.manage (D39). */
 export const PERMISSION_GROUPS: {
-  label: "Customers" | "Operations" | "Admin";
+  label: "Customers" | "Operations" | "Business" | "Admin";
   permissions: Permission[];
 }[] = [
   {
@@ -83,6 +91,10 @@ export const PERMISSION_GROUPS: {
       "payouts.view",
       "ai.view",
     ],
+  },
+  {
+    label: "Business",
+    permissions: ["billing.view", "billing.manage", "finance.view", "faq.manage"],
   },
   { label: "Admin", permissions: ["audit.view"] },
 ];

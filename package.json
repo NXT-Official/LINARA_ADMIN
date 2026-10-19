@@ -15,7 +15,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "test:sql": "node supabase/tests/staff-foundation.test.mjs && node supabase/tests/visibility.test.mjs && node supabase/tests/crm.test.mjs && node supabase/tests/crm-data.test.mjs && node supabase/tests/account-actions.test.mjs && node supabase/tests/support.test.mjs && node supabase/tests/operations.test.mjs && node supabase/tests/roles.test.mjs",
+    "test:sql": "node supabase/tests/staff-foundation.test.mjs && node supabase/tests/visibility.test.mjs && node supabase/tests/crm.test.mjs && node supabase/tests/crm-data.test.mjs && node supabase/tests/account-actions.test.mjs && node supabase/tests/support.test.mjs && node supabase/tests/operations.test.mjs && node supabase/tests/roles.test.mjs && node supabase/tests/business-permissions.test.mjs && node supabase/tests/billing-plans.test.mjs && node supabase/tests/billing-subscriptions.test.mjs && node supabase/tests/billing-finance.test.mjs && node supabase/tests/support-in-app.test.mjs && node supabase/tests/faq.test.mjs",
     "test:bundle": "bun run build && node scripts/check-bundle.mjs"
   },
   "dependencies": {

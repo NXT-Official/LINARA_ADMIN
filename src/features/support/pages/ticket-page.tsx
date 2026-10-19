@@ -434,7 +434,10 @@ function TicketView({ ticket }: { ticket: TicketDetail }) {
                     "None"
                   ),
                 },
-                { label: "Logged by", value: admins.name(ticket.createdBy) ?? "" },
+                // An in-app ticket's creator is the household's manager, not a team member.
+                isInApp
+                  ? { label: "Opened by", value: "The household" }
+                  : { label: "Logged by", value: admins.name(ticket.createdBy) ?? "" },
               ]}
             />
           </Surface>

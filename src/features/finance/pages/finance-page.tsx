@@ -103,6 +103,11 @@ function Loading({ what }: { what: string }) {
   );
 }
 
+/** In place of a section's rows while the range is invalid (its query waits for valid dates). */
+function FixDates({ what }: { what: string }) {
+  return <p className="text-sm text-muted-foreground">Fix the dates to see {what}.</p>;
+}
+
 function Failure({
   title,
   reason,
@@ -305,7 +310,7 @@ function Costs({ from, to, enabled }: { from: string; to: string; enabled: boole
           />
         ) : (
           <div className="px-5 pb-6 pt-2 sm:px-6">
-            <Loading what="costs" />
+            {enabled ? <Loading what="costs" /> : <FixDates what="costs" />}
           </div>
         )}
       </Surface>
@@ -443,7 +448,11 @@ export function FinancePage() {
   const [to, setTo] = useState(initial.to);
 
   const rangeError =
-    !from || !to ? "Pick both dates." : from > to ? "Start must be on or before the end." : null;
+    !from || !to
+      ? "Pick both dates."
+      : from > to
+        ? "Pick a start date on or before the end date."
+        : null;
   const enabled = rangeError === null;
 
   const figures = useQuery({
@@ -499,7 +508,7 @@ export function FinancePage() {
           ) : enabled ? (
             <Loading what="figures" />
           ) : (
-            <p className="text-sm text-muted-foreground">Fix the dates to see figures.</p>
+            <FixDates what="figures" />
           )}
         </Surface>
 
@@ -546,7 +555,7 @@ export function FinancePage() {
             />
           ) : (
             <div className="px-5 pb-6 pt-2 sm:px-6">
-              <Loading what="AI use" />
+              {enabled ? <Loading what="AI use" /> : <FixDates what="AI use" />}
             </div>
           )}
         </Surface>

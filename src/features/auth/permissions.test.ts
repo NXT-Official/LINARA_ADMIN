@@ -41,6 +41,8 @@ describe("permission editor data (FR-RL-3)", () => {
     for (const p of PERMISSIONS) expect(PERMISSION_LABEL[p]).toMatch(/^[A-Z]/);
     expect(PERMISSION_LABEL["billing.view"]).toBe("View plans and billing");
     expect(PERMISSION_LABEL["faq.manage"]).toBe("Manage FAQs");
+    // It also opens the cost and AI price editors on the Finance page.
+    expect(PERMISSION_LABEL["finance.view"]).toBe("Finance: figures, costs and AI prices");
     expect(PERMISSION_LABEL["pay.view"]).toBe("Reveal wages, payslip amounts, payout accounts");
   });
 });

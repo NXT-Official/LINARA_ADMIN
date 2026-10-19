@@ -34,6 +34,7 @@ import {
   getHouseholdBillingHandler,
   grantPlanHandler,
   markInvoicePaidHandler,
+  revokeSubscriptionHandler,
 } from "./billing.handlers.server";
 
 const ME = "7f0c2a7e-1b2c-4d5e-8f90-000000000001";
@@ -86,6 +87,23 @@ const DETAIL = {
       canceled_at: null,
       note: "Refund this",
       created_at: "2026-11-01T00:00:00Z",
+      revoked: false,
+    },
+    {
+      id: "s0",
+      plan_name: "Pilot",
+      interval: "monthly",
+      status: "canceled",
+      helper_seats: 2,
+      manager_seats: 2,
+      home_seats: 1,
+      amount_centavos: 0,
+      current_period_start: "2026-10-01T00:00:00Z",
+      current_period_end: "2026-10-10T00:00:00Z",
+      canceled_at: "2026-10-10T00:00:00Z",
+      note: "Revoked by staff: Pilot ended",
+      created_at: "2026-10-01T00:00:00Z",
+      revoked: true,
     },
   ],
   invoices: [
@@ -129,7 +147,10 @@ describe("getHouseholdBillingHandler", () => {
       ok: true,
       billing: {
         entitlements: { planName: "Family", helperSeats: 3, managerSeats: null },
-        subscriptions: [{ planName: "Family", amountCentavos: 49900 }],
+        subscriptions: [
+          { planName: "Family", amountCentavos: 49900, revoked: false },
+          { planName: "Pilot", revoked: true },
+        ],
         invoices: [{ invoiceNumber: "LIN-2026-000001", amountCentavos: 49900 }],
         usage: { helpers: 2, managers: 1 },
         notes: [{ note: "Refund this" }],
@@ -209,9 +230,19 @@ describe("grantPlanHandler", () => {
     );
   });
 
+  it("1000 seats is the most a grant gives", async () => {
+    await grantPlanHandler({ ...grant, helperSeats: 1000, managerSeats: 0 });
+    expect(m.rpc).toHaveBeenCalledWith(
+      "billing_grant",
+      expect.objectContaining({ p_helper_seats: 1000, p_manager_seats: 0 }),
+    );
+  });
+
   it.each([
     ["negative seats", { helperSeats: -1 }],
     ["fractional seats", { managerSeats: 1.5 }],
+    ["over 1000 helper seats", { helperSeats: 1001 }],
+    ["over 1000 manager seats", { managerSeats: 1001 }],
     ["an impossible date", { periodEnd: "2027-02-30" }],
     ["a long note", { note: "x".repeat(501) }],
     ["no reason", { reason: "  " }],
@@ -238,6 +269,64 @@ describe("grantPlanHandler", () => {
       ok: false,
       code: "conflict",
       message: "The end date must be in the future.",
+    });
+  });
+});
+
+describe("revokeSubscriptionHandler", () => {
+  const SUB = "7f0c2a7e-1b2c-4d5e-8f90-0000000000c1";
+  const revoke = { subscriptionId: SUB, reason: "Chargeback", code: "123456" };
+
+  beforeEach(() => {
+    m.rpc.mockResolvedValue({ data: null, error: null });
+  });
+
+  it("checks billing.manage and the code, then revokes with the reason", async () => {
+    await expect(revokeSubscriptionHandler(revoke)).resolves.toEqual({ ok: true });
+    expect(m.order).toEqual(["guard", "code", "rpc:billing_revoke"]);
+    expect(m.requireStaff).toHaveBeenCalledWith("billing.manage");
+    expect(m.code).toHaveBeenCalledWith({ userId: ME }, "123456");
+    expect(m.rpc).toHaveBeenCalledWith("billing_revoke", {
+      p_actor: ME,
+      p_subscription_id: SUB,
+      p_reason: "Chargeback",
+    });
+  });
+
+  it("rejects a bad id and a missing or long reason before any I/O", async () => {
+    await expect(
+      revokeSubscriptionHandler({ ...revoke, subscriptionId: "x" }),
+    ).resolves.toMatchObject({ code: "not_found" });
+    await expect(revokeSubscriptionHandler({ ...revoke, reason: "  " })).resolves.toMatchObject({
+      code: "invalid_input",
+    });
+    await expect(
+      revokeSubscriptionHandler({ ...revoke, reason: "x".repeat(201) }),
+    ).resolves.toMatchObject({ code: "invalid_input" });
+    expect(m.requireStaff).not.toHaveBeenCalled();
+  });
+
+  it("a role without billing.manage or a wrong code never reaches the database", async () => {
+    m.requireStaff.mockRejectedValueOnce(new ConsoleError("not_allowed"));
+    await expect(revokeSubscriptionHandler(revoke)).resolves.toMatchObject({
+      code: "not_allowed",
+    });
+    m.code.mockRejectedValueOnce(new ConsoleError("invalid_input", "That code didn't work."));
+    await expect(revokeSubscriptionHandler(revoke)).resolves.toMatchObject({
+      code: "invalid_input",
+    });
+    expect(m.rpc).not.toHaveBeenCalled();
+  });
+
+  it("an already revoked plan is a conflict with the plain sentence", async () => {
+    m.rpc.mockResolvedValue({
+      data: null,
+      error: { code: "P0001", message: "That subscription is already revoked." },
+    });
+    await expect(revokeSubscriptionHandler(revoke)).resolves.toEqual({
+      ok: false,
+      code: "conflict",
+      message: "That subscription is already revoked.",
     });
   });
 });

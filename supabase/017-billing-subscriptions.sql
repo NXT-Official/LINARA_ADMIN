@@ -67,7 +67,10 @@
 -- seats to that quote's. Staff end any subscription for good with
 -- billing_revoke (revoked_at): it can't be renewed, canceled, given a payment
 -- link or paid again (a PAID for it is noted for a refund), and gives no
--- entitlement; a new subscription for its homes is unaffected.
+-- entitlement, nor is it named for renewal on the free tier; a new
+-- subscription for its homes is unaffected. A household's cancel expires the
+-- subscription's pending invoices (raw_callback.canceled_by): a PAID for one
+-- is noted for a refund and not applied, and staff can't mark one paid.
 --
 -- Trials: a plan's trial is given only when none of the homes has had a
 -- subscription that started, and the buyer has never owned one that started.
@@ -390,6 +393,9 @@ END $$;
 --     staff to check with the household.
 --   PAID, another amount: the payment is recorded and the subscription marked
 --     past_due with a note for staff; its period doesn't move.
+--   PAID on an invoice the household's cancel expired (canceled_by): not
+--     applied, noted once per paying session for staff to refund, its callback
+--     kept under 'canceled_paid_<session>'.
 --   PAID on an invoice already paid, or expired by a replacement or a staff
 --     revoke: not applied. From a Xendit session (p_xendit_id set) it is money
 --     taken for nothing when the invoice was marked paid by hand, was paid by
@@ -463,6 +469,31 @@ BEGIN
             UPDATE public.billing_invoices
             SET raw_callback = coalesce(raw_callback, '{}'::JSONB)
                                || jsonb_build_object(v_marker, p_raw)
+            WHERE id = v_invoice.id
+            RETURNING * INTO v_invoice;
+        END IF;
+        RETURN jsonb_build_object('applied', false, 'invoice_status', v_invoice.status,
+                                  'subscription_status', v_sub.status);
+    END IF;
+
+    -- PAID on an invoice the household's cancel expired: they said stop, so it
+    -- never applies (it would start the plan again). Noted once per paying
+    -- session for staff to refund, its callback kept under
+    -- 'canceled_paid_<session>'.
+    IF v_invoice.status = 'expired' AND coalesce(v_invoice.raw_callback ? 'canceled_by', false) THEN
+        v_marker := 'canceled_paid_' || coalesce(v_session, 'none');
+        IF NOT v_invoice.raw_callback ? v_marker THEN
+            UPDATE public.billing_subscriptions
+            SET note = public.billing_add_note(note, format(
+                    'Paid %s after the household canceled it on %s; refund in Xendit',
+                    v_invoice.invoice_number,
+                    to_char(coalesce((v_invoice.raw_callback ->> 'canceled_at')::TIMESTAMPTZ,
+                                     v_sub.canceled_at, now()) AT TIME ZONE 'Asia/Manila',
+                            'YYYY-MM-DD')))
+            WHERE id = v_sub.id
+            RETURNING * INTO v_sub;
+            UPDATE public.billing_invoices
+            SET raw_callback = raw_callback || jsonb_build_object(v_marker, p_raw)
             WHERE id = v_invoice.id
             RETURNING * INTO v_invoice;
         END IF;
@@ -647,7 +678,8 @@ END $$;
 -- What a household is entitled to at p_now, with no caller check. Prefers a
 -- covering subscription that isn't expired, the one with the latest period end
 -- (NULL, no end, first); with none, the free tier, still naming the latest
--- expired subscription so the page can offer to renew it.
+-- expired subscription so the page can offer to renew it. A revoked
+-- subscription is never picked: it gives nothing and can't be renewed.
 CREATE OR REPLACE FUNCTION public.billing_entitlements(p_household_id UUID, p_now TIMESTAMPTZ)
 RETURNS JSONB
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
@@ -665,7 +697,6 @@ BEGIN
         SELECT s.id, s.plan_id, s.status, s.helper_seats, s.manager_seats,
                s.current_period_end, s.created_at,
                CASE
-                   WHEN s.revoked_at IS NOT NULL THEN 'expired'
                    WHEN s.current_period_end IS NULL THEN s.status
                    WHEN s.status = 'canceled' AND s.current_period_end < p_now THEN 'expired'
                    WHEN s.current_period_end < p_now - INTERVAL '7 days' THEN 'expired'
@@ -677,6 +708,7 @@ BEGIN
         WHERE sh.household_id = p_household_id
           AND s.status IN ('trialing', 'active', 'past_due', 'canceled')
           AND s.current_period_start IS NOT NULL
+          AND s.revoked_at IS NULL
     ) c
     JOIN public.billing_plans p ON p.id = c.plan_id
     ORDER BY c.effective_status = 'expired', c.current_period_end DESC NULLS FIRST,
@@ -985,7 +1017,10 @@ BEGIN
 END $$;
 
 -- Stops a subscription; its homes stay entitled until the period ends. A comp
--- (amount 0) ends now. A revoked one is already over (NOT_FOUND:revoked).
+-- (amount 0) ends now. A revoked one is already over (NOT_FOUND:revoked). Its
+-- pending invoices expire, marked canceled_by and canceled_at: a payment of one
+-- that arrives later is noted for a refund, not applied (billing_settle_invoice),
+-- and staff can't mark one paid.
 CREATE OR REPLACE FUNCTION public.billing_cancel(p_subscription_id UUID) RETURNS VOID
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE
@@ -994,6 +1029,12 @@ BEGIN
     IF NOT public.billing_can_manage(auth.uid(), p_subscription_id) THEN
         RAISE EXCEPTION 'NOT_FOUND:subscription';
     END IF;
+    -- Invoices first, then the subscription: the order billing_settle_invoice
+    -- locks them in, so a cancel and a payment at once queue, not deadlock.
+    PERFORM 1 FROM public.billing_invoices
+    WHERE subscription_id = p_subscription_id
+    ORDER BY id
+    FOR UPDATE;
     SELECT revoked_at IS NOT NULL INTO v_revoked FROM public.billing_subscriptions
     WHERE id = p_subscription_id
     FOR UPDATE;
@@ -1010,6 +1051,11 @@ BEGIN
     IF NOT FOUND THEN
         RAISE EXCEPTION 'NOT_FOUND:subscription';
     END IF;
+    UPDATE public.billing_invoices
+    SET status = 'expired',
+        raw_callback = coalesce(raw_callback, '{}'::JSONB)
+                       || jsonb_build_object('canceled_by', auth.uid(), 'canceled_at', now())
+    WHERE subscription_id = p_subscription_id AND status = 'pending';
 END $$;
 
 -- What a household is entitled to (see the header). A signed-in caller must
@@ -1326,8 +1372,8 @@ END $$;
 -- A payment that came outside Xendit (a bank transfer, GCash to the owner): the
 -- same transition as a PAID callback for the invoiced amount. Audited when it
 -- applies; an invoice already paid, or expired by a replacement, is reported
--- with applied false and nothing changes. An invoice of a revoked subscription
--- is refused.
+-- with applied false and nothing changes. An invoice of a revoked subscription,
+-- or one the household's cancel expired, is refused.
 CREATE OR REPLACE FUNCTION public.billing_mark_paid(
     p_actor UUID, p_invoice_id UUID, p_channel TEXT, p_note TEXT, p_reason TEXT
 ) RETURNS JSONB
@@ -1339,13 +1385,15 @@ DECLARE
     v_amount BIGINT;
     v_subscription UUID;
     v_revoked BOOLEAN;
+    v_canceled BOOLEAN;
     v_result JSONB;
 BEGIN
     IF v_reason IS NULL THEN
         RAISE EXCEPTION 'Give a reason for marking this invoice paid.' USING ERRCODE = 'P0001';
     END IF;
-    SELECT i.amount_centavos, i.subscription_id, s.revoked_at IS NOT NULL
-    INTO v_amount, v_subscription, v_revoked
+    SELECT i.amount_centavos, i.subscription_id, s.revoked_at IS NOT NULL,
+           i.status = 'expired' AND coalesce(i.raw_callback ? 'canceled_by', false)
+    INTO v_amount, v_subscription, v_revoked, v_canceled
     FROM public.billing_invoices i
     JOIN public.billing_subscriptions s ON s.id = i.subscription_id
     WHERE i.id = p_invoice_id;
@@ -1354,6 +1402,10 @@ BEGIN
     END IF;
     IF v_revoked THEN
         RAISE EXCEPTION 'This invoice''s plan was revoked, so it can''t be marked paid. Refund the payment instead.'
+            USING ERRCODE = 'P0001';
+    END IF;
+    IF v_canceled THEN
+        RAISE EXCEPTION 'The household canceled this plan before paying this invoice, so it can''t be marked paid. Refund the payment instead.'
             USING ERRCODE = 'P0001';
     END IF;
     v_result := public.billing_settle_invoice(

@@ -9,11 +9,24 @@ import { formatDate } from "@/lib/format";
 import { fmtCentavos } from "@/lib/money";
 
 import { getHouseholdBillingFn } from "../billing.actions";
-import type { BillingEntitlements, HouseholdBilling } from "../billing.types";
+import type { BillingEntitlements, BillingInvoice, HouseholdBilling } from "../billing.types";
 import { GrantPlanDialog } from "./grant-plan-dialog";
 import { MarkPaidDialog } from "./mark-paid-dialog";
+import { RevokePlanDialog } from "./revoke-plan-dialog";
 
 const INTERVAL_LABEL = { one_time: "one time", monthly: "monthly", yearly: "yearly" } as const;
+
+type UnpaidStatus = Exclude<BillingInvoice["status"], "paid">;
+
+/** The row label for an invoice not paid yet (the SQL settles a payment on any of the three). */
+const UNPAID_LABEL: Record<UnpaidStatus, string> = {
+  pending: "Waiting to be paid",
+  expired: "Expired, not paid",
+  failed: "Payment failed",
+};
+
+/** A note staff must act on: a refund to make, or a payment to check in Xendit. */
+const NEEDS_ATTENTION = /refund|check in Xendit/i;
 
 function statusChip(e: BillingEntitlements): { tone: ChipTone; label: string } {
   if (e.source === "free") return { tone: "neutral", label: "Free" };
@@ -51,7 +64,9 @@ function periodLine(e: BillingEntitlements): string {
 
 /**
  * A household's plan and billing, on its page: what it is entitled to, what it
- * uses, what is waiting to be paid, and the notes the billing system left.
+ * uses, what is waiting to be paid, plans staff revoked, and the notes the
+ * billing system left. Staff with billing.manage grant a plan, revoke the
+ * current one, and mark an unpaid invoice paid.
  */
 export function HouseholdBillingSection({ householdId }: { householdId: string }) {
   const can = useCan();
@@ -103,8 +118,30 @@ export function HouseholdBillingSection({ householdId }: { householdId: string }
 
   const b = data.billing;
   const chip = statusChip(b.entitlements);
-  const pending = b.invoices.filter((i) => i.status === "pending");
-  const refund = b.notes.some((n) => /refund/i.test(n.note));
+  // Unpaid invoices of a plan still running: not one the household canceled or
+  // staff revoked (a payment for those is refunded, never applied).
+  const open = new Set(
+    b.subscriptions.filter((s) => s.status !== "canceled" && !s.revoked).map((s) => s.id),
+  );
+  const unpaid = b.invoices.filter(
+    (i): i is BillingInvoice & { status: UnpaidStatus } =>
+      i.status !== "paid" && open.has(i.subscriptionId),
+  );
+  const attention = b.notes.some((n) => NEEDS_ATTENTION.test(n.note));
+  const current = b.subscriptions.find((s) => s.id === b.entitlements.subscriptionId);
+  const revoked = b.subscriptions.filter((s) => s.revoked);
+  const revoke =
+    canManage && current && !current.revoked ? (
+      <RevokePlanDialog
+        subscription={current}
+        onDone={refresh}
+        trigger={
+          <Button size="sm" variant="outline">
+            Revoke plan
+          </Button>
+        }
+      />
+    ) : null;
 
   return (
     <Surface title="Plan & billing" actions={grant}>
@@ -113,17 +150,20 @@ export function HouseholdBillingSection({ householdId }: { householdId: string }
           {
             label: "Plan",
             value: (
-              <span className="inline-flex flex-wrap items-center gap-2">
-                {planLine(b)}
-                <StatusChip tone={chip.tone}>{chip.label}</StatusChip>
+              <span className="flex flex-wrap items-center justify-between gap-2">
+                <span className="inline-flex flex-wrap items-center gap-2">
+                  {planLine(b)}
+                  <StatusChip tone={chip.tone}>{chip.label}</StatusChip>
+                </span>
+                {revoke}
               </span>
             ),
           },
           { label: "Period", value: periodLine(b.entitlements) },
           { label: "Helpers", value: seatsOf(b.usage.helpers, b.entitlements.helperSeats) },
           { label: "Managers", value: seatsOf(b.usage.managers, b.entitlements.managerSeats) },
-          ...pending.map((i) => ({
-            label: "Waiting to be paid",
+          ...unpaid.map((i) => ({
+            label: UNPAID_LABEL[i.status],
             value: (
               <span className="flex flex-wrap items-center justify-between gap-2">
                 <span>
@@ -147,11 +187,20 @@ export function HouseholdBillingSection({ householdId }: { householdId: string }
           })),
         ]}
       />
+      {revoked.length > 0 ? (
+        <ul className="mt-3 space-y-1">
+          {revoked.map((s) => (
+            <li key={s.id} className="text-[13px] text-muted-foreground">
+              {s.planName}: Revoked by Linara support
+            </li>
+          ))}
+        </ul>
+      ) : null}
       {b.notes.length > 0 ? (
         <div className="mt-4 border-t border-border pt-4">
           <div className="flex items-center gap-2">
             <h3 className="text-xs font-semibold text-muted-foreground">Notes</h3>
-            {refund ? <StatusChip tone="attention">Needs attention</StatusChip> : null}
+            {attention ? <StatusChip tone="attention">Needs attention</StatusChip> : null}
           </div>
           <ul className="mt-2 space-y-2">
             {b.notes.map((n) => (

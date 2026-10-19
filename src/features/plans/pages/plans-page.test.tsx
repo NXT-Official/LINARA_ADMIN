@@ -109,6 +109,7 @@ describe("Plans page", () => {
     await screen.findByText("Home");
     expect(screen.getByRole("button", { name: "Publish Home" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Unpublish Home" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Archive Home" })).toBeNull();
     expect(screen.getByRole("button", { name: "Unpublish Family" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Archive Family" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Restore Old" })).toBeInTheDocument();

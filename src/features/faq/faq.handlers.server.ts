@@ -21,6 +21,11 @@ async function call<T>(fn: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await getAdminClient().rpc(fn, args);
   if (error) {
     if (error.code === "P0001") throw new ConsoleError("conflict", error.message);
+    // The FAQ SQL (020) isn't applied yet: say it's on our side, not the admin's.
+    if (/function .* does not exist/i.test(error.message)) {
+      logError("faq", new Error(`${fn}: ${error.message}`));
+      throw new ConsoleError("outside_service");
+    }
     throw new Error(`${fn}: ${error.message}`);
   }
   return data as T;

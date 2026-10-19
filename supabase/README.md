@@ -26,8 +26,8 @@ rows are listed in spec D28 and D33. The CRM's write rules are in D34.
 | `016-billing-plans.sql`     | `billing_plans` and `billing_settings` (free-tier switch), closed to app roles; audited `billing_*` write functions and the public plan reads. Run after 015. |
 | `017-billing-subscriptions.sql` | `billing_subscriptions`, `billing_subscription_homes` and `billing_invoices` (numbered `LIN-<year>-000001`), household entitlements, quote, start, renew, cancel. Run after 016. |
 | `018-billing-finance.sql`   | `billing_cost_entries`, `billing_model_prices`, `billing_ai_usage` and `billing_finance` (revenue, cost, margin). Run after 017. |
-| `019-support-in-app.sql`    | `support_ticket_messages`, the `in_app` channel and `billing` category, unread counts, and `household_support_*` functions. Run after 015. |
-| `020-faq.sql`               | `faq_items` and staff FAQ functions; `faq_public_list()` is readable by `anon`. Run after 015. |
+| `019-support-in-app.sql`    | `support_ticket_messages`, the `in_app` channel and `billing` category, unread counts, and `household_support_*` functions; a processed deletion also clears in-app messages and redacts the person's invoices (payer email, Xendit payloads). Run after 017. |
+| `020-faq.sql`               | `faq_entries` and staff FAQ functions; `faq_public_list()` is readable by `anon`. Run after 015. |
 
 Each file runs in one transaction: it applies completely or not at all.
 

@@ -247,9 +247,26 @@ describe("Finance page", () => {
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-01-01" } });
     fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-12-31" } });
     await waitFor(() => expect(m.figures.mock.calls.at(-1)?.[0].data.to).toBe("2026-12-31"));
-    const before = m.figures.mock.calls.length;
+    await waitFor(() => expect(m.costs.mock.calls.at(-1)?.[0].data.to).toBe("2026-12-31"));
+    const before = { figures: m.figures.mock.calls.length, costs: m.costs.mock.calls.length };
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2027-01-01" } });
-    expect(await screen.findByRole("alert")).toHaveTextContent("Start must be on or before");
-    expect(m.figures.mock.calls.length).toBe(before);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /^Pick a start date on or before the end date\.$/,
+    );
+    expect(m.figures.mock.calls.length).toBe(before.figures);
+    expect(m.costs.mock.calls.length).toBe(before.costs);
+  });
+
+  it("an invalid range leaves no section loading forever", async () => {
+    renderPage();
+    await screen.findByText("₱697.00");
+    fireEvent.click(screen.getByRole("radio", { name: "Custom" }));
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2027-01-01" } });
+    fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-01-01" } });
+    await screen.findByRole("alert");
+    expect(screen.getByText("Fix the dates to see figures.")).toBeInTheDocument();
+    expect(screen.getByText("Fix the dates to see AI use.")).toBeInTheDocument();
+    expect(screen.getByText("Fix the dates to see costs.")).toBeInTheDocument();
+    expect(screen.queryByText(/^Loading (figures|AI use|costs)/)).toBeNull();
   });
 });

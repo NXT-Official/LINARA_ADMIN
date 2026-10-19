@@ -4,8 +4,9 @@ import {
   getHouseholdBillingHandler,
   grantPlanHandler,
   markInvoicePaidHandler,
+  revokeSubscriptionHandler,
 } from "./billing.handlers.server";
-import type { GrantInput, MarkPaidInput } from "./billing.input";
+import type { GrantInput, MarkPaidInput, RevokeInput } from "./billing.input";
 
 export const getHouseholdBillingFn = createServerFn({ method: "GET" })
   .validator((d: { householdId: string }) => d)
@@ -18,3 +19,7 @@ export const grantPlanFn = createServerFn({ method: "POST" })
 export const markInvoicePaidFn = createServerFn({ method: "POST" })
   .validator((d: MarkPaidInput) => d)
   .handler(({ data }) => markInvoicePaidHandler(data));
+
+export const revokeSubscriptionFn = createServerFn({ method: "POST" })
+  .validator((d: RevokeInput) => d)
+  .handler(({ data }) => revokeSubscriptionHandler(data));

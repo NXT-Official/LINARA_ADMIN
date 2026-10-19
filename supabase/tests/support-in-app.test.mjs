@@ -3,7 +3,10 @@
 // household's in-app tickets, the team sees unread tickets first and replies with an
 // audit row holding ids only, a household message reopens a resolved ticket, a
 // processed deletion clears the conversation, the new table and every function are
-// closed to the wrong roles, and running 019 again changes nothing.
+// closed to the wrong roles, and running 019 again changes nothing. Without 017 a
+// deletion still runs; with it (016 and 017 loaded at the end, then 019 again, the
+// documented order), a deletion keeps the person's invoices but removes the payer's
+// email and Xendit's payloads, keeping the markers a late payment is judged by.
 //
 //   bun run test:sql
 import { readFileSync } from "node:fs";
@@ -635,6 +638,118 @@ check(
 check(
   "another household's conversation is untouched",
   (await msgs(T2)).every((x) => x.body === "Can I pay yearly?"),
+);
+
+// --- deletion redacts the person's invoices (017 loaded, then 019 again) -------------------
+for (const file of [
+  "015-business-permissions.sql",
+  "016-billing-plans.sql",
+  "017-billing-subscriptions.sql",
+  "019-support-in-app.sql",
+]) {
+  await db.exec(readFileSync(resolve(REPO, file), "utf8"));
+}
+const M4 = id(4);
+const H3 = id(13);
+const REQ4 = id(34);
+const [PLAN, S_OWN, S_OTHER] = [id(41), id(42), id(43)];
+const [I_PAID, I_CANCELED, I_OTHER] = [id(51), id(52), id(53)];
+const PAYLOAD = (email) =>
+  JSON.stringify({ event: "payment_session.completed", customer: { name: "Dana", email } });
+await db.exec(`
+  INSERT INTO auth.users (id, email) VALUES ('${M4}', 'dana@example.com');
+  INSERT INTO public.user_profiles (id, full_name, user_type) VALUES
+    ('${M4}', 'Dana Lim', 'primary_manager');
+  INSERT INTO public.households (id, name) VALUES ('${H3}', 'Lim home');
+  INSERT INTO public.household_managers (household_id, user_id, role) VALUES
+    ('${H3}', '${M4}', 'primary_manager');
+  INSERT INTO public.account_deletion_requests (id, user_id, user_type, status) VALUES
+    ('${REQ4}', '${M4}', 'primary_manager', 'pending');
+  INSERT INTO public.billing_plans (id, name, interval, base_centavos, status) VALUES
+    ('${PLAN}', 'Household', 'monthly', 49900, 'active');
+  INSERT INTO public.billing_subscriptions
+    (id, plan_id, owner_user_id, status, amount_centavos, current_period_start,
+     current_period_end, canceled_at) VALUES
+    ('${S_OWN}', '${PLAN}', '${M4}', 'canceled', 49900, now() - interval '5 days',
+     now() + interval '25 days', now() - interval '1 day'),
+    ('${S_OTHER}', '${PLAN}', '${M2}', 'active', 49900, now(), now() + interval '30 days', NULL);
+  INSERT INTO public.billing_subscription_homes (subscription_id, household_id) VALUES
+    ('${S_OWN}', '${H3}'), ('${S_OTHER}', '${H2}');
+  INSERT INTO public.billing_invoices
+    (id, invoice_number, subscription_id, external_id, xendit_session_id, status,
+     amount_centavos, period_start, paid_at, paid_centavos, payer_email, raw_callback) VALUES
+    ('${I_PAID}', 'LIN-2026-900001', '${S_OWN}', 'sub_${S_OWN}_1', 'ps_1', 'paid', 49900,
+     now() - interval '5 days', now() - interval '5 days', 49900, 'dana@example.com',
+     '${PAYLOAD("dana@example.com")}'::jsonb),
+    ('${I_CANCELED}', 'LIN-2026-900002', '${S_OWN}', 'sub_${S_OWN}_2', 'ps_2', 'expired', 49900,
+     now() + interval '25 days', NULL, NULL, 'dana@example.com',
+     jsonb_build_object('canceled_by', '${M4}', 'canceled_at', now() - interval '1 day',
+                        'canceled_paid_ps_2', '${PAYLOAD("dana@example.com")}'::jsonb)),
+    ('${I_OTHER}', 'LIN-2026-900003', '${S_OTHER}', 'sub_${S_OTHER}_1', 'ps_3', 'paid', 49900,
+     now(), now(), 49900, 'bea@example.com', '${PAYLOAD("bea@example.com")}'::jsonb);
+  UPDATE public.billing_subscriptions
+  SET note = 'Paid LIN-2026-900002 after the household canceled it; refund in Xendit'
+  WHERE id = '${S_OWN}';
+`);
+const invoice = async (invoiceId) =>
+  (await q(`SELECT * FROM public.billing_invoices WHERE id = $1`, [invoiceId]))[0];
+const otherBefore = JSON.stringify(await invoice(I_OTHER));
+await svc(`SELECT public.staff_process_deletion($1, $2)`, [A1, REQ4]);
+const paidAfter = await invoice(I_PAID);
+const canceledAfter = await invoice(I_CANCELED);
+check(
+  "deletion keeps their invoices as financial records (number, amount, status, paid date)",
+  paidAfter.invoice_number === "LIN-2026-900001" &&
+    Number(paidAfter.amount_centavos) === 49900 &&
+    paidAfter.status === "paid" &&
+    paidAfter.paid_at !== null &&
+    canceledAfter.status === "expired",
+  { paidAfter, canceledAfter },
+);
+check(
+  "deletion removes the payer's email from their invoices",
+  paidAfter.payer_email === null && canceledAfter.payer_email === null,
+);
+check(
+  "deletion replaces Xendit's payload with the redacted marker and the session id",
+  JSON.stringify(paidAfter.raw_callback) === JSON.stringify({ redacted: true, session_id: "ps_1" }),
+  paidAfter.raw_callback,
+);
+check(
+  "deletion keeps the markers a late payment is judged by, without the payload",
+  canceledAfter.raw_callback.redacted === true &&
+    canceledAfter.raw_callback.session_id === "ps_2" &&
+    canceledAfter.raw_callback.canceled_by === M4 &&
+    typeof canceledAfter.raw_callback.canceled_at === "string" &&
+    canceledAfter.raw_callback.canceled_paid_ps_2 === true &&
+    !/dana|Dana/.test(JSON.stringify(canceledAfter.raw_callback)),
+  canceledAfter.raw_callback,
+);
+check(
+  "another person's invoice is untouched",
+  JSON.stringify(await invoice(I_OTHER)) === otherBefore,
+);
+const noteBefore = (
+  await q(`SELECT note FROM public.billing_subscriptions WHERE id = $1`, [S_OWN])
+)[0].note;
+const late = (
+  await svc(
+    `SELECT public.billing_record_invoice_result($1, 'ps_2', 'PAID', NULL, now(), 'GCASH', '{}'::jsonb) AS r`,
+    [`sub_${S_OWN}_2`],
+  )
+)[0].r;
+const ownAfter = (
+  await q(`SELECT status, note, owner_user_id FROM public.billing_subscriptions WHERE id = $1`, [
+    S_OWN,
+  ])
+)[0];
+check(
+  "after the deletion, a repeat of the late payment still isn't applied or noted twice",
+  late.applied === false &&
+    ownAfter.status === "canceled" &&
+    ownAfter.note === noteBefore &&
+    ownAfter.owner_user_id === null,
+  { late, ownAfter },
 );
 
 console.log(failures ? `\n${failures} failing` : "\nall passing");

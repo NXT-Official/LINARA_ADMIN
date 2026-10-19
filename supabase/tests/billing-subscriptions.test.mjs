@@ -16,7 +16,10 @@
 // only the plan's included seats, seat counts stay within 0 to 1000, a first
 // payment from a buyer who has since handed over replaces nothing, staff revoke
 // a subscription for good (no renew, cancel, link or payment brings it back),
-// the server key is nobody's household, applying the file again leaves the
+// the server key is nobody's household, a household's cancel expires its
+// pending invoices (a late payment of one is noted for a refund, staff can't
+// mark one paid), the free tier never names a revoked subscription, a plan
+// with subscribers keeps its interval, applying the file again leaves the
 // data alone, and it upgrades a database from before revoked_at. Ported from LINARA 594daf6
 // supabase/tests/subscriptions.test.mjs (S-22, S-27).
 //
@@ -1881,11 +1884,22 @@ await expectError(
   /^That subscription is already revoked\.$/,
 );
 await setEnd(farmComp.subscription_id, `now() + interval '10 days'`);
+const eFarmAhead = await entitlements(H6);
 check(
   "revoke: a revoked subscription gives no entitlement even with a period ahead",
-  (await entitlements(H6)).source === "free",
+  eFarmAhead.source === "free" && eFarmAhead.subscription_id !== farmComp.subscription_id,
+  eFarmAhead,
 );
 await setEnd(farmComp.subscription_id, `now() - interval '1 second'`);
+const eFarmOver = await entitlements(H6);
+check(
+  "revoke: once its period is over, the free tier still doesn't name it (nothing to renew)",
+  eFarmOver.source === "free" &&
+    eFarmOver.subscription_id === null &&
+    (await myBilling(H6)).entitlements.subscription_id === null &&
+    (await householdDetail(H6)).entitlements.subscription_id === null,
+  eFarmOver,
+);
 const farmMine = (await myBilling(H6)).subscriptions.find((s) => s.id === farmComp.subscription_id);
 check(
   "revoke: the household page still lists it, canceled and revoked (no note)",
@@ -1912,6 +1926,17 @@ check(
       false,
   eRegrant,
 );
+// The revoked plan ended later than the new grant: the free tier still names the grant.
+await setEnd(regrant.subscription_id, `now() - interval '8 days'`);
+const eBothOver = await entitlements(H6);
+check(
+  "revoke: with both over, the free tier names the expired grant, not the revoked plan that ended later",
+  eBothOver.source === "free" &&
+    eBothOver.subscription_id === regrant.subscription_id &&
+    (await myBilling(H6)).entitlements.subscription_id === regrant.subscription_id,
+  eBothOver,
+);
+await setEnd(regrant.subscription_id, THIRTY_DAYS);
 
 // A paid plan with time left ends now too, and every invoice of it not paid is marked.
 as(M2);
@@ -2296,6 +2321,122 @@ check(
   "no audit row carries an amount or a seat count",
   !log.some((a) => /centavos|price|amount|seats|base|₱/.test(JSON.stringify(a.metadata))),
   log.map((a) => a.metadata),
+);
+
+// --- A household's cancel closes its unpaid invoices ------------------------------------------
+const WEN = "00000000-0000-0000-0000-0000000000bc"; // primary of H16
+const H16 = "10000000-0000-0000-0000-000000000016";
+await db.exec(`
+  INSERT INTO auth.users (id, email) VALUES ('${WEN}', 'wendy@example.com');
+  INSERT INTO public.households (id, name) VALUES ('${H16}', 'Wendy Household');
+  INSERT INTO public.household_managers (household_id, user_id, role) VALUES
+    ('${H16}', '${WEN}', 'primary_manager');
+`);
+as(WEN);
+const sWen = await start(MONTHLY, 1, 2, [H16]);
+await attach(sWen.invoice_id, "xs_wen", XENDIT("xs_wen"));
+await pay(sWen.external_id, "PAID", null, "xs_wen");
+const rWen = await renew(sWen.subscription_id);
+await attach(rWen.invoice_id, "xs_wen_2", XENDIT("xs_wen_2"));
+await cancel(sWen.subscription_id);
+const wenCanceled = await subRow(sWen.subscription_id);
+const wenRenewal = await invoiceRow(rWen.invoice_id);
+check(
+  "cancel: its pending invoice expires, marked canceled by the household, with when",
+  wenRenewal.status === "expired" &&
+    wenRenewal.raw_callback.canceled_by === WEN &&
+    (await nearNow(wenRenewal.raw_callback.canceled_at)),
+  wenRenewal,
+);
+check(
+  "cancel: the paid invoice is left alone",
+  (await invoiceRow(sWen.invoice_id)).status === "paid" &&
+    !("canceled_by" in ((await invoiceRow(sWen.invoice_id)).raw_callback ?? {})),
+);
+check(
+  "cancel: the household's own page shows the invoice expired",
+  (await myBilling(H16)).invoices.find((i) => i.id === rWen.invoice_id)?.status === "expired",
+);
+const wenCanceledOn = (
+  await one(`SELECT to_char($1::timestamptz AT TIME ZONE 'Asia/Manila', 'YYYY-MM-DD') AS d`, [
+    wenCanceled.canceled_at,
+  ])
+).d;
+const wenLateNote = `Paid ${rWen.invoice_number} after the household canceled it on ${wenCanceledOn}; refund in Xendit`;
+const wenLate = await pay(rWen.external_id, "PAID", null, "xs_wen_2");
+const wenAfter = await subRow(sWen.subscription_id);
+check(
+  "cancel: a PAID for the canceled invoice is not applied; the plan stays canceled, a refund is noted",
+  wenLate.applied === false &&
+    wenAfter.status === "canceled" &&
+    wenAfter.current_period_end.getTime() === wenCanceled.current_period_end.getTime() &&
+    wenAfter.note === wenLateNote &&
+    (await invoiceRow(rWen.invoice_id)).status === "expired" &&
+    (await invoiceRow(rWen.invoice_id)).raw_callback.canceled_paid_xs_wen_2?.event ===
+      "payment_session.completed",
+  { wenLate, note: wenAfter.note },
+);
+await pay(rWen.external_id, "PAID", null, "xs_wen_2");
+check(
+  "cancel: the same PAID again adds no second note",
+  (await subRow(sWen.subscription_id)).note === wenLateNote,
+);
+await pay(rWen.external_id, "PAID", null, "xs_wen_3");
+check(
+  "cancel: another session paying it is noted again, for its own refund",
+  (await subRow(sWen.subscription_id)).note === `${wenLateNote}\n${wenLateNote}` &&
+    "canceled_paid_xs_wen_3" in (await invoiceRow(rWen.invoice_id)).raw_callback,
+);
+const wenExpired = await pay(rWen.external_id, "EXPIRED", null, "xs_wen_2");
+check("cancel: a late EXPIRED for it changes nothing", wenExpired.applied === false);
+await expectError(
+  "cancel: staff can't mark the canceled invoice paid",
+  () => markPaid(rWen.invoice_id, "gcash", "late"),
+  /^The household canceled this plan before paying this invoice, so it can't be marked paid\. Refund the payment instead\.$/,
+);
+check(
+  "cancel: the refused mark changed nothing",
+  (await subRow(sWen.subscription_id)).status === "canceled" &&
+    (await invoiceRow(rWen.invoice_id)).status === "expired",
+);
+const wenResume = await renew(sWen.subscription_id);
+check(
+  "cancel: renewing afterwards makes a new invoice, not the canceled one",
+  wenResume.reused === false &&
+    wenResume.invoice_id !== rWen.invoice_id &&
+    (await invoiceRow(wenResume.invoice_id)).status === "pending",
+  wenResume,
+);
+
+// --- A plan with subscribers keeps its interval ------------------------------------------------
+const savePlan = (doc) =>
+  svcRpc(`public.billing_save_plan($1, $2::jsonb)`, [A1, JSON.stringify(doc)]);
+const planRow = (planId) => one(`SELECT * FROM public.billing_plans WHERE id = $1`, [planId]);
+const monthlyDoc = (
+  await one(`SELECT to_jsonb(p) AS j FROM public.billing_plans p WHERE id = $1`, [MONTHLY])
+).j;
+await expectError(
+  "plans: a plan with subscribers can't change how often it bills",
+  () => savePlan({ ...monthlyDoc, interval: "yearly" }),
+  /^This plan has subscribers; make a new plan to change how often it bills\.$/,
+);
+check("plans: the refused save changed nothing", (await planRow(MONTHLY)).interval === "monthly");
+check(
+  "plans: a plan with subscribers still takes other edits at the same interval",
+  (await savePlan({ ...monthlyDoc, tagline: "For one home" })) === MONTHLY &&
+    (await planRow(MONTHLY)).tagline === "For one home",
+);
+const unsold = await savePlan({ name: "Unsold", interval: "monthly" });
+check(
+  "plans: a plan nobody has subscribed to can change its interval",
+  (await savePlan({ id: unsold, name: "Unsold", interval: "yearly" })) === unsold &&
+    (await planRow(unsold)).interval === "yearly",
+);
+await db.exec(readFileSync(resolve(REPO, "016-billing-plans.sql"), "utf8"));
+await expectError(
+  "plans: 016 applied again after 017 still refuses the interval change",
+  () => savePlan({ ...monthlyDoc, interval: "one_time" }),
+  /^This plan has subscribers; make a new plan to change how often it bills\.$/,
 );
 
 // --- Applying the file again -------------------------------------------------------------------

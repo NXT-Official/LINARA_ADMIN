@@ -1,5 +1,5 @@
--- LINARA_ADMIN, Phase 8 — in-app support. Apply after 015-business-permissions.sql
--- (nothing here needs 016 to 018).
+-- LINARA_ADMIN, Phase 8 — in-app support. Apply after 017-billing-subscriptions.sql
+-- (a processed deletion now also redacts the person's invoices; 018 isn't needed).
 -- Spec: 2026-10-19-sell-linara-design.md (in-app support).
 --
 -- Apply by hand in the Supabase SQL editor: linara dev first. One transaction.
@@ -24,8 +24,12 @@
 --    so it is dropped and created again and its grant restated.
 -- 5. A processed deletion also clears in-app messages (FR-DL-6, S-23): every
 --    message on the person's tickets, and anything they wrote on another
---    manager's ticket. 014's staff_process_deletion plus that one step; same
---    signature, so its grant stays.
+--    manager's ticket. And it redacts the invoices of the subscriptions they
+--    owned: invoices are kept as financial records, without the payer's email
+--    or Xendit's payloads (raw_callback becomes {redacted, session_id} plus the
+--    markers the payment logic reads). 014's staff_process_deletion plus those
+--    steps; same signature, so its grant stays. The invoice step looks the
+--    table up first (to_regclass), so a database without 017 still deletes.
 -- Privileges are granted by explicit function lists. The only main-app table
 -- read is household_managers; nothing here changes one.
 
@@ -366,7 +370,8 @@ $$;
 
 -- ---------------------------------------------------------------- Deletion (D36, D37)
 
--- 014's staff_process_deletion, now also clearing in-app messages (FR-DL-6, S-23).
+-- 014's staff_process_deletion, now also clearing in-app messages (FR-DL-6, S-23)
+-- and redacting the deleted person's invoices.
 CREATE OR REPLACE FUNCTION public.staff_process_deletion(p_actor UUID, p_request_id UUID)
 RETURNS JSONB
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
@@ -387,6 +392,28 @@ BEGIN
 
     SELECT coalesce(p.user_type, r.user_type) INTO v_kind
     FROM (SELECT 1) x LEFT JOIN public.user_profiles p ON p.id = r.user_id;
+
+    -- Invoices are financial records and stay, but not who paid: the email given
+    -- to Xendit goes, and Xendit's payloads give way to {redacted, session_id}.
+    -- Kept: the markers billing_settle_invoice reads (replaced_by, revoked_by,
+    -- canceled_by, canceled_at, and which sessions' late payments were already
+    -- noted, as true), so a payment arriving after the deletion is handled the
+    -- same. Before the account goes: deleting it clears owner_user_id. An
+    -- account already deleted by hand has lost that link, so nothing is found.
+    IF to_regclass('public.billing_invoices') IS NOT NULL THEN
+        UPDATE public.billing_invoices i
+        SET payer_email = NULL,
+            raw_callback = jsonb_build_object('redacted', true, 'session_id', i.xendit_session_id)
+                || coalesce((
+                       SELECT jsonb_object_agg(k.key, CASE WHEN k.key ~ '^(revoked|canceled)_paid_'
+                                                           THEN 'true'::JSONB ELSE k.value END)
+                       FROM jsonb_each(CASE WHEN jsonb_typeof(i.raw_callback) = 'object'
+                                            THEN i.raw_callback ELSE '{}'::JSONB END) k
+                       WHERE k.key IN ('replaced_by', 'revoked_by', 'canceled_by', 'canceled_at')
+                          OR k.key ~ '^(revoked|canceled)_paid_'), '{}'::JSONB)
+        WHERE i.subscription_id IN (SELECT s.id FROM public.billing_subscriptions s
+                                    WHERE s.owner_user_id = r.user_id);
+    END IF;
 
     IF EXISTS (SELECT 1 FROM auth.users u WHERE u.id = r.user_id) THEN
         v_result := public.process_account_deletion(r.user_id);

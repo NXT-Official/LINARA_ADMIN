@@ -295,6 +295,24 @@ describe("Conversation (in-app tickets)", () => {
     expect(screen.getByLabelText("Reply to the household")).toBeEnabled();
   });
 
+  it("says the household opened an in-app ticket, not a former team member", async () => {
+    m.get.mockResolvedValue({ ok: true, ticket: { ...inApp, createdBy: "u1" } });
+    renderPage();
+    await screen.findByText("Where is my invite?");
+    // The creator is the household's manager: no "Logged by: Former member" row.
+    const row = screen.getByText("Opened by").parentElement!;
+    expect(row).toHaveTextContent("The household");
+    expect(row).not.toHaveTextContent("Former member");
+    expect(screen.queryByText("Logged by")).toBeNull();
+  });
+
+  it("names who logged a ticket from another channel", async () => {
+    renderPage();
+    await screen.findByRole("heading", { name: /Can't add/ });
+    expect(screen.getByText("Logged by")).toBeInTheDocument();
+    expect(screen.queryByText("Opened by")).toBeNull();
+  });
+
   it("marks the household's messages read once while they are unread", async () => {
     m.get.mockResolvedValue({ ok: true, ticket: inApp });
     renderPage();

@@ -154,7 +154,10 @@ export type AuditEntry = {
     | "invoice"
     | "plan"
     | "settings"
-    | "faq";
+    | "faq"
+    | "subscription"
+    | "cost"
+    | "model_price";
   targetId: string;
   reason: string | null;
   at: string;

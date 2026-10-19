@@ -9,8 +9,10 @@ import {
   householdIdOf,
   parseGrantInput,
   parseMarkPaidInput,
+  parseRevokeInput,
   type GrantInput,
   type MarkPaidInput,
+  type RevokeInput,
 } from "./billing.input";
 import type {
   BillingEntitlements,
@@ -20,9 +22,10 @@ import type {
   GrantResult,
   HouseholdBilling,
   MarkPaidResult,
+  RevokeResult,
 } from "./billing.types";
 
-/** A household's plan and billing, and the two staff writes on it (billing.view / billing.manage). */
+/** A household's plan and billing, and the staff writes on it (billing.view / billing.manage). */
 
 async function run<T>(fn: () => Promise<T>): Promise<T | PublicError> {
   try {
@@ -73,6 +76,7 @@ type DbSubscription = {
   canceled_at: string | null;
   note: string | null;
   created_at: string;
+  revoked: boolean;
 };
 
 type DbInvoice = {
@@ -132,6 +136,7 @@ export function toHouseholdBilling(d: DbDetail): HouseholdBilling {
       canceledAt: s.canceled_at,
       note: s.note,
       createdAt: s.created_at,
+      revoked: s.revoked === true,
     })),
     invoices: (d.invoices ?? []).map((i): BillingInvoice => ({
       id: i.id,
@@ -187,6 +192,21 @@ export function grantPlanHandler(input: GrantInput): Promise<GrantResult | Publi
       p_reason: g.reason,
     });
     return { ok: true as const, subscriptionId: res.subscription_id, invoiceId: res.invoice_id };
+  });
+}
+
+/** Ends a subscription for good (billing_revoke); the household drops to the free tier. */
+export function revokeSubscriptionHandler(input: RevokeInput): Promise<RevokeResult | PublicError> {
+  return run(async () => {
+    const v = parseRevokeInput(input);
+    const staff = await requireStaff("billing.manage");
+    await requireFreshCode(staff, v.code);
+    await call<null>("billing_revoke", {
+      p_actor: staff.userId,
+      p_subscription_id: v.subscriptionId,
+      p_reason: v.reason,
+    });
+    return { ok: true as const };
   });
 }
 

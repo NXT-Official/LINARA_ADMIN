@@ -69,6 +69,10 @@ export function parseTicketInput(input: TicketInput) {
   const body = text(input.body);
   if (!body || body.length > 5000) throw bad("Write the details, up to 5,000 characters.");
   if (!TICKET_CHANNELS.includes(input.channel)) throw bad("Pick where the message came from.");
+  // In-app tickets are opened only by the household, from the app.
+  if (input.channel === "in_app") {
+    throw bad("In-app tickets come from the household app. Pick where this message came from.");
+  }
   if (!TICKET_CATEGORIES.includes(input.category)) throw bad("Pick a category.");
   const contact = text(input.contact);
   if (contact.length > 120) throw bad("Keep the contact to 120 characters.");

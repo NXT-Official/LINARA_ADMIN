@@ -9,16 +9,17 @@ import { listPlansFn } from "@/features/plans/plans.actions";
 import { PLAN_KEYS } from "@/features/plans/plans-keys";
 
 import { grantPlanFn } from "../billing.actions";
+import { MAX_SEATS } from "../billing.types";
 
 const checkCls = "h-4 w-4 accent-primary";
 
 type Seats = { value: string; unlimited: boolean };
 
-/** The seats as a limit: null when unlimited, "bad" when it isn't a whole number. */
+/** The seats as a limit: null when unlimited, "bad" unless a whole number from 0 to 1000. */
 function seatsOf(s: Seats): number | null | "bad" {
   if (s.unlimited) return null;
   const t = s.value.trim();
-  return /^[0-9]+$/.test(t) && Number.isSafeInteger(Number(t)) ? Number(t) : "bad";
+  return /^[0-9]+$/.test(t) && Number(t) <= MAX_SEATS ? Number(t) : "bad";
 }
 
 function SeatsField({
@@ -34,11 +35,12 @@ function SeatsField({
 }) {
   return (
     <div className="space-y-1.5">
-      <Field label={label} htmlFor={id}>
+      <Field label={label} htmlFor={id} hint={`0 to ${MAX_SEATS}.`}>
         <Input
           id={id}
           inputMode="numeric"
           autoComplete="off"
+          max={MAX_SEATS}
           value={seats.value}
           disabled={seats.unlimited}
           onChange={(e) => onChange({ ...seats, value: e.target.value })}
@@ -125,7 +127,10 @@ export function GrantPlanDialog({
       }}
       onSubmit={async () => {
         if (helperSeats === "bad" || managerSeats === "bad") {
-          return { ok: false, message: "Seats must be whole numbers, or unlimited." };
+          return {
+            ok: false,
+            message: `Seats must be whole numbers from 0 to ${MAX_SEATS}, or unlimited.`,
+          };
         }
         const res = await grantPlanFn({
           data: {

@@ -31,10 +31,7 @@ const seats = (n: number | null) => (n === null ? "Unlimited" : String(n));
 
 /** The status moves a row offers, by its current status (the database refuses any other). */
 const MOVES: Record<PlanStatus, { label: string; to: PlanStatus; done: string }[]> = {
-  draft: [
-    { label: "Publish", to: "active", done: "Plan published" },
-    { label: "Archive", to: "archived", done: "Plan archived" },
-  ],
+  draft: [{ label: "Publish", to: "active", done: "Plan published" }],
   active: [
     { label: "Unpublish", to: "draft", done: "Plan unpublished" },
     { label: "Archive", to: "archived", done: "Plan archived" },

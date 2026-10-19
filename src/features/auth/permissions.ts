@@ -59,7 +59,7 @@ export const PERMISSION_LABEL: Record<Permission, string> = {
   "team.manage": "Team: add, remove, change roles; edit custom roles",
   "billing.view": "View plans and billing",
   "billing.manage": "Manage plans and billing",
-  "finance.view": "View finance",
+  "finance.view": "Finance: figures, costs and AI prices",
   "faq.manage": "Manage FAQs",
 };
 

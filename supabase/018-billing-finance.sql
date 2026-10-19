@@ -20,8 +20,8 @@
 --   Staff (service_role only, p_actor first, plain-sentence P0001 refusals):
 --     billing_finance, billing_list_costs, billing_save_cost,
 --     billing_delete_cost, billing_list_model_prices, billing_save_model_price.
---     Writes audit in the same transaction with ids / the model name only,
---     never amounts (S-22).
+--     Writes audit in the same transaction: metadata carries ids, the cost's
+--     month and category, or the model name, never amounts (S-22).
 --
 -- Definitions: days are Manila days, p_from..p_to inclusive. Revenue is paid
 -- invoices by paid_at; cost entries count when their month's first day is in

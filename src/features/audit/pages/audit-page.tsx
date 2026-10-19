@@ -18,27 +18,9 @@ import { formatDateTime } from "@/lib/format";
 import { listAuditFn } from "../audit.actions";
 import { AUDIT_CSV } from "../audit.export";
 import type { AuditRow } from "../audit.handlers.server";
-import { actionLabel, targetHref } from "../audit.utils";
+import { actionLabel, TARGET_LABEL, targetHref } from "../audit.utils";
 
 const ANY = "any";
-
-const TARGET_LABEL: Record<string, string> = {
-  user: "User",
-  household: "Household",
-  ticket: "Ticket",
-  contact: "Contact",
-  staff: "Team member",
-  role: "Role",
-  payout: "Payout",
-  export: "Export",
-  import: "Import",
-  helper: "Helper",
-  auth: "Sign-in",
-  invoice: "Invoice",
-  plan: "Plan",
-  settings: "Settings",
-  faq: "FAQ",
-};
 
 function FilterLabel({ htmlFor, children }: { htmlFor: string; children: string }) {
   return (

@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { actionLabel, targetHref } from "./audit.utils";
+import { actionLabel, TARGET_LABEL, targetHref } from "./audit.utils";
 
 describe("actionLabel (FR-AU-1)", () => {
   it("the CRM export has a label", () => {
@@ -41,6 +41,34 @@ describe("actionLabel (FR-AU-1)", () => {
   it("a role audit entry links to the Roles tab (FR-AU-2)", () => {
     expect(targetHref({ targetType: "role", targetId: "r1" })).toBe("/team?tab=roles");
     expect(targetHref({ targetType: "staff", targetId: "u1" })).toBe("/team");
+  });
+
+  it("every target the business SQL (015 to 020) records has a filter label", () => {
+    const sql = [
+      "016-billing-plans.sql",
+      "017-billing-subscriptions.sql",
+      "018-billing-finance.sql",
+    ]
+      .map((f) => readFileSync(resolve(__dirname, "../../../supabase", f), "utf8"))
+      .join("\n");
+    const targets = [
+      ...new Set(
+        [...sql.matchAll(/billing_audit\(p_actor, '[a-z_.]+', '([a-z_]+)'/g)].map((m) => m[1]!),
+      ),
+    ];
+    expect(targets.sort()).toEqual(
+      ["cost", "household", "invoice", "model_price", "plan", "settings", "subscription"].sort(),
+    );
+    expect(targets.filter((t) => !TARGET_LABEL[t])).toEqual([]);
+    expect(TARGET_LABEL.faq).toBe("FAQ");
+  });
+
+  it("business entries link to their pages; a subscription has none of its own", () => {
+    expect(targetHref({ targetType: "plan", targetId: "p1" })).toBe("/plans");
+    expect(targetHref({ targetType: "faq", targetId: "f1" })).toBe("/faqs");
+    expect(targetHref({ targetType: "cost", targetId: "c1" })).toBe("/finance");
+    expect(targetHref({ targetType: "model_price", targetId: "gpt-x" })).toBe("/finance");
+    expect(targetHref({ targetType: "subscription", targetId: "s1" })).toBeNull();
   });
 
   it("has no label for an action nothing records", () => {

@@ -184,6 +184,10 @@ $$;
 -- Creates a plan (no "id") or replaces every field of one (with "id") except its
 -- status, which only billing_set_plan_status changes. Absent optional fields
 -- take their defaults; absent or null seat limits mean unlimited / not sold.
+-- A plan anyone has subscribed to keeps its interval: its subscriptions' periods
+-- and renewals follow it. billing_subscriptions comes with 017, which runs
+-- after this file, so the check looks the table up first (before 017, no plan
+-- has subscribers).
 CREATE OR REPLACE FUNCTION public.billing_save_plan(p_actor UUID, p_plan JSONB) RETURNS UUID
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE
@@ -205,6 +209,7 @@ DECLARE
     v_public BOOLEAN;
     v_sort BIGINT;
     v_created BOOLEAN;
+    v_old_interval TEXT;
     c_money CONSTANT NUMERIC := 1000000000000;
     c_int CONSTANT NUMERIC := 2147483647;
 BEGIN
@@ -273,9 +278,17 @@ BEGIN
         EXCEPTION WHEN invalid_text_representation THEN
             RAISE EXCEPTION 'That plan doesn''t exist.' USING ERRCODE = 'P0001';
         END;
-        PERFORM 1 FROM public.billing_plans WHERE id = v_id FOR UPDATE;
+        SELECT p.interval INTO v_old_interval FROM public.billing_plans p
+        WHERE p.id = v_id FOR UPDATE;
         IF NOT FOUND THEN
             RAISE EXCEPTION 'That plan doesn''t exist.' USING ERRCODE = 'P0001';
+        END IF;
+        IF v_interval <> v_old_interval
+           AND to_regclass('public.billing_subscriptions') IS NOT NULL THEN
+            IF EXISTS (SELECT 1 FROM public.billing_subscriptions s WHERE s.plan_id = v_id) THEN
+                RAISE EXCEPTION 'This plan has subscribers; make a new plan to change how often it bills.'
+                    USING ERRCODE = 'P0001';
+            END IF;
         END IF;
         UPDATE public.billing_plans
         SET name = v_name, tagline = v_tagline, inclusions = v_inclusions, interval = v_interval,

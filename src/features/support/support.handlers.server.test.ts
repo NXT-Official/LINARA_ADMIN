@@ -257,14 +257,25 @@ describe("writes (support.write, D37)", () => {
 });
 
 describe("in-app conversations", () => {
-  it("accepts the in-app channel and the billing category", () => {
+  it("accepts the billing category on a staff ticket, but not the in-app channel", () => {
     const t = parseTicketInput({
       subject: "Seats",
       body: "x",
-      channel: "in_app",
+      channel: "phone",
       category: "billing",
     });
-    expect(t).toMatchObject({ channel: "in_app", category: "billing" });
+    expect(t).toMatchObject({ channel: "phone", category: "billing" });
+    expect(() =>
+      parseTicketInput({ subject: "Seats", body: "x", channel: "in_app", category: "billing" }),
+    ).toThrow("In-app tickets come from the household app. Pick where this message came from.");
+  });
+
+  it("staff can't log an in-app ticket: refused before the guard or the database", async () => {
+    await expect(
+      createTicketHandler({ subject: "Seats", body: "x", channel: "in_app", category: "other" }),
+    ).resolves.toMatchObject({ ok: false, code: "invalid_input" });
+    expect(m.requireStaff).not.toHaveBeenCalled();
+    expect(m.rpc).not.toHaveBeenCalled();
   });
 
   it("maps messages, unread counts and the last message time", async () => {

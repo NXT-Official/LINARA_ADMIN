@@ -202,7 +202,7 @@ await save({
 plans = await list();
 const upd = plans.find((p) => p.id === P1);
 check(
-  "update replaces fields but keeps the status",
+  "update replaces fields (the interval too: before 017 no plan has subscribers) but keeps the status",
   upd.name === "Family Plus" &&
     upd.interval === "yearly" &&
     upd.base_centavos === 299000 &&

@@ -1,13 +1,12 @@
 import { ConsoleError } from "@/lib/console-error";
 import { isUuid } from "@/lib/list-input";
 
-import { INVOICE_CHANNELS, type InvoiceChannel } from "./billing.types";
+import { INVOICE_CHANNELS, MAX_SEATS, type InvoiceChannel } from "./billing.types";
 
 /** What staff type into the billing dialogs, checked before it reaches the database. */
 
 const bad = (message: string) => new ConsoleError("invalid_input", message);
 const text = (v: unknown) => String(v ?? "").trim();
-const MAX_SEATS = 2_147_483_647;
 
 export type GrantInput = {
   householdId: string;
@@ -28,6 +27,12 @@ export type MarkPaidInput = {
   code: string;
 };
 
+export type RevokeInput = {
+  subscriptionId: string;
+  reason: string;
+  code: string;
+};
+
 export function householdIdOf(v: unknown): string {
   if (!isUuid(v)) throw new ConsoleError("not_found", "There's no household with this address.");
   return v;
@@ -36,7 +41,7 @@ export function householdIdOf(v: unknown): string {
 function seats(v: unknown, label: string): number | null {
   if (v === null || v === undefined) return null;
   if (typeof v !== "number" || !Number.isInteger(v) || v < 0 || v > MAX_SEATS) {
-    throw bad(`${label} must be a whole number, zero or more, or unlimited.`);
+    throw bad(`${label} must be a whole number from 0 to ${MAX_SEATS}, or unlimited.`);
   }
   return v;
 }
@@ -74,6 +79,17 @@ export function parseGrantInput(i: GrantInput) {
     managerSeats: seats(i.managerSeats, "Manager seats"),
     periodEnd: dateOrNull(i.periodEnd),
     note: noteOf(i.note),
+    reason: reasonOf(i.reason),
+    code: String(i.code ?? ""),
+  };
+}
+
+export function parseRevokeInput(i: RevokeInput) {
+  if (!isUuid(i.subscriptionId)) {
+    throw new ConsoleError("not_found", "That subscription doesn't exist.");
+  }
+  return {
+    subscriptionId: i.subscriptionId,
     reason: reasonOf(i.reason),
     code: String(i.code ?? ""),
   };

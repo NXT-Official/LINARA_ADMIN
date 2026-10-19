@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const m = vi.hoisted(() => ({ requireStaff: vi.fn(), rpc: vi.fn() }));
+const m = vi.hoisted(() => ({ requireStaff: vi.fn(), rpc: vi.fn(), log: vi.fn() }));
 
 vi.mock("@/features/auth/session.server", () => ({
   requireStaff: (...a: unknown[]) => m.requireStaff(...a),
@@ -8,6 +8,7 @@ vi.mock("@/features/auth/session.server", () => ({
 vi.mock("@/lib/supabase-admin.server", () => ({
   getAdminClient: () => ({ rpc: m.rpc }),
 }));
+vi.mock("@/lib/log.server", () => ({ logError: (...a: unknown[]) => m.log(...a) }));
 
 import { deleteFaqHandler, listFaqsHandler, saveFaqHandler } from "./faq.handlers.server";
 
@@ -24,6 +25,7 @@ const GOOD = {
 beforeEach(() => {
   m.requireStaff.mockReset().mockResolvedValue({ userId: ME });
   m.rpc.mockReset().mockResolvedValue({ data: [], error: null });
+  m.log.mockReset();
 });
 
 describe("faq handlers", () => {
@@ -124,6 +126,21 @@ describe("faq handlers", () => {
       code: "outside_service",
       message: "Something went wrong on our side. Try again.",
     });
+  });
+
+  it("020 not applied yet is on our side, logged once with the function's name", async () => {
+    m.rpc.mockResolvedValue({
+      data: null,
+      error: { code: "42883", message: "function public.faq_list(uuid) does not exist" },
+    });
+    await expect(listFaqsHandler()).resolves.toEqual({
+      ok: false,
+      code: "outside_service",
+      message: "Something went wrong on our side. Try again.",
+    });
+    expect(m.log).toHaveBeenCalledTimes(1);
+    expect(m.log).toHaveBeenCalledWith("faq", expect.any(Error));
+    expect((m.log.mock.calls[0]![1] as Error).message).toMatch(/^faq_list: function /);
   });
 
   it("a refused role never reaches the database", async () => {

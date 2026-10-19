@@ -67,6 +67,11 @@ describe("team emails (FR-TM-4, FR-CRM-11, D45)", () => {
       "admin@x.com added new@x.com to the Business Console team as Support",
     );
     expect(sent()[0].text).toContain("https://console.example.com/audit");
+    // Branded HTML: a details table and a button to the audit log.
+    expect(sent()[0].html).toContain("A team member was added");
+    expect(sent()[0].html).toContain(">New member<");
+    expect(sent()[0].html).toContain('href="https://console.example.com/audit"');
+    expect(sent()[0].html).toContain("Open the audit log");
   });
 
   it("production subjects carry no environment tag", async () => {

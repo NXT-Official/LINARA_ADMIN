@@ -15,6 +15,7 @@ import { serverEnv } from "@/lib/server-env.server";
 import { getAdminClient } from "@/lib/supabase-admin.server";
 
 import { assignableRoles, needsCode, type RoleRow } from "./roles.types";
+import { notifyMemberAdded, notifyMemberRemoved } from "./team-notify.server";
 
 /** The Team screen's members (FR-TM-1 to FR-TM-3, D28, D31, D39). */
 
@@ -232,13 +233,14 @@ export function addAdminHandler(
       outcome = existing ? "reinvited" : "invited";
     }
 
-    // Records itself in the audit log (D39). FR-TM-4's email waits for OQ-13.
+    // Records itself in the audit log (D39), then tells the team's managers (FR-TM-4, D45).
     await call("staff_add_member", {
       p_actor: staff.userId,
       p_user_id: userId,
       p_role_id: input.roleId,
       p_code_checked: !!input.code,
     });
+    await notifyMemberAdded({ actorEmail: staff.email, memberEmail: email, roleName: role.name });
     return { ok: true as const, outcome };
   });
 }
@@ -254,9 +256,15 @@ export function removeAdminHandler(input: RemoveAdminInput): Promise<{ ok: true 
       throw new ConsoleError("not_found", "That person isn't on the team.");
     await requireFreshCode(staff, input.code);
 
+    // Read before removing, for the email; the removal goes ahead without it.
+    const { data: removed } = await getAdminClient().auth.admin.getUserById(input.userId);
     await call("staff_remove_member", { p_actor: staff.userId, p_user_id: input.userId });
     // Their next request fails anyway (the role is gone); this ends their sessions now (FR-TM-3).
     await getAdminClient().rpc("staff_end_sessions", { p_user_id: input.userId });
+    await notifyMemberRemoved({
+      actorEmail: staff.email,
+      memberEmail: removed?.user?.email ?? "A team member",
+    });
     return { ok: true as const };
   });
 }

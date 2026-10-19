@@ -9,6 +9,13 @@ const m = vi.hoisted(() => ({
   role: null as { name: string; preset: string | null; permissions: string[] } | null,
   member: null as { user_id: string } | null,
   getUserById: vi.fn(),
+  added: vi.fn(),
+  removed: vi.fn(),
+}));
+
+vi.mock("./team-notify.server", () => ({
+  notifyMemberAdded: (...a: unknown[]) => m.added(...a),
+  notifyMemberRemoved: (...a: unknown[]) => m.removed(...a),
 }));
 
 vi.mock("@/features/auth/session.server", () => ({
@@ -107,6 +114,12 @@ describe("addAdminHandler (FR-TM-2, D39)", () => {
       p_code_checked: false,
     });
     expect(m.freshCode).not.toHaveBeenCalled();
+    // The team's managers hear about it after the member is added (FR-TM-4, D45).
+    expect(m.added).toHaveBeenCalledWith({
+      actorEmail: "me@console.example.com",
+      memberEmail: "new@console.example.com",
+      roleName: "Sales",
+    });
   });
 
   it("a code is verified before the call when given", async () => {
@@ -355,6 +368,7 @@ describe("removeAdminHandler (FR-TM-3, D39)", () => {
       message: "There has to be at least one admin.",
     });
     expect(m.rpc).not.toHaveBeenCalledWith("staff_end_sessions", expect.anything());
+    expect(m.removed).not.toHaveBeenCalled();
   });
 
   it("removal checks the code, then ends sessions", async () => {
@@ -364,6 +378,10 @@ describe("removeAdminHandler (FR-TM-3, D39)", () => {
     expect(m.freshCode).toHaveBeenCalledWith(ME, "123456");
     expect(m.rpc).toHaveBeenCalledWith("staff_remove_member", { p_actor: "me", p_user_id: B });
     expect(m.rpc).toHaveBeenLastCalledWith("staff_end_sessions", { p_user_id: B });
+    expect(m.removed).toHaveBeenCalledWith({
+      actorEmail: "me@console.example.com",
+      memberEmail: expect.any(String),
+    });
   });
 
   it("other errors say nothing", async () => {

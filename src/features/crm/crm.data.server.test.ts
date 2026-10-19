@@ -7,6 +7,14 @@ const m = vi.hoisted(() => ({
   code: vi.fn(),
   audit: vi.fn(),
   rpc: vi.fn(),
+  exported: vi.fn(),
+}));
+
+vi.mock("@/features/team/team-notify.server", () => ({
+  notifyContactsExported: (...a: unknown[]) => {
+    m.order.push("email");
+    return m.exported(...a);
+  },
 }));
 
 vi.mock("@/features/auth/session.server", () => ({
@@ -70,7 +78,7 @@ const contact = (i: number) => ({
 
 beforeEach(() => {
   m.order = [];
-  m.requireStaff.mockReset().mockResolvedValue({ userId: ME });
+  m.requireStaff.mockReset().mockResolvedValue({ userId: ME, email: "me@console.example.com" });
   m.rate.mockReset().mockResolvedValue(undefined);
   m.code.mockReset().mockResolvedValue(undefined);
   m.audit.mockReset().mockResolvedValue(undefined);
@@ -160,7 +168,9 @@ describe("exportContactsHandler (FR-CRM-11, S-5, S-18)", () => {
     expect(res).toMatchObject({ ok: true });
     expect(m.requireStaff).toHaveBeenCalledWith("crm.export");
     expect(m.rate).toHaveBeenCalledWith("export", { adminId: ME });
-    expect(m.order).toEqual(["guard", "rate", "code", "rpc:crm_export_contacts", "audit"]);
+    // Recorded, then every team manager is emailed (FR-CRM-11, D45).
+    expect(m.order).toEqual(["guard", "rate", "code", "rpc:crm_export_contacts", "audit", "email"]);
+    expect(m.exported).toHaveBeenCalledWith({ actorEmail: "me@console.example.com", rows: 1 });
     if (res.ok)
       expect(res.rows[0]).toMatchObject({ fullName: "Person 1", email: "p1@example.com" });
   });

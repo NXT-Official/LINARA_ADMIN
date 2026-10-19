@@ -1,0 +1,34 @@
+/**
+ * Money is integer centavos in the database (PHP, tax-inclusive). These turn it
+ * into text and back without floating-point drift. `formatPeso` in format.ts
+ * takes pesos; use `centavosToPesos` first when a figure arrives in centavos.
+ */
+
+/**
+ * Integer centavos to "₱1,234.50". Always two decimals, never rounded to whole
+ * pesos. Negative amounts read "−₱80,303.00" (a true minus sign).
+ */
+export function fmtCentavos(c: number): string {
+  const negative = c < 0;
+  const abs = Math.abs(Math.round(c));
+  const pesos = Math.floor(abs / 100);
+  const centavos = String(abs % 100).padStart(2, "0");
+  return `${negative ? "−" : ""}₱${pesos.toLocaleString("en-US")}.${centavos}`;
+}
+
+/**
+ * Centavos from a pesos string ("19.99" -> 1999), or null when it is not pesos
+ * with up to two decimals, or too big to be an exact integer.
+ */
+export function pesosToCentavos(text: string): number | null {
+  const [whole = "", cents, ...rest] = text.trim().split(".");
+  if (rest.length > 0 || !/^[0-9]+$/.test(whole)) return null;
+  if (cents !== undefined && !/^[0-9]{1,2}$/.test(cents)) return null;
+  const centavos = Math.round(Number(text.trim()) * 100);
+  return Number.isSafeInteger(centavos) ? centavos : null;
+}
+
+/** Pesos for a centavo amount (1999 -> 19.99), the unit `formatPeso` takes. */
+export function centavosToPesos(centavos: number): number {
+  return centavos / 100;
+}

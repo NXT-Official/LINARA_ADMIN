@@ -17,6 +17,8 @@ import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
 import { Route as AuthedAiRouteImport } from './routes/_authed/ai'
 import { Route as AuthedAuditRouteImport } from './routes/_authed/audit'
 import { Route as AuthedDeletionsRouteImport } from './routes/_authed/deletions'
+import { Route as AuthedFaqsRouteImport } from './routes/_authed/faqs'
+import { Route as AuthedPlansRouteImport } from './routes/_authed/plans'
 import { Route as AuthedPayoutsRouteImport } from './routes/_authed/payouts'
 import { Route as AuthedTeamRouteImport } from './routes/_authed/team'
 import { Route as SignInIndexRouteImport } from './routes/sign-in/index'
@@ -70,6 +72,16 @@ const AuthedAuditRoute = AuthedAuditRouteImport.update({
 const AuthedDeletionsRoute = AuthedDeletionsRouteImport.update({
   id: '/deletions',
   path: '/deletions',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedFaqsRoute = AuthedFaqsRouteImport.update({
+  id: '/faqs',
+  path: '/faqs',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedPlansRoute = AuthedPlansRouteImport.update({
+  id: '/plans',
+  path: '/plans',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedPayoutsRoute = AuthedPayoutsRouteImport.update({
@@ -157,6 +169,8 @@ export interface FileRoutesByFullPath {
   '/ai': typeof AuthedAiRoute
   '/audit': typeof AuthedAuditRoute
   '/deletions': typeof AuthedDeletionsRoute
+  '/faqs': typeof AuthedFaqsRoute
+  '/plans': typeof AuthedPlansRoute
   '/payouts': typeof AuthedPayoutsRoute
   '/team': typeof AuthedTeamRoute
   '/sign-in/set-up': typeof SignInSetUpRoute
@@ -180,6 +194,8 @@ export interface FileRoutesByTo {
   '/ai': typeof AuthedAiRoute
   '/audit': typeof AuthedAuditRoute
   '/deletions': typeof AuthedDeletionsRoute
+  '/faqs': typeof AuthedFaqsRoute
+  '/plans': typeof AuthedPlansRoute
   '/payouts': typeof AuthedPayoutsRoute
   '/team': typeof AuthedTeamRoute
   '/sign-in/set-up': typeof SignInSetUpRoute
@@ -206,6 +222,8 @@ export interface FileRoutesById {
   '/_authed/ai': typeof AuthedAiRoute
   '/_authed/audit': typeof AuthedAuditRoute
   '/_authed/deletions': typeof AuthedDeletionsRoute
+  '/_authed/faqs': typeof AuthedFaqsRoute
+  '/_authed/plans': typeof AuthedPlansRoute
   '/_authed/payouts': typeof AuthedPayoutsRoute
   '/_authed/team': typeof AuthedTeamRoute
   '/sign-in/set-up': typeof SignInSetUpRoute
@@ -233,6 +251,8 @@ export interface FileRouteTypes {
     | '/ai'
     | '/audit'
     | '/deletions'
+    | '/faqs'
+    | '/plans'
     | '/payouts'
     | '/team'
     | '/sign-in/set-up'
@@ -256,6 +276,8 @@ export interface FileRouteTypes {
     | '/ai'
     | '/audit'
     | '/deletions'
+    | '/faqs'
+    | '/plans'
     | '/payouts'
     | '/team'
     | '/sign-in/set-up'
@@ -281,6 +303,8 @@ export interface FileRouteTypes {
     | '/_authed/ai'
     | '/_authed/audit'
     | '/_authed/deletions'
+    | '/_authed/faqs'
+    | '/_authed/plans'
     | '/_authed/payouts'
     | '/_authed/team'
     | '/sign-in/set-up'
@@ -365,6 +389,20 @@ declare module '@tanstack/react-router' {
       path: '/deletions'
       fullPath: '/deletions'
       preLoaderRoute: typeof AuthedDeletionsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/faqs': {
+      id: '/_authed/faqs'
+      path: '/faqs'
+      fullPath: '/faqs'
+      preLoaderRoute: typeof AuthedFaqsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/plans': {
+      id: '/_authed/plans'
+      path: '/plans'
+      fullPath: '/plans'
+      preLoaderRoute: typeof AuthedPlansRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/payouts': {
@@ -479,6 +517,8 @@ interface AuthedRouteChildren {
   AuthedAiRoute: typeof AuthedAiRoute
   AuthedAuditRoute: typeof AuthedAuditRoute
   AuthedDeletionsRoute: typeof AuthedDeletionsRoute
+  AuthedFaqsRoute: typeof AuthedFaqsRoute
+  AuthedPlansRoute: typeof AuthedPlansRoute
   AuthedPayoutsRoute: typeof AuthedPayoutsRoute
   AuthedTeamRoute: typeof AuthedTeamRoute
   AuthedIndexRoute: typeof AuthedIndexRoute
@@ -498,6 +538,8 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedAiRoute: AuthedAiRoute,
   AuthedAuditRoute: AuthedAuditRoute,
   AuthedDeletionsRoute: AuthedDeletionsRoute,
+  AuthedFaqsRoute: AuthedFaqsRoute,
+  AuthedPlansRoute: AuthedPlansRoute,
   AuthedPayoutsRoute: AuthedPayoutsRoute,
   AuthedTeamRoute: AuthedTeamRoute,
   AuthedIndexRoute: AuthedIndexRoute,

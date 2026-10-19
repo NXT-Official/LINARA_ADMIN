@@ -1,0 +1,22 @@
+supabase/018-billing-finance.sql
+  s_015ef908465883::t_ab4e27522c15d4 1-432
+supabase/tests/billing-finance.test.mjs
+  s_015ef908465883::t_a5bf7c957fcbc5 1-624,627-628,633
+  s_015ef908465883::t_4011c5edcfd01c 625-626,629-632,634-647
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "18ecfd49c450a3a87a86261fd32347810d5108d5",
+  "prompts": {},
+  "sessions": {
+    "s_015ef908465883": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bc0c8d9c-45ff-47d9-bb1d-e5046b9ee7e4",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "naaxtech <naaxtech.official@gmail.com>"
+    }
+  }
+}

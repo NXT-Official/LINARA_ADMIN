@@ -88,6 +88,45 @@ await db.exec(readFileSync(resolve(REPO, "013-roles.sql"), "utf8"));
 await db.exec(readFileSync(resolve(REPO, "014-roles-fixes.sql"), "utf8"));
 
 const SQL_019 = readFileSync(resolve(REPO, "019-support-in-app.sql"), "utf8");
+
+// --- first run refuses CHECKs under other names (each attempt is rolled back) -------------
+const firstRunWith = async (setup) => {
+  await db.exec(`BEGIN; ${setup}`);
+  try {
+    await db.exec(SQL_019);
+    return "applied";
+  } catch (e) {
+    return e.message;
+  } finally {
+    await db.exec("ROLLBACK");
+  }
+};
+const EXPECTED =
+  "019: expected constraints support_tickets_channel_check and support_tickets_category_check (created inline by 010); found";
+let refused = await firstRunWith(`
+  ALTER TABLE public.support_tickets DROP CONSTRAINT support_tickets_channel_check;
+  ALTER TABLE public.support_tickets DROP CONSTRAINT support_tickets_category_check;`);
+check("a first run without 010's CHECKs is refused", refused === `${EXPECTED} none`, refused);
+refused = await firstRunWith(`
+  ALTER TABLE public.support_tickets RENAME CONSTRAINT support_tickets_channel_check TO channel_ok;`);
+check(
+  "a first run with a renamed CHECK is refused and names what it found",
+  refused === `${EXPECTED} channel_ok, support_tickets_category_check`,
+  refused,
+);
+check(
+  "a refused run leaves 010's CHECKs as they were",
+  (
+    await q(
+      `SELECT count(*)::int AS n FROM pg_constraint
+       WHERE conrelid = 'public.support_tickets'::regclass
+         AND conname IN ('support_tickets_channel_check', 'support_tickets_category_check')
+         AND pg_get_constraintdef(oid) NOT LIKE '%in_app%'
+         AND pg_get_constraintdef(oid) NOT LIKE '%billing%'`,
+    )
+  )[0].n === 2,
+);
+
 await db.exec(SQL_019);
 await db.exec(SQL_019);
 
@@ -420,9 +459,17 @@ check(
     m[0].from_staff === false &&
     m[1].from_staff === true &&
     m[1].id === R1 &&
-    m[1].body === "Sent you a new code." &&
-    m[1].author_id === A1,
+    m[1].body === "Sent you a new code.",
   m,
+);
+check(
+  "the household never sees a team member's account id, only its own",
+  m[0].author_id === M1 && m[1].author_id === null && !JSON.stringify(m).includes(A1),
+  m,
+);
+check(
+  "the staff detail keeps the replying team member's id",
+  (await one(`SELECT public.support_get_ticket($1) AS d`, [T])).d.messages[1].author_id === A1,
 );
 await markRead(M1, T);
 check(

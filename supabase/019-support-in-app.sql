@@ -34,6 +34,35 @@ BEGIN;
 -- ---------------------------------------------------------------- Tables
 
 -- 010 named its column CHECKs the Postgres default way (<table>_<column>_check).
+-- On the first run, refuse unless both are there under those names: a silent
+-- DROP ... IF EXISTS would leave the old CHECK refusing in_app and billing.
+-- A re-run finds 019's own CHECKs already allowing both, and skips this.
+DO $$
+DECLARE
+    v_found TEXT;
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_constraint
+               WHERE conrelid = 'public.support_tickets'::regclass AND contype = 'c'
+                 AND pg_get_constraintdef(oid) LIKE '%''in_app''%')
+       AND EXISTS (SELECT 1 FROM pg_constraint
+                   WHERE conrelid = 'public.support_tickets'::regclass AND contype = 'c'
+                     AND pg_get_constraintdef(oid) LIKE '%''billing''%') THEN
+        RETURN;
+    END IF;
+    IF (SELECT count(*) FROM pg_constraint
+        WHERE conrelid = 'public.support_tickets'::regclass AND contype = 'c'
+          AND conname IN ('support_tickets_channel_check', 'support_tickets_category_check')) = 2 THEN
+        RETURN;
+    END IF;
+    SELECT string_agg(DISTINCT c.conname, ', ' ORDER BY c.conname) INTO v_found
+    FROM pg_constraint c
+    JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey)
+    WHERE c.conrelid = 'public.support_tickets'::regclass AND c.contype = 'c'
+      AND a.attname IN ('channel', 'category');
+    RAISE EXCEPTION '019: expected constraints support_tickets_channel_check and support_tickets_category_check (created inline by 010); found %',
+        coalesce(v_found, 'none') USING ERRCODE = 'P0001';
+END $$;
+
 ALTER TABLE public.support_tickets DROP CONSTRAINT IF EXISTS support_tickets_channel_check;
 ALTER TABLE public.support_tickets ADD CONSTRAINT support_tickets_channel_check
     CHECK (channel IN ('messenger', 'viber', 'email', 'phone', 'in_app', 'other'));
@@ -154,7 +183,8 @@ BEGIN
     RETURN v_id;
 END $$;
 
--- The conversation, oldest first.
+-- The conversation, oldest first. A team member's account id never reaches the
+-- household: their messages carry a null author_id (support_get_ticket keeps it).
 CREATE OR REPLACE FUNCTION public.household_support_messages(p_ticket_id UUID) RETURNS JSONB
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE
@@ -162,7 +192,8 @@ DECLARE
 BEGIN
     RETURN coalesce((
         SELECT jsonb_agg(jsonb_build_object(
-                   'id', m.id, 'ticket_id', m.ticket_id, 'author_id', m.author_id,
+                   'id', m.id, 'ticket_id', m.ticket_id,
+                   'author_id', CASE WHEN m.from_staff THEN NULL ELSE m.author_id END,
                    'from_staff', m.from_staff, 'body', m.body, 'created_at', m.created_at)
                ORDER BY m.created_at, m.id)
         FROM public.support_ticket_messages m

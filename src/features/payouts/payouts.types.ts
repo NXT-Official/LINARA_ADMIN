@@ -10,6 +10,7 @@ export const PAYOUT_KINDS: readonly PayoutKind[] = [
   "unclear",
   "stuck",
   "no_answer",
+  "disputed",
 ];
 
 export type PayoutProblem = {

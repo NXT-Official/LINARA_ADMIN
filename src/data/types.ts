@@ -125,7 +125,7 @@ export type DeletionRequest = {
 export type PayoutStatus = "failed" | "ambiguous" | "sending";
 
 /** A payout problem from the latest attempt of a payslip (D38). */
-export type PayoutKind = "failed" | "cancelled" | "unclear" | "stuck" | "no_answer";
+export type PayoutKind = "failed" | "cancelled" | "unclear" | "stuck" | "no_answer" | "disputed";
 
 export type Payout = {
   id: string;

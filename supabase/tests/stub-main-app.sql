@@ -130,7 +130,13 @@ CREATE TABLE public.payslips (
     cutoff_start DATE NOT NULL,
     cutoff_end DATE NOT NULL,
     net_pay NUMERIC(10,2) NOT NULL DEFAULT 0,
-    payout_status TEXT NOT NULL DEFAULT 'pending_send'
+    payout_status TEXT NOT NULL DEFAULT 'pending_send',
+    payout_provider TEXT NOT NULL DEFAULT 'xendit',
+    payout_channel_code TEXT,
+    helper_ack TEXT,
+    helper_ack_at TIMESTAMPTZ,
+    helper_ack_note TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE public.payout_attempts (

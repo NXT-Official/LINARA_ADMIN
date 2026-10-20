@@ -54,6 +54,7 @@ export const PAYOUT_PROBLEM_TONE: Record<PayoutKind, ChipTone> = {
   unclear: "late",
   stuck: "attention",
   no_answer: "late",
+  disputed: "attention",
 };
 
 export const PAYOUT_STATUS_TONE: Record<PayoutStatus, ChipTone> = {

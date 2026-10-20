@@ -7,6 +7,8 @@ const m = vi.hoisted(() => ({
   profile: null as { user_id: string | null; monthly_rate: number | null } | null,
   account: null as { method: string; account_name: string; account_number: string } | null,
   attempt: null as { amount_sent: number | string; payslips: { helper_id: string } | null } | null,
+  rates: [] as { monthly_rate: number | string; effective_from: string }[],
+  slip: null as { net_pay: number | string; helper_id: string } | null,
 }));
 
 vi.mock("@/features/auth/session.server", () => ({
@@ -24,10 +26,13 @@ vi.mock("@/lib/supabase-admin.server", () => ({
           ? m.profile
           : table === "payout_attempts"
             ? m.attempt
-            : m.account;
+            : table === "payslips"
+              ? m.slip
+              : m.account;
       const chain = {
         select: () => chain,
         eq: () => chain,
+        order: async () => ({ data: m.rates, error: null }),
         maybeSingle: async () => ({ data: result, error: null }),
       };
       return chain;
@@ -50,6 +55,8 @@ beforeEach(() => {
   m.profile = { user_id: "u1", monthly_rate: RATE };
   m.account = { method: "PH_GCASH", account_name: "Carla D", account_number: ACCOUNT };
   m.attempt = { amount_sent: "4321.50", payslips: { helper_id: HELPER } };
+  m.rates = [];
+  m.slip = null;
 });
 
 describe("revealPayHandler (FR-US-6, S-17)", () => {
@@ -66,7 +73,28 @@ describe("revealPayHandler (FR-US-6, S-17)", () => {
     const res = await revealPayHandler({ helperId: HELPER, field: "wage" });
     expect(res).toEqual({ ok: true, pay: { field: "wage", monthlyRate: RATE } });
     expect(JSON.stringify(res)).not.toContain(ACCOUNT);
-    expect(m.tables).toEqual(["helper_profiles"]);
+    expect(m.tables).toEqual(["helper_profiles", "helper_wage_rates"]);
+  });
+
+  it("the wage is the one in force today, not the newest (a raise starts at the next cutoff)", async () => {
+    m.rates = [
+      { monthly_rate: 21000, effective_from: "2999-01-01" },
+      { monthly_rate: 18000, effective_from: "2020-01-01" },
+      { monthly_rate: 15000, effective_from: "2019-01-01" },
+    ];
+    m.profile = { user_id: "u1", monthly_rate: 21000 };
+    await expect(revealPayHandler({ helperId: HELPER, field: "wage" })).resolves.toEqual({
+      ok: true,
+      pay: { field: "wage", monthlyRate: 18000 },
+    });
+  });
+
+  it("before her first recorded wage, the first one applies", async () => {
+    m.rates = [{ monthly_rate: 16000, effective_from: "2999-01-01" }];
+    await expect(revealPayHandler({ helperId: HELPER, field: "wage" })).resolves.toEqual({
+      ok: true,
+      pay: { field: "wage", monthlyRate: 16000 },
+    });
   });
 
   it("an account click returns the payout account only", async () => {
@@ -154,6 +182,17 @@ describe("revealPayoutAmountHandler (FR-PO-1, S-17, D38)", () => {
     expect(m.tables).toEqual(["payout_attempts"]);
   });
 
+  it("a disputed direct payment has no attempt: its row id is the payslip's", async () => {
+    m.attempt = null;
+    m.slip = { net_pay: "1500.25", helper_id: HELPER };
+    await expect(revealPayoutAmountHandler({ attemptId: ATTEMPT })).resolves.toEqual({
+      ok: true,
+      amount: 1500.25,
+    });
+    expect(m.tables).toEqual(["payout_attempts", "payslips"]);
+    expect(m.audit).toHaveBeenCalledWith(expect.objectContaining({ targetId: HELPER }));
+  });
+
   it("reveal audit holds ids only", async () => {
     await revealPayoutAmountHandler({ attemptId: ATTEMPT });
     expect(m.audit).toHaveBeenCalledWith({
@@ -175,6 +214,7 @@ describe("revealPayoutAmountHandler (FR-PO-1, S-17, D38)", () => {
 
   it("an unknown attempt says not found and records nothing", async () => {
     m.attempt = null;
+    m.slip = null;
     await expect(revealPayoutAmountHandler({ attemptId: ATTEMPT })).resolves.toMatchObject({
       code: "not_found",
     });

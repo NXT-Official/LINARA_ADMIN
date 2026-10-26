@@ -100,7 +100,7 @@ export function limitsSummary(content: PlanContent): string {
 }
 
 export type ContentErrors = Partial<
-  Record<"name" | "description" | "trialDays" | "prices" | Cycle | LimitKey, string>
+  Record<"name" | "description" | "trialDays" | "prices" | "features" | Cycle | LimitKey, string>
 >;
 
 /** What's wrong with a plan's content, by field. Empty when it can be saved. */
@@ -134,6 +134,10 @@ export function validateContent(
   }
   if (opts.forPublish && CYCLES.every((c) => content.prices[c] === null)) {
     errors.prices = "Set at least one price before publishing. A free plan is ₱0 a month.";
+  }
+  const offRight = FEATURES.find((f) => f.everyPlan && !content.features[f.key]);
+  if (offRight) {
+    errors.features = `${offRight.name} stays on every plan. ${offRight.everyPlan}`;
   }
   for (const k of LIMIT_KEYS) {
     const v = content.limits[k];
@@ -245,7 +249,7 @@ function blankContent(name: string): PlanContent {
     description: "",
     prices: { monthly: null, annual: null, one_time: null },
     trialDays: 0,
-    features: Object.fromEntries(FEATURES.map((f) => [f.key, false])) as Record<
+    features: Object.fromEntries(FEATURES.map((f) => [f.key, !!f.everyPlan])) as Record<
       FeatureKey,
       boolean
     >,

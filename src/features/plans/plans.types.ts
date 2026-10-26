@@ -35,6 +35,12 @@ export type Feature = {
   description: string;
   /** The global switch that can turn it off for everyone, if any. */
   switchKey?: SwitchKey;
+  /**
+   * On every plan and never switched off by one, with the reason shown in the
+   * editor: the kasambahay's rest, leave and record are hers by law
+   * (RA 10361) whatever the household pays.
+   */
+  everyPlan?: string;
 };
 
 export type PlanContent = {

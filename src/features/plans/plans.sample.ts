@@ -8,11 +8,17 @@ export const FEATURES: Feature[] = [
   { key: "quick_utos", name: "Quick Utos", description: "Short instructions sent to staff." },
   { key: "schedule", name: "Schedule", description: "Shifts, appointments and availability." },
   { key: "pantry", name: "Pantry and groceries", description: "Stock, restocks and market runs." },
-  { key: "time_off", name: "Leave and rest days", description: "Leave requests and rest-off." },
+  {
+    key: "time_off",
+    name: "Leave and rest days",
+    description: "Leave requests and rest-off.",
+    everyPlan: "Her weekly rest day and yearly leave are hers by law (RA 10361).",
+  },
   {
     key: "after_hours",
     name: "After-hours ledger",
     description: "Extra hours worked and how they're settled.",
+    everyPlan: "It's how her rest owed is kept and given back, so it stays on every plan.",
   },
   { key: "teams_labels", name: "Teams and labels", description: "Grouping staff in big homes." },
   {
@@ -20,7 +26,12 @@ export const FEATURES: Feature[] = [
     name: "Remote admin",
     description: "A manager abroad who follows and approves.",
   },
-  { key: "work_record", name: "Work record export", description: "A helper's record as a PDF." },
+  {
+    key: "work_record",
+    name: "Work record export",
+    description: "A helper's record as a PDF.",
+    everyPlan: "Her record is hers to keep, so it stays on every plan.",
+  },
   {
     key: "staff_pay_hr",
     name: "Staff pay & HR",
@@ -35,8 +46,9 @@ export const LIMIT_LABEL: Record<LimitKey, { one: string; many: string; field: s
   co_managers: { one: "co-manager", many: "co-managers", field: "Co-managers" },
 };
 
+/** A plan's features: the ones named, plus every one that's on every plan. */
 const all = (on: FeatureKey[]): Record<FeatureKey, boolean> =>
-  Object.fromEntries(FEATURES.map((f) => [f.key, on.includes(f.key)])) as Record<
+  Object.fromEntries(FEATURES.map((f) => [f.key, !!f.everyPlan || on.includes(f.key)])) as Record<
     FeatureKey,
     boolean
   >;

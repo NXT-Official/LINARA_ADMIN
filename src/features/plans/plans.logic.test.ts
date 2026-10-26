@@ -138,6 +138,35 @@ describe("validateContent", () => {
 /** The sample plus a new, unpriced draft: every sample plan is published. */
 const WITH_DRAFT = ok(run(SAMPLE_CATALOG, { type: "create_plan", id: "family", name: "Family" }));
 
+describe("a kasambahay's rights are on every plan (RA 10361)", () => {
+  const RIGHTS = ["time_off", "after_hours", "work_record"] as const;
+
+  it("every sample plan, and a brand-new draft, includes leave, rest owed and her record", () => {
+    for (const p of WITH_DRAFT.plans) {
+      for (const k of RIGHTS) expect(p.content.features[k], `${p.id} ${k}`).toBe(true);
+    }
+  });
+
+  it("refuses turning one off, on a draft or a published plan", () => {
+    for (const k of RIGHTS) {
+      for (const planId of ["free", "family"]) {
+        const res = run(WITH_DRAFT, {
+          type: "save_plan",
+          planId,
+          content: withContent(WITH_DRAFT, planId, {
+            features: { ...plan(WITH_DRAFT, planId).content.features, [k]: false },
+          }),
+        });
+        expect(refused(res), `${planId} ${k}`).toMatch(/stays on every plan/);
+      }
+    }
+  });
+
+  it("other features still follow the plan", () => {
+    expect(plan(SAMPLE_CATALOG, "free").content.features.pantry).toBe(false);
+  });
+});
+
 describe("saving a plan", () => {
   it("saves a draft in place, with no version", () => {
     const s = ok(

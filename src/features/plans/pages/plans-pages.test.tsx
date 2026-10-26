@@ -194,6 +194,18 @@ describe("PlanPage (D47)", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps a kasambahay's leave, rest owed and record on, and won't let them be unticked", () => {
+    render(<PlanPage planId="free" />);
+    for (const name of ["Leave and rest days", "After-hours ledger", "Work record export"]) {
+      const box = screen.getByLabelText(name) as HTMLInputElement;
+      expect(box.checked, name).toBe(true);
+      expect(box.disabled, name).toBe(true);
+    }
+    expect((screen.getByLabelText("Pantry and groceries") as HTMLInputElement).disabled).toBe(
+      false,
+    );
+  });
+
   it("says when the plan doesn't exist", () => {
     render(<PlanPage planId="nope" />);
     expect(screen.getByText("This plan isn't in the catalog")).toBeInTheDocument();

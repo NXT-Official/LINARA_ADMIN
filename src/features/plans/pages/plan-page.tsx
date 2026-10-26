@@ -441,19 +441,22 @@ function PlanEditor({ plan }: { plan: Plan }) {
 
           <Surface
             title="Features"
-            description="What the plan unlocks. The list is fixed: a new feature needs a code change first."
+            description="What the plan unlocks. The list is fixed: a new feature needs a code change first. A kasambahay's rest, leave and record are on every plan."
           >
             <fieldset disabled={locked} className="-my-2.5 divide-y divide-border">
               <legend className="sr-only">Features</legend>
               {FEATURES.map((f) => (
                 <Checkbox
                   key={f.key}
-                  checked={form.features[f.key]}
+                  checked={f.everyPlan ? true : form.features[f.key]}
+                  disabled={!!f.everyPlan}
                   label={f.name}
-                  description={f.description}
+                  description={f.everyPlan ? `${f.description} ${f.everyPlan}` : f.description}
                   onChange={(on) => set({ features: { ...form.features, [f.key]: on } })}
                   extra={
-                    featureOffForEveryone(state, f.key) ? (
+                    f.everyPlan ? (
+                      <StatusChip tone="done">Every plan</StatusChip>
+                    ) : featureOffForEveryone(state, f.key) ? (
                       <RecordLink to="/switches" className="text-xs">
                         Off for everyone
                       </RecordLink>
@@ -462,6 +465,9 @@ function PlanEditor({ plan }: { plan: Plan }) {
                 />
               ))}
             </fieldset>
+            {errors.features ? (
+              <p className="mt-3 text-xs font-semibold text-destructive">{errors.features}</p>
+            ) : null}
           </Surface>
 
           <Surface

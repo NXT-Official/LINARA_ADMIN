@@ -211,6 +211,16 @@ export function statusMoves(plan: Plan): { to: PlanStatus; label: string }[] {
   }
 }
 
+/** Households on a plan (any version, or one version), not counting cancelled ones. */
+export function householdsOn(state: CatalogState, planId: string, version?: number): number {
+  return state.subscriptions.filter(
+    (s) =>
+      s.planId === planId &&
+      s.status !== "cancelled" &&
+      (version === undefined || s.planVersion === version),
+  ).length;
+}
+
 export function featureOffForEveryone(state: CatalogState, key: FeatureKey): boolean {
   const sw = FEATURES.find((f) => f.key === key)?.switchKey;
   return !!sw && state.switches.some((s) => s.key === sw && !s.enabled);
@@ -274,7 +284,6 @@ export function applyAction(
         displayOrder: order,
         content,
         versions: [],
-        subscribers: 0,
       };
       return { ok: true, state: { ...state, plans: [...state.plans, plan] } };
     }
@@ -289,7 +298,12 @@ export function applyAction(
       if (err) return fail(err);
       if (sameContent(plan.content, action.content)) return fail("Nothing has changed.");
       const content = { ...action.content, name: action.content.name.trim() };
-      if (!isVersioned(plan)) return { ok: true, state: withPlan(state, { ...plan, content }) };
+      // A price someone saved is a real one, not the sample's placeholder.
+      const pricePlaceholder =
+        plan.pricePlaceholder && CYCLES.every((c) => plan.content.prices[c] === content.prices[c]);
+      if (!isVersioned(plan)) {
+        return { ok: true, state: withPlan(state, { ...plan, content, pricePlaceholder }) };
+      }
       const version = {
         version: currentVersion(plan) + 1,
         savedAt: at,
@@ -302,6 +316,7 @@ export function applyAction(
         state: withPlan(state, {
           ...plan,
           content,
+          pricePlaceholder,
           versions: [version, ...plan.versions],
         }),
       };
@@ -341,7 +356,7 @@ export function applyAction(
     case "delete_plan": {
       const plan = find(action.planId);
       if (!plan) return fail("This plan isn't in the catalog any more.");
-      if (plan.status !== "draft" || isVersioned(plan) || plan.subscribers > 0) {
+      if (plan.status !== "draft" || isVersioned(plan) || householdsOn(state, plan.id) > 0) {
         return fail("Only a draft that was never published can be deleted. Retire it instead.");
       }
       return { ok: true, state: { ...state, plans: state.plans.filter((p) => p.id !== plan.id) } };

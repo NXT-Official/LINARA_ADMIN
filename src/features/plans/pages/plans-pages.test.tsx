@@ -20,7 +20,7 @@ Element.prototype.scrollIntoView ??= vi.fn();
 Element.prototype.hasPointerCapture ??= () => false;
 Element.prototype.releasePointerCapture ??= vi.fn();
 
-import { resetCatalog } from "../plans.store";
+import { dispatchCatalog, resetCatalog } from "../plans.store";
 import { PlanPage } from "./plan-page";
 import { PlansPage } from "./plans-page";
 import { SwitchesPage } from "./switches-page";
@@ -43,7 +43,10 @@ describe("PlansPage (D47)", () => {
       .getAllByRole("link")
       .map((a) => a.textContent);
     expect(names).toEqual(["Free", "Normal", "Premium"]);
-    expect(table("Plans").getAllByText("Not priced")).toHaveLength(2);
+    // Normal and Premium carry placeholder prices; household counts come from the subscriptions.
+    expect(table("Plans").getAllByText("Placeholder price")).toHaveLength(2);
+    const free = table("Plans").getByText("Free").closest("tr")!;
+    expect(within(free).getByText("1 household")).toBeInTheDocument();
   });
 
   it("reorders, and the ends can't move further", () => {
@@ -106,9 +109,17 @@ describe("PlansPage (D47)", () => {
   });
 });
 
+/** Every sample plan is published, so draft cases start from a new one. */
+function newDraft() {
+  act(() => {
+    dispatchCatalog({ type: "create_plan", id: "family", name: "Family" });
+  });
+}
+
 describe("PlanPage (D47)", () => {
-  it("won't publish Normal while it has no price", async () => {
-    render(<PlanPage planId="normal" />);
+  it("won't publish a draft while it has no price", async () => {
+    newDraft();
+    render(<PlanPage planId="family" />);
     fireEvent.click(screen.getByRole("button", { name: "Publish" }));
     await act(async () => {
       fireEvent.click(dialog().getByRole("button", { name: "Publish" }));
@@ -117,7 +128,8 @@ describe("PlanPage (D47)", () => {
   });
 
   it("flags a malformed price and won't save it", () => {
-    render(<PlanPage planId="normal" />);
+    newDraft();
+    render(<PlanPage planId="family" />);
     fireEvent.click(screen.getByLabelText("Sold monthly"));
     const price = screen.getByLabelText("Monthly price in pesos");
     type(price, "12.345");
@@ -127,7 +139,8 @@ describe("PlanPage (D47)", () => {
   });
 
   it("saves a price, then publishes as version 1", async () => {
-    render(<PlanPage planId="normal" />);
+    newDraft();
+    render(<PlanPage planId="family" />);
     fireEvent.click(screen.getByLabelText("Sold monthly"));
     type(screen.getByLabelText("Monthly price in pesos"), "199");
     fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
@@ -144,7 +157,7 @@ describe("PlanPage (D47)", () => {
     render(<PlanPage planId="free" />);
     const kasambahay = screen.getByLabelText("Kasambahay");
     type(kasambahay, "2");
-    expect(screen.getByText(/The 42 households already on it keep version 1/)).toBeInTheDocument();
+    expect(screen.getByText(/The 1 household on version 1 keeps it/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Discard" }));
     expect(screen.getByLabelText("Kasambahay")).toHaveValue("1");
     type(screen.getByLabelText("Kasambahay"), "2");
@@ -167,6 +180,18 @@ describe("PlanPage (D47)", () => {
       type(screen.getByLabelText("Households"), bad);
       expect(screen.getByLabelText("Households")).toHaveAttribute("aria-invalid", "true");
     }
+  });
+
+  it("says the sample prices are placeholders", () => {
+    render(<PlanPage planId="normal" />);
+    expect(
+      screen.getByText(/placeholder prices until marketing sets the real ones/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        (_, el) => el?.tagName === "P" && el.textContent === "3 households are on this plan.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("says when the plan doesn't exist", () => {

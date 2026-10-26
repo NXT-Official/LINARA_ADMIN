@@ -1,13 +1,20 @@
 import { useSyncExternalStore } from "react";
 
+import {
+  billingReducer,
+  type BillingAction,
+  type BillingResult,
+} from "@/features/billing/billing.logic";
+
 import { applyAction, type ActionResult, type CatalogAction } from "./plans.logic";
 import { SAMPLE_CATALOG } from "./plans.sample";
 import type { CatalogState } from "./plans.types";
 
 /**
- * The sample catalog, shared by the Plans, plan and Global switches screens so
- * a change on one shows on the others. It lives in this tab's memory only and
- * goes back to the sample on reload (D41, D47): nothing is written anywhere.
+ * The sample catalog and subscriptions, shared by the Subscriptions, Plans,
+ * plan and Global switches screens so a change on one shows on the others. It
+ * lives in this tab's memory only and goes back to the sample on reload (D41,
+ * D47): nothing is written anywhere.
  */
 let state: CatalogState = SAMPLE_CATALOG;
 const listeners = new Set<() => void>();
@@ -23,6 +30,16 @@ function subscribe(listener: () => void) {
 
 export function dispatchCatalog(action: CatalogAction): ActionResult {
   const res = applyAction(state, action);
+  if (res.ok) {
+    state = res.state;
+    emit();
+  }
+  return res;
+}
+
+/** A subscription or payment change on the Subscriptions screen (D40). */
+export function dispatchBilling(action: BillingAction): BillingResult {
+  const res = billingReducer(state, action);
   if (res.ok) {
     state = res.state;
     emit();

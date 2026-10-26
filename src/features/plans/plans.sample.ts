@@ -1,3 +1,5 @@
+import { SAMPLE_PAYMENTS, SAMPLE_SUBSCRIPTIONS } from "@/features/billing/billing.sample";
+
 import type { CatalogState, Feature, FeatureKey, LimitKey } from "./plans.types";
 
 /** The features the apps can lock today, in the order the plan screen lists them. */
@@ -41,9 +43,19 @@ const all = (on: FeatureKey[]): Record<FeatureKey, boolean> =>
 
 const ESSENTIAL: FeatureKey[] = ["tasks", "quick_utos", "schedule", "pantry", "time_off"];
 
+const FIRST_PUBLISHED = [
+  {
+    version: 1,
+    savedAt: "2026-10-23T03:00:00.000Z",
+    savedBy: "Console admin",
+    summary: "First published",
+  },
+];
+
 /**
- * The three launch plans from the subscription summary. Normal and Premium
- * have no prices because marketing hasn't set them, so they stay drafts.
+ * The three launch plans from the subscription summary. Normal's and
+ * Premium's prices are placeholders so the Subscriptions preview has paid
+ * plans to show; marketing sets the real ones.
  */
 export const SAMPLE_CATALOG: CatalogState = {
   plans: [
@@ -51,7 +63,6 @@ export const SAMPLE_CATALOG: CatalogState = {
       id: "free",
       status: "published",
       displayOrder: 1,
-      subscribers: 42,
       content: {
         name: "Free",
         description: "For one household getting started.",
@@ -60,44 +71,37 @@ export const SAMPLE_CATALOG: CatalogState = {
         features: all(["tasks", "quick_utos", "schedule"]),
         limits: { households: 1, kasambahay: 1, co_managers: 0 },
       },
-      versions: [
-        {
-          version: 1,
-          savedAt: "2026-10-23T03:00:00.000Z",
-          savedBy: "Console admin",
-          summary: "First published",
-        },
-      ],
+      versions: FIRST_PUBLISHED,
     },
     {
       id: "normal",
-      status: "draft",
+      status: "published",
       displayOrder: 2,
-      subscribers: 0,
+      pricePlaceholder: true,
       content: {
         name: "Normal",
         description: "All the essentials for a household and its staff.",
-        prices: { monthly: null, annual: null, one_time: null },
+        prices: { monthly: 19_900, annual: 199_000, one_time: null },
         trialDays: 14,
         features: all(ESSENTIAL),
         limits: { households: 1, kasambahay: 3, co_managers: 1 },
       },
-      versions: [],
+      versions: FIRST_PUBLISHED,
     },
     {
       id: "premium",
-      status: "draft",
+      status: "published",
       displayOrder: 3,
-      subscribers: 0,
+      pricePlaceholder: true,
       content: {
         name: "Premium",
         description: "Everything in Normal, plus the advanced features.",
-        prices: { monthly: null, annual: null, one_time: null },
+        prices: { monthly: 39_900, annual: 399_000, one_time: null },
         trialDays: 14,
         features: all(FEATURES.map((f) => f.key)),
         limits: { households: 3, kasambahay: null, co_managers: 3 },
       },
-      versions: [],
+      versions: FIRST_PUBLISHED,
     },
   ],
   addons: [
@@ -154,4 +158,6 @@ export const SAMPLE_CATALOG: CatalogState = {
       note: "Turned off while pay and HR are reviewed against the law.",
     },
   ],
+  subscriptions: SAMPLE_SUBSCRIPTIONS,
+  payments: SAMPLE_PAYMENTS,
 };

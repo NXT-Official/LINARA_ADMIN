@@ -5,6 +5,7 @@ import {
   centavosToInput,
   describeChanges,
   featureOffForEveryone,
+  householdsOn,
   parsePeso,
   priceSummary,
   validateContent,
@@ -134,17 +135,42 @@ describe("validateContent", () => {
   });
 });
 
+/** The sample plus a new, unpriced draft: every sample plan is published. */
+const WITH_DRAFT = ok(run(SAMPLE_CATALOG, { type: "create_plan", id: "family", name: "Family" }));
+
 describe("saving a plan", () => {
   it("saves a draft in place, with no version", () => {
     const s = ok(
+      run(WITH_DRAFT, {
+        type: "save_plan",
+        planId: "family",
+        content: withContent(WITH_DRAFT, "family", { trialDays: 7 }),
+      }),
+    );
+    expect(plan(s, "family").content.trialDays).toBe(7);
+    expect(plan(s, "family").versions).toEqual([]);
+  });
+
+  it("a saved price stops being a placeholder; other changes leave the flag", () => {
+    expect(plan(SAMPLE_CATALOG, "normal").pricePlaceholder).toBe(true);
+    const trial = ok(
       run(SAMPLE_CATALOG, {
         type: "save_plan",
         planId: "normal",
         content: withContent(SAMPLE_CATALOG, "normal", { trialDays: 7 }),
       }),
     );
-    expect(plan(s, "normal").content.trialDays).toBe(7);
-    expect(plan(s, "normal").versions).toEqual([]);
+    expect(plan(trial, "normal").pricePlaceholder).toBe(true);
+    const priced = ok(
+      run(SAMPLE_CATALOG, {
+        type: "save_plan",
+        planId: "normal",
+        content: withContent(SAMPLE_CATALOG, "normal", {
+          prices: { monthly: 24_900, annual: 199_000, one_time: null },
+        }),
+      }),
+    );
+    expect(plan(priced, "normal").pricePlaceholder).toBe(false);
   });
 
   it("saves a published plan as a new version and keeps the old ones", () => {
@@ -160,7 +186,10 @@ describe("saving a plan", () => {
     const free = plan(s, "free");
     expect(free.versions.map((v) => v.version)).toEqual([2, 1]);
     expect(free.versions[0]).toMatchObject({ summary: "Changed limits", savedBy: "Tester" });
-    expect(free.subscribers).toBe(42);
+    // The household on it stays on version 1.
+    expect(householdsOn(s, "free")).toBe(1);
+    expect(householdsOn(s, "free", 1)).toBe(1);
+    expect(householdsOn(s, "free", 2)).toBe(0);
   });
 
   it("refuses a save with nothing changed, so no empty version appears", () => {
@@ -200,39 +229,46 @@ describe("saving a plan", () => {
 });
 
 describe("plan status", () => {
-  it("won't publish a plan with no price (Normal and Premium wait for marketing)", () => {
+  it("won't publish a plan with no price", () => {
     expect(
-      refused(run(SAMPLE_CATALOG, { type: "set_status", planId: "normal", status: "published" })),
+      refused(run(WITH_DRAFT, { type: "set_status", planId: "family", status: "published" })),
     ).toMatch(/price/);
   });
 
   it("publishing a priced draft makes version 1", () => {
     const priced = ok(
-      run(SAMPLE_CATALOG, {
+      run(WITH_DRAFT, {
         type: "save_plan",
-        planId: "normal",
-        content: withContent(SAMPLE_CATALOG, "normal", {
-          prices: { monthly: 19_900, annual: null, one_time: null },
+        planId: "family",
+        content: withContent(WITH_DRAFT, "family", {
+          prices: { monthly: 29_900, annual: null, one_time: null },
         }),
       }),
     );
-    const s = ok(run(priced, { type: "set_status", planId: "normal", status: "published" }));
-    expect(plan(s, "normal")).toMatchObject({ status: "published" });
-    expect(plan(s, "normal").versions).toHaveLength(1);
+    const s = ok(run(priced, { type: "set_status", planId: "family", status: "published" }));
+    expect(plan(s, "family")).toMatchObject({ status: "published" });
+    expect(plan(s, "family").versions).toHaveLength(1);
   });
 
   it("keeps at least one plan published", () => {
+    const onlyFree = ok(
+      run(ok(run(SAMPLE_CATALOG, { type: "set_status", planId: "premium", status: "hidden" })), {
+        type: "set_status",
+        planId: "normal",
+        status: "hidden",
+      }),
+    );
     expect(
-      refused(run(SAMPLE_CATALOG, { type: "set_status", planId: "free", status: "hidden" })),
+      refused(run(onlyFree, { type: "set_status", planId: "free", status: "hidden" })),
     ).toMatch(/at least one plan published/);
     expect(
-      refused(run(SAMPLE_CATALOG, { type: "set_status", planId: "free", status: "retired" })),
+      refused(run(onlyFree, { type: "set_status", planId: "free", status: "retired" })),
     ).toMatch(/at least one plan published/);
   });
 
   it("refuses moves the state doesn't allow, and a retired plan is final", () => {
     expect(
-      refused(run(SAMPLE_CATALOG, { type: "set_status", planId: "normal", status: "retired" })),
+      refused(run(WITH_DRAFT, { type: "set_status", planId: "family", status: "retired" })),
     ).toMatch(/can't become/);
     const retired: CatalogState = {
       ...SAMPLE_CATALOG,
@@ -275,12 +311,14 @@ describe("creating, deleting and ordering", () => {
   });
 
   it("deletes only a never-published draft", () => {
-    expect(plan(ok(run(SAMPLE_CATALOG, { type: "delete_plan", planId: "normal" })), "normal")).toBe(
+    expect(plan(ok(run(WITH_DRAFT, { type: "delete_plan", planId: "family" })), "family")).toBe(
       undefined,
     );
-    expect(refused(run(SAMPLE_CATALOG, { type: "delete_plan", planId: "free" }))).toMatch(
-      /Retire it instead/,
-    );
+    for (const planId of ["free", "normal"]) {
+      expect(refused(run(SAMPLE_CATALOG, { type: "delete_plan", planId }))).toMatch(
+        /Retire it instead/,
+      );
+    }
   });
 
   it("moves a plan and keeps the order 1..n with no gaps or repeats", () => {
@@ -368,7 +406,10 @@ describe("global switches", () => {
 describe("summaries", () => {
   it("describes prices and changes in plain words", () => {
     expect(priceSummary(plan(SAMPLE_CATALOG, "free").content)).toBe("₱0 a month");
-    expect(priceSummary(plan(SAMPLE_CATALOG, "normal").content)).toBe("Not priced");
+    expect(priceSummary(plan(SAMPLE_CATALOG, "normal").content)).toBe(
+      "₱199 a month, ₱1,990 a year",
+    );
+    expect(priceSummary(plan(WITH_DRAFT, "family").content)).toBe("Not priced");
     const free = plan(SAMPLE_CATALOG, "free").content;
     expect(describeChanges(free, { ...free, trialDays: 3, name: "Starter" })).toBe(
       "Changed name and trial",

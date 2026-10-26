@@ -1,3 +1,5 @@
+import type { Payment, Subscription } from "@/features/billing/billing.types";
+
 /**
  * Plans and switches preview (D47). Sample data only: nothing here is read
  * from or written to a database. Money is whole centavos so a price never
@@ -61,8 +63,8 @@ export type Plan = {
   content: PlanContent;
   /** Published versions, newest first. Empty while the plan has never been published. */
   versions: PlanVersion[];
-  /** Sample count of households on the plan, on any of its versions. */
-  subscribers: number;
+  /** Sample prices standing in until marketing sets real ones. Cleared when a price is saved. */
+  pricePlaceholder?: boolean;
 };
 
 export type Addon = {
@@ -96,9 +98,12 @@ export type SwitchChange = {
   note: string;
 };
 
+/** The whole billing preview: the catalog and the households subscribed to it. */
 export type CatalogState = {
   plans: Plan[];
   addons: Addon[];
   switches: GlobalSwitch[];
   switchHistory: SwitchChange[];
+  subscriptions: Subscription[];
+  payments: Payment[];
 };

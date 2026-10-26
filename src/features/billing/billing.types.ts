@@ -1,23 +1,18 @@
+import type { Cycle } from "@/features/plans/plans.types";
+
 /**
- * Billing preview (D40). Sample data only: Linara has no billing tables yet
- * (D3, §14), so nothing here is read from or written to a database.
+ * Billing preview (D40, D47). Sample data only: Linara has no billing tables
+ * yet (D3, §14), so nothing here is read from or written to a database.
+ * Subscriptions use the plan catalog from the Plans screen. Money is whole
+ * centavos.
  */
-export type PlanId = "free" | "premium_monthly" | "premium_yearly";
-
-export type Plan = {
-  id: PlanId;
-  name: string;
-  /** Pesos per interval. Placeholder prices until billing is planned. */
-  price: number;
-  interval: "month" | "year" | null;
-  includes: string[];
-};
-
 export const SUBSCRIPTION_STATUSES = ["active", "trialing", "past_due", "cancelled"] as const;
 export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
 
 export type PaymentChannel = "GCASH" | "MAYA" | "CARD";
 export type PaymentMethod = { channel: PaymentChannel; ending: string };
+
+export type SubscriptionAddon = { addonId: string; quantity: number };
 
 export type Subscription = {
   id: string;
@@ -25,10 +20,16 @@ export type Subscription = {
   householdName: string;
   /** The household's manager who pays. Helpers never pay. */
   payerName: string;
-  planId: PlanId;
+  planId: string;
+  /** The plan version it joined on; a later version doesn't change it. */
+  planVersion: number;
+  cycle: Cycle;
+  addons: SubscriptionAddon[];
+  /** Centavos charged each cycle, plan and add-ons together, fixed when it was set. */
+  amount: number;
   status: SubscriptionStatus;
   startedAt: string;
-  /** When the current paid or trial period ends. Null on Free. */
+  /** When the current paid or trial period ends. Null when nothing renews. */
   periodEnd: string | null;
   cancelAtPeriodEnd: boolean;
   method: PaymentMethod | null;
@@ -41,11 +42,10 @@ export type Payment = {
   id: string;
   subscriptionId: string;
   reference: string;
+  /** Centavos. */
   amount: number;
   status: PaymentStatus;
   method: PaymentMethod;
   createdAt: string;
   failureReason: string | null;
 };
-
-export type BillingState = { subscriptions: Subscription[]; payments: Payment[] };

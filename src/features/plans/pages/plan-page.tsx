@@ -19,6 +19,7 @@ import {
   currentVersion,
   CYCLE_LABEL,
   featureOffForEveryone,
+  householdsOn,
   isVersioned,
   MAX_DESCRIPTION,
   parsePeso,
@@ -161,22 +162,32 @@ function FieldError({ id, children }: { id: string; children?: string }) {
   );
 }
 
-const MOVE_COPY: Record<PlanStatus, (p: Plan) => string> = {
+const keeps = (n: number) => (n === 1 ? "keeps" : "keep");
+
+const MOVE_COPY: Record<PlanStatus, (p: Plan, households: number) => string> = {
   published: (p) =>
     isVersioned(p)
       ? "New households can choose it again at sign-up."
       : `New households can sign up to it at ${priceSummary(p.content)}. This makes version 1.`,
-  hidden: (p) =>
-    `Nobody new can choose it. The ${plural(p.subscribers, "household")} on it keep it.`,
-  retired: (p) =>
-    `Nobody new can choose it, and it can't be changed or published again. The ${plural(p.subscribers, "household")} on it keep it until they change plans.`,
+  hidden: (_p, n) =>
+    `Nobody new can choose it. The ${plural(n, "household")} on it ${keeps(n)} it.`,
+  retired: (_p, n) =>
+    `Nobody new can choose it, and it can't be changed or published again. The ${plural(n, "household")} on it ${keeps(n)} it until they change plans.`,
   draft: () => "",
 };
 
-function PublishingPanel({ plan, dirty }: { plan: Plan; dirty: boolean }) {
+function PublishingPanel({
+  plan,
+  dirty,
+  households,
+}: {
+  plan: Plan;
+  dirty: boolean;
+  households: number;
+}) {
   const navigate = useNavigate();
   const moves = statusMoves(plan);
-  const deletable = plan.status === "draft" && !isVersioned(plan) && plan.subscribers === 0;
+  const deletable = plan.status === "draft" && !isVersioned(plan) && households === 0;
   return (
     <Surface title="Publishing">
       <div className="space-y-4">
@@ -187,8 +198,8 @@ function PublishingPanel({ plan, dirty }: { plan: Plan; dirty: boolean }) {
           </span>
         </div>
         <p className="text-sm text-foreground">
-          <span className="tabular-nums">{formatCount(plan.subscribers)}</span>{" "}
-          {plan.subscribers === 1 ? "household is" : "households are"} on this plan.
+          <span className="tabular-nums">{formatCount(households)}</span>{" "}
+          {households === 1 ? "household is" : "households are"} on this plan.
         </p>
         {plan.status === "retired" ? (
           <p className="text-sm text-muted-foreground">
@@ -218,7 +229,7 @@ function PublishingPanel({ plan, dirty }: { plan: Plan; dirty: boolean }) {
                   </Button>
                 }
                 title={`${m.label}: ${plan.content.name}`}
-                description={`${MOVE_COPY[m.to](plan)} ${SAMPLE_NOTE}`}
+                description={`${MOVE_COPY[m.to](plan, households)} ${SAMPLE_NOTE}`}
                 submitLabel={m.label}
                 done={`${plan.content.name} is now ${STATUS_LABEL[m.to].toLowerCase()}. ${SAMPLE_NOTE}`}
                 destructive={m.to === "retired"}
@@ -306,6 +317,8 @@ function PlanEditor({ plan }: { plan: Plan }) {
   const dirty = !sameContent(plan.content, { ...content, name: content.name.trim() });
   const locked = plan.status === "retired";
   const nextVersion = currentVersion(plan) + 1;
+  const households = householdsOn(state, plan.id);
+  const onCurrent = householdsOn(state, plan.id, currentVersion(plan));
 
   function save() {
     const res = dispatchCatalog({ type: "save_plan", planId: plan.id, content });
@@ -378,7 +391,11 @@ function PlanEditor({ plan }: { plan: Plan }) {
 
           <Surface
             title="Prices"
-            description="In pesos. Tick each way the plan is sold; a free plan is ₱0 a month."
+            description={
+              plan.pricePlaceholder
+                ? "In pesos. These are placeholder prices until marketing sets the real ones."
+                : "In pesos. Tick each way the plan is sold; a free plan is ₱0 a month."
+            }
           >
             <fieldset disabled={locked} className="divide-y divide-border">
               <legend className="sr-only">Prices</legend>
@@ -500,7 +517,7 @@ function PlanEditor({ plan }: { plan: Plan }) {
         </div>
 
         <div className="space-y-6 lg:sticky lg:top-22">
-          <PublishingPanel plan={plan} dirty={dirty} />
+          <PublishingPanel plan={plan} dirty={dirty} households={households} />
           <VersionsPanel plan={plan} />
         </div>
       </div>
@@ -519,7 +536,7 @@ function PlanEditor({ plan }: { plan: Plan }) {
                   (!valid
                     ? "Fix the fields marked in red to save."
                     : isVersioned(plan)
-                      ? `Saves as version ${nextVersion}. The ${plural(plan.subscribers, "household")} already on it keep version ${currentVersion(plan)}.`
+                      ? `Saves as version ${nextVersion}. The ${plural(onCurrent, "household")} on version ${currentVersion(plan)} ${keeps(onCurrent)} it.`
                       : "Saves the draft. Nobody can sign up to it until it's published.")}
               </p>
             </div>

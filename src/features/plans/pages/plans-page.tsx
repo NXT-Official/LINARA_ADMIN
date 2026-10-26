@@ -16,6 +16,7 @@ import {
   centavosToInput,
   currentVersion,
   formatCentavos,
+  householdsOn,
   limitText,
   limitsSummary,
   parsePeso,
@@ -196,7 +197,14 @@ export function PlansPage() {
     {
       key: "price",
       header: "Price",
-      cell: (p) => <span className="whitespace-nowrap">{priceSummary(p.content)}</span>,
+      cell: (p) => (
+        <div>
+          <span className="whitespace-nowrap">{priceSummary(p.content)}</span>
+          {p.pricePlaceholder ? (
+            <div className="text-xs text-muted-foreground">Placeholder price</div>
+          ) : null}
+        </div>
+      ),
     },
     {
       key: "limits",
@@ -216,7 +224,9 @@ export function PlansPage() {
       header: "On the plan",
       align: "right",
       cell: (p) => (
-        <span className="whitespace-nowrap tabular-nums">{plural(p.subscribers, "household")}</span>
+        <span className="whitespace-nowrap tabular-nums">
+          {plural(householdsOn(state, p.id), "household")}
+        </span>
       ),
     },
     {

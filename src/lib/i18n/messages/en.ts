@@ -35,8 +35,10 @@ export const en = {
   "nav.payouts": "Payouts",
   "nav.ai": "AI usage",
   "nav.billing": "Subscriptions",
+  "nav.plans": "Plans",
   "nav.admin": "Admin",
   "nav.team": "Team",
+  "nav.switches": "Global switches",
   "nav.audit": "Audit log",
 
   "root.notFoundTitle": "Page not found",

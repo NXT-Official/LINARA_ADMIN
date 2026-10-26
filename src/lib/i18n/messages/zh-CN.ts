@@ -32,8 +32,10 @@ export const zhCN = {
   "nav.payouts": "付款",
   "nav.ai": "AI 用量",
   "nav.billing": "订阅",
+  "nav.plans": "套餐",
   "nav.admin": "管理",
   "nav.team": "团队",
+  "nav.switches": "全局开关",
   "nav.audit": "审计日志",
 
   "root.notFoundTitle": "找不到页面",

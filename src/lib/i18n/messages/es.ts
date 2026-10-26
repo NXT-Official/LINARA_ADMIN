@@ -32,8 +32,10 @@ export const es = {
   "nav.payouts": "Pagos",
   "nav.ai": "Uso de IA",
   "nav.billing": "Suscripciones",
+  "nav.plans": "Planes",
   "nav.admin": "Administración",
   "nav.team": "Equipo",
+  "nav.switches": "Interruptores globales",
   "nav.audit": "Registro de auditoría",
 
   "root.notFoundTitle": "Página no encontrada",

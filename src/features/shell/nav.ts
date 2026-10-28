@@ -53,15 +53,15 @@ export const NAV_GROUPS: { label: MessageKey | null; items: NavItem[] }[] = [
       { to: "/deletions", label: "nav.deletions", icon: Trash2, permission: "deletions.view" },
       { to: "/payouts", label: "nav.payouts", icon: BadgeAlert, permission: "payouts.view" },
       { to: "/ai", label: "nav.ai", icon: Activity, permission: "ai.view" },
-      { to: "/billing", label: "nav.billing", icon: CreditCard, permission: "pay.view" },
-      { to: "/plans", label: "nav.plans", icon: Layers, permission: "pay.view" },
+      { to: "/billing", label: "nav.billing", icon: CreditCard, permission: "billing.view" },
+      { to: "/plans", label: "nav.plans", icon: Layers, permission: "billing.view" },
     ],
   },
   {
     label: "nav.admin",
     items: [
       { to: "/team", label: "nav.team", icon: ShieldCheck, permission: "team.manage" },
-      { to: "/switches", label: "nav.switches", icon: ToggleRight, permission: "pay.view" },
+      { to: "/switches", label: "nav.switches", icon: ToggleRight, permission: "switches.manage" },
       { to: "/audit", label: "nav.audit", icon: ScrollText, permission: "audit.view" },
     ],
   },

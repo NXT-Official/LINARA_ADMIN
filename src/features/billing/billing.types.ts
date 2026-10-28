@@ -1,4 +1,4 @@
-import type { Cycle } from "@/features/plans/plans.types";
+import type { CatalogState, Cycle } from "@/features/plans/plans.types";
 
 /**
  * Billing preview (D40, D47). Sample data only: Linara has no billing tables
@@ -9,7 +9,7 @@ import type { Cycle } from "@/features/plans/plans.types";
 export const SUBSCRIPTION_STATUSES = ["active", "trialing", "past_due", "cancelled"] as const;
 export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
 
-export type PaymentChannel = "GCASH" | "MAYA" | "CARD";
+export type PaymentChannel = "GCASH" | "MAYA" | "CARD" | "QRPH" | "OTHER";
 export type PaymentMethod = { channel: PaymentChannel; ending: string };
 
 export type SubscriptionAddon = { addonId: string; quantity: number };
@@ -48,4 +48,11 @@ export type Payment = {
   method: PaymentMethod;
   createdAt: string;
   failureReason: string | null;
+};
+
+/** The screens' data read from the database (D48). */
+export type LiveBilling = {
+  state: CatalogState;
+  /** Billing test tools are on here (dev and staging only). */
+  testTools: boolean;
 };

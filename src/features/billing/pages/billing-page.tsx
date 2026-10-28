@@ -18,7 +18,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { SampleActions } from "@/features/plans/components/sample-bar";
 import { CYCLE_LABEL, formatCentavos } from "@/features/plans/plans.logic";
-import { dispatchBilling, useCatalog } from "@/features/plans/plans.store";
+import {
+  dispatchBilling,
+  shiftRenewal,
+  useBillingMode,
+  useCatalog,
+} from "@/features/plans/plans.store";
 import type { CatalogState, Cycle } from "@/features/plans/plans.types";
 import { formatCount, formatDate } from "@/lib/format";
 
@@ -75,10 +80,14 @@ const CHANNEL: Record<PaymentMethod["channel"], string> = {
   GCASH: "GCash",
   MAYA: "Maya",
   CARD: "Card",
+  QRPH: "QR Ph",
+  OTHER: "Other",
 };
 
 function methodLabel(m: PaymentMethod | null) {
-  return m ? `${CHANNEL[m.channel]} ending ${m.ending}` : "None";
+  if (!m) return "None";
+  // Xendit's payment page doesn't say which card, so live payments have no ending.
+  return m.ending ? `${CHANNEL[m.channel]} ending ${m.ending}` : CHANNEL[m.channel];
 }
 
 function amountLabel(amount: number, cycle: Cycle) {
@@ -292,6 +301,7 @@ function SubscriptionDialog({
   const renews = sub.amount > 0 && sub.periodEnd !== null && sub.status !== "cancelled";
   const plan = state.plans.find((p) => p.id === sub.planId);
   const latest = plan?.versions[0]?.version ?? sub.planVersion;
+  const { live, testTools } = useBillingMode();
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
@@ -299,7 +309,9 @@ function SubscriptionDialog({
           <DialogTitle className="font-display text-xl font-normal">
             {sub.householdName}
           </DialogTitle>
-          <DialogDescription>Paid by {sub.payerName}. Sample data.</DialogDescription>
+          <DialogDescription>
+            Paid by {sub.payerName}.{live ? "" : " Sample data."}
+          </DialogDescription>
         </DialogHeader>
         <DetailList
           items={[
@@ -347,6 +359,24 @@ function SubscriptionDialog({
             />
           ) : null}
         </div>
+        {live && testTools && sub.periodEnd ? (
+          <div className="space-y-2 rounded-lg border border-dashed border-border p-3">
+            <p className="text-xs text-muted-foreground">
+              Test tools (dev and staging): move the renewal date to try what the household sees.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={() => void shiftRenewal(sub.id, -2)}>
+                Renewal 2 days ago (past due)
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => void shiftRenewal(sub.id, -9)}>
+                Renewal 9 days ago (restricted)
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => void shiftRenewal(sub.id, 30)}>
+                Renewal in 30 days
+              </Button>
+            </div>
+          </div>
+        ) : null}
         <div className="pt-2">
           <h3 className="text-sm font-semibold text-foreground">Payments</h3>
           {payments.length === 0 ? (

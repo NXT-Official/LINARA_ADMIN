@@ -1,7 +1,7 @@
 /**
  * Named permissions (spec §4.3). Screens, server functions and in-screen
  * controls ask for a permission, never a role name. Each member's role carries
- * a list of these (D39); 013-roles.sql keeps the same names in
+ * a list of these (D39); 018-billing.sql keeps the same names in
  * staff_known_permissions(), and a test fails if the two differ.
  */
 export const PERMISSIONS = [
@@ -21,6 +21,9 @@ export const PERMISSIONS = [
   "ai.view",
   "audit.view",
   "team.manage",
+  "billing.view",
+  "billing.manage",
+  "switches.manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -56,6 +59,9 @@ export const PERMISSION_LABEL: Record<Permission, string> = {
   "ai.view": "AI usage screen",
   "audit.view": "Audit log",
   "team.manage": "Team: add, remove, change roles; edit custom roles",
+  "billing.view": "Plans and Subscriptions screens",
+  "billing.manage": "Edit plans and add-ons, change a subscription",
+  "switches.manage": "Global switches: turn a feature on or off for everyone",
 };
 
 /** The role editor's checkboxes, grouped as in the sidebar. Never team.manage (D39). */
@@ -85,6 +91,9 @@ export const PERMISSION_GROUPS: {
       "pay.view",
       "payouts.view",
       "ai.view",
+      "billing.view",
+      "billing.manage",
+      "switches.manage",
     ],
   },
   { label: "Admin", permissions: ["audit.view"] },

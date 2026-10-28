@@ -8,14 +8,20 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDateTime } from "@/lib/format";
 
+import { CodeField } from "@/features/auth/components/code-field";
+
 import { SAMPLE_NOTE, SampleActions } from "../components/sample-bar";
 import { FEATURES } from "../plans.sample";
-import { dispatchCatalog, useCatalog } from "../plans.store";
+import { dispatchCatalogAndWait, useBillingMode, useCatalog } from "../plans.store";
 import type { GlobalSwitch } from "../plans.types";
 
 function FlipDialog({ sw, plansWithIt }: { sw: GlobalSwitch; plansWithIt: string[] }) {
   const [note, setNote] = useState("");
+  const [code, setCode] = useState("");
+  const { live } = useBillingMode();
   const turningOn = !sw.enabled;
+  // Live, turning a switch on asks for a fresh two-step code (plan R16).
+  const needsCode = live && turningOn;
   const label = turningOn ? `Turn on ${sw.name}` : `Turn off ${sw.name}`;
   const who =
     plansWithIt.length === 0
@@ -33,15 +39,16 @@ function FlipDialog({ sw, plansWithIt }: { sw: GlobalSwitch; plansWithIt: string
       submitLabel={turningOn ? "Turn on" : "Turn off"}
       done={`${sw.name} is ${turningOn ? "on" : "off"}. ${SAMPLE_NOTE}`}
       destructive={!turningOn}
-      canSubmit={note.trim().length > 0}
+      canSubmit={note.trim().length > 0 && (!needsCode || code.trim().length > 0)}
       onSubmit={async () => {
-        const res = dispatchCatalog({
-          type: "set_switch",
-          key: sw.key,
-          enabled: turningOn,
-          note,
-        });
-        if (res.ok) setNote("");
+        const res = await dispatchCatalogAndWait(
+          { type: "set_switch", key: sw.key, enabled: turningOn, note },
+          { code: needsCode ? code : undefined },
+        );
+        if (res.ok) {
+          setNote("");
+          setCode("");
+        }
         return res;
       }}
     >
@@ -60,7 +67,11 @@ function FlipDialog({ sw, plansWithIt }: { sw: GlobalSwitch; plansWithIt: string
           <Field
             label="Why"
             htmlFor={id("note")}
-            hint="Kept in the switch's history. The live version also asks for your two-step code."
+            hint={
+              live
+                ? "Kept in the switch's history."
+                : "Kept in the switch's history. The live version also asks for your two-step code."
+            }
           >
             <Textarea
               id={id("note")}
@@ -70,6 +81,7 @@ function FlipDialog({ sw, plansWithIt }: { sw: GlobalSwitch; plansWithIt: string
               onChange={(e) => setNote(e.target.value)}
             />
           </Field>
+          {needsCode ? <CodeField id={id("code")} value={code} onChange={setCode} /> : null}
         </>
       )}
     </FormDialog>

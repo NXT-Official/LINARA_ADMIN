@@ -24,6 +24,8 @@ export const PERMISSIONS = [
   "billing.view",
   "billing.manage",
   "switches.manage",
+  "revenue.view",
+  "revenue.manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -62,6 +64,8 @@ export const PERMISSION_LABEL: Record<Permission, string> = {
   "billing.view": "Plans and Subscriptions screens",
   "billing.manage": "Edit plans and add-ons, change a subscription",
   "switches.manage": "Global switches: turn a feature on or off for everyone",
+  "revenue.view": "Revenue screen: cash, recurring revenue and profit",
+  "revenue.manage": "Set Xendit fee rates, AI call costs and fixed costs",
 };
 
 /** The role editor's checkboxes, grouped as in the sidebar. Never team.manage (D39). */
@@ -94,6 +98,8 @@ export const PERMISSION_GROUPS: {
       "billing.view",
       "billing.manage",
       "switches.manage",
+      "revenue.view",
+      "revenue.manage",
     ],
   },
   { label: "Admin", permissions: ["audit.view"] },

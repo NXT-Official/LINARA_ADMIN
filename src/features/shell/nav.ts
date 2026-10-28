@@ -1,4 +1,5 @@
 import {
+  TrendingUp,
   Activity,
   BadgeAlert,
   Building2,
@@ -55,6 +56,7 @@ export const NAV_GROUPS: { label: MessageKey | null; items: NavItem[] }[] = [
       { to: "/ai", label: "nav.ai", icon: Activity, permission: "ai.view" },
       { to: "/billing", label: "nav.billing", icon: CreditCard, permission: "billing.view" },
       { to: "/plans", label: "nav.plans", icon: Layers, permission: "billing.view" },
+      { to: "/revenue", label: "nav.revenue", icon: TrendingUp, permission: "revenue.view" },
     ],
   },
   {

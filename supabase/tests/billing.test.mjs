@@ -104,9 +104,11 @@ const tsList = [
   ...TS.slice(TS.indexOf("PERMISSIONS = ["), TS.indexOf("] as const")).matchAll(/"([a-z.]+)"/g),
 ].map((m) => m[1]);
 const known = (await one(`SELECT public.staff_known_permissions() AS p`)).p;
+// 019-revenue.sql adds revenue.*; revenue.test.mjs checks the full list.
+const upTo018 = tsList.filter((p) => !p.startsWith("revenue."));
 check(
-  "the permission list matches permissions.ts",
-  tsList.length === 19 && [...tsList].sort().join() === [...known].sort().join(),
+  "the permission list matches permissions.ts (up to 018)",
+  upTo018.length === 19 && [...upTo018].sort().join() === [...known].sort().join(),
   { tsList, known },
 );
 const presets = await q(`SELECT preset, permissions FROM staff_role_defs WHERE preset IS NOT NULL`);

@@ -33,6 +33,7 @@ export const zhCN = {
   "nav.ai": "AI 用量",
   "nav.billing": "订阅",
   "nav.plans": "套餐",
+  "nav.revenue": "收入",
   "nav.admin": "管理",
   "nav.team": "团队",
   "nav.switches": "全局开关",

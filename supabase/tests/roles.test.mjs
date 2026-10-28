@@ -78,8 +78,15 @@ const tsList = [
   ...TS.slice(TS.indexOf("PERMISSIONS = ["), TS.indexOf("] as const")).matchAll(/"([a-z.]+)"/g),
 ].map((m) => m[1]);
 const known = (await q(`SELECT public.staff_known_permissions() AS p`))[0].p;
-// 018-billing.sql adds these three; billing.test.mjs checks the full list.
-const BILLING = ["billing.view", "billing.manage", "switches.manage"];
+// 018-billing.sql adds these three and 019-revenue.sql revenue.*; billing.test.mjs and
+// revenue.test.mjs check the full list.
+const BILLING = [
+  "billing.view",
+  "billing.manage",
+  "switches.manage",
+  "revenue.view",
+  "revenue.manage",
+];
 const before018 = tsList.filter((p) => !BILLING.includes(p));
 check(
   "the permission list matches permissions.ts (before 018)",

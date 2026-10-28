@@ -19,6 +19,7 @@ import { Route as AuthedAuditRouteImport } from './routes/_authed/audit'
 import { Route as AuthedBillingRouteImport } from './routes/_authed/billing'
 import { Route as AuthedDeletionsRouteImport } from './routes/_authed/deletions'
 import { Route as AuthedPayoutsRouteImport } from './routes/_authed/payouts'
+import { Route as AuthedRevenueRouteImport } from './routes/_authed/revenue'
 import { Route as AuthedSwitchesRouteImport } from './routes/_authed/switches'
 import { Route as AuthedTeamRouteImport } from './routes/_authed/team'
 import { Route as SignInIndexRouteImport } from './routes/sign-in/index'
@@ -84,6 +85,11 @@ const AuthedDeletionsRoute = AuthedDeletionsRouteImport.update({
 const AuthedPayoutsRoute = AuthedPayoutsRouteImport.update({
   id: '/payouts',
   path: '/payouts',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedRevenueRoute = AuthedRevenueRouteImport.update({
+  id: '/revenue',
+  path: '/revenue',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedSwitchesRoute = AuthedSwitchesRouteImport.update({
@@ -183,6 +189,7 @@ export interface FileRoutesByFullPath {
   '/billing': typeof AuthedBillingRoute
   '/deletions': typeof AuthedDeletionsRoute
   '/payouts': typeof AuthedPayoutsRoute
+  '/revenue': typeof AuthedRevenueRoute
   '/switches': typeof AuthedSwitchesRoute
   '/team': typeof AuthedTeamRoute
   '/sign-in/set-up': typeof SignInSetUpRoute
@@ -210,6 +217,7 @@ export interface FileRoutesByTo {
   '/billing': typeof AuthedBillingRoute
   '/deletions': typeof AuthedDeletionsRoute
   '/payouts': typeof AuthedPayoutsRoute
+  '/revenue': typeof AuthedRevenueRoute
   '/switches': typeof AuthedSwitchesRoute
   '/team': typeof AuthedTeamRoute
   '/sign-in/set-up': typeof SignInSetUpRoute
@@ -240,6 +248,7 @@ export interface FileRoutesById {
   '/_authed/billing': typeof AuthedBillingRoute
   '/_authed/deletions': typeof AuthedDeletionsRoute
   '/_authed/payouts': typeof AuthedPayoutsRoute
+  '/_authed/revenue': typeof AuthedRevenueRoute
   '/_authed/switches': typeof AuthedSwitchesRoute
   '/_authed/team': typeof AuthedTeamRoute
   '/sign-in/set-up': typeof SignInSetUpRoute
@@ -271,6 +280,7 @@ export interface FileRouteTypes {
     | '/billing'
     | '/deletions'
     | '/payouts'
+    | '/revenue'
     | '/switches'
     | '/team'
     | '/sign-in/set-up'
@@ -298,6 +308,7 @@ export interface FileRouteTypes {
     | '/billing'
     | '/deletions'
     | '/payouts'
+    | '/revenue'
     | '/switches'
     | '/team'
     | '/sign-in/set-up'
@@ -327,6 +338,7 @@ export interface FileRouteTypes {
     | '/_authed/billing'
     | '/_authed/deletions'
     | '/_authed/payouts'
+    | '/_authed/revenue'
     | '/_authed/switches'
     | '/_authed/team'
     | '/sign-in/set-up'
@@ -427,6 +439,13 @@ declare module '@tanstack/react-router' {
       path: '/payouts'
       fullPath: '/payouts'
       preLoaderRoute: typeof AuthedPayoutsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/revenue': {
+      id: '/_authed/revenue'
+      path: '/revenue'
+      fullPath: '/revenue'
+      preLoaderRoute: typeof AuthedRevenueRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/switches': {
@@ -557,6 +576,7 @@ interface AuthedRouteChildren {
   AuthedBillingRoute: typeof AuthedBillingRoute
   AuthedDeletionsRoute: typeof AuthedDeletionsRoute
   AuthedPayoutsRoute: typeof AuthedPayoutsRoute
+  AuthedRevenueRoute: typeof AuthedRevenueRoute
   AuthedSwitchesRoute: typeof AuthedSwitchesRoute
   AuthedTeamRoute: typeof AuthedTeamRoute
   AuthedIndexRoute: typeof AuthedIndexRoute
@@ -580,6 +600,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedBillingRoute: AuthedBillingRoute,
   AuthedDeletionsRoute: AuthedDeletionsRoute,
   AuthedPayoutsRoute: AuthedPayoutsRoute,
+  AuthedRevenueRoute: AuthedRevenueRoute,
   AuthedSwitchesRoute: AuthedSwitchesRoute,
   AuthedTeamRoute: AuthedTeamRoute,
   AuthedIndexRoute: AuthedIndexRoute,

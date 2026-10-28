@@ -33,6 +33,7 @@ export const fil = {
   "nav.ai": "Paggamit ng AI",
   "nav.billing": "Mga subscription",
   "nav.plans": "Mga plano",
+  "nav.revenue": "Kita",
   "nav.admin": "Admin",
   "nav.team": "Team",
   "nav.switches": "Mga global switch",

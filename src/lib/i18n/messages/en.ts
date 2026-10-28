@@ -36,6 +36,7 @@ export const en = {
   "nav.ai": "AI usage",
   "nav.billing": "Subscriptions",
   "nav.plans": "Plans",
+  "nav.revenue": "Revenue",
   "nav.admin": "Admin",
   "nav.team": "Team",
   "nav.switches": "Global switches",

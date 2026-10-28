@@ -33,6 +33,7 @@ export const es = {
   "nav.ai": "Uso de IA",
   "nav.billing": "Suscripciones",
   "nav.plans": "Planes",
+  "nav.revenue": "Ingresos",
   "nav.admin": "Administración",
   "nav.team": "Equipo",
   "nav.switches": "Interruptores globales",

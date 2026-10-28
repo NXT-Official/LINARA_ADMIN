@@ -6,6 +6,7 @@ import { DataTable, type Column } from "@/components/shared/data-table";
 import { Field, FormDialog, SelectField } from "@/components/shared/form";
 import { RecordLink, RowLink } from "@/components/shared/links";
 import { PageHeader, Surface } from "@/components/shared/page";
+import { TableSkeleton } from "@/components/shared/states";
 import { StatusChip } from "@/components/shared/status-chip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +26,7 @@ import {
   STATUS_LABEL,
 } from "../plans.logic";
 import { LIMIT_LABEL } from "../plans.sample";
-import { dispatchCatalog, useCatalog } from "../plans.store";
+import { dispatchCatalog, useBillingMode, useCatalog } from "../plans.store";
 import type { Addon, Plan } from "../plans.types";
 
 /** A short id from a name, unique in the catalog: "Family plus" -> "family-plus". */
@@ -170,7 +171,28 @@ function AddonDialog({ addon }: { addon: Addon }) {
 }
 
 /** The plan catalog and its add-ons, on sample data (D47). */
+const PLANS_LIVE = "What households can subscribe to: prices, features and limits.";
+
+/** Plans: its shape until the first read answers, never the sample in the meantime. */
 export function PlansPage() {
+  const { ready } = useBillingMode();
+  if (!ready) {
+    return (
+      <>
+        <PageHeader title="Plans" description={PLANS_LIVE} actions={<SampleActions />} />
+        <Surface flush>
+          <div className="pt-5">
+            <TableSkeleton label="Loading plans" rows={3} />
+          </div>
+        </Surface>
+      </>
+    );
+  }
+  return <PlansScreen />;
+}
+
+function PlansScreen() {
+  const { live } = useBillingMode();
   const state = useCatalog();
   const plans = [...state.plans].sort((a, b) => a.displayOrder - b.displayOrder);
 
@@ -291,7 +313,11 @@ export function PlansPage() {
     <>
       <PageHeader
         title="Plans"
-        description="What households can subscribe to: prices, features and limits. A preview on sample data: changes stay in this tab and nothing is saved or charged."
+        description={
+          live
+            ? PLANS_LIVE
+            : "What households can subscribe to: prices, features and limits. A preview on sample data: changes stay in this tab and nothing is saved or charged."
+        }
         actions={
           <>
             <SampleActions />

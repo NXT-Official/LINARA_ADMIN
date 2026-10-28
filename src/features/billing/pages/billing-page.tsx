@@ -5,7 +5,7 @@ import { DataTable, rowLinkClass, type Column } from "@/components/shared/data-t
 import { Field, FormDialog, SelectField } from "@/components/shared/form";
 import { ListToolbar, SearchField, SegmentedFilter } from "@/components/shared/list-toolbar";
 import { DetailList, PageHeader, Surface } from "@/components/shared/page";
-import { EmptyState } from "@/components/shared/states";
+import { EmptyState, FiguresSkeleton, TableSkeleton } from "@/components/shared/states";
 import { StatusChip, type ChipTone } from "@/components/shared/status-chip";
 import { Button } from "@/components/ui/button";
 import {
@@ -647,7 +647,33 @@ function SummaryRow({
  * shares the plan catalog with the Plans screen (D47), so a price or plan
  * changed there is what "Change plan" offers here.
  */
+const SUBS_LIVE = "Households' subscriptions and payments.";
+
+/** Subscriptions: its shape until the first read answers, never the sample in the meantime. */
 export function BillingPage() {
+  const { ready } = useBillingMode();
+  if (!ready) {
+    return (
+      <>
+        <PageHeader title="Subscriptions" description={SUBS_LIVE} actions={<SampleActions />} />
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
+          <Surface flush className="order-2 lg:order-1">
+            <div className="pt-5">
+              <TableSkeleton label="Loading subscriptions" />
+            </div>
+          </Surface>
+          <Surface title="This month" className="order-1 lg:order-2">
+            <FiguresSkeleton label="Loading this month's figures" rows={4} />
+          </Surface>
+        </div>
+      </>
+    );
+  }
+  return <BillingScreen />;
+}
+
+function BillingScreen() {
+  const { live } = useBillingMode();
   const state = useCatalog();
   const [tab, setTab] = useState<Tab>("subscriptions");
   const [subFilter, setSubFilter] = useState<SubFilter>("all");
@@ -661,7 +687,11 @@ export function BillingPage() {
     <>
       <PageHeader
         title="Subscriptions"
-        description="Households' subscriptions and payments. This is a preview on sample data: Linara has no billing yet, so nothing here charges, refunds or saves."
+        description={
+          live
+            ? SUBS_LIVE
+            : "Households' subscriptions and payments. This is a preview on sample data: Linara has no billing yet, so nothing here charges, refunds or saves."
+        }
         actions={
           <>
             <SampleActions />

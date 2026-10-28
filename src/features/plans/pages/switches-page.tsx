@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Field, FormDialog } from "@/components/shared/form";
 import { RecordLink } from "@/components/shared/links";
 import { PageHeader, Surface } from "@/components/shared/page";
+import { FiguresSkeleton } from "@/components/shared/states";
 import { StatusChip } from "@/components/shared/status-chip";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -89,13 +90,40 @@ function FlipDialog({ sw, plansWithIt }: { sw: GlobalSwitch; plansWithIt: string
 }
 
 /** Features turned off for everyone, whatever their plan (D47, plan R16). */
+const SWITCHES_LIVE = "Turn a feature off for every household, whatever their plan.";
+
+/** Global switches: its shape until the first read answers, never the sample in the meantime. */
 export function SwitchesPage() {
+  const { ready } = useBillingMode();
+  if (!ready) {
+    return (
+      <>
+        <PageHeader
+          title="Global switches"
+          description={SWITCHES_LIVE}
+          actions={<SampleActions />}
+        />
+        <Surface>
+          <FiguresSkeleton label="Loading switches" rows={3} />
+        </Surface>
+      </>
+    );
+  }
+  return <SwitchesScreen />;
+}
+
+function SwitchesScreen() {
+  const { live } = useBillingMode();
   const state = useCatalog();
   return (
     <>
       <PageHeader
         title="Global switches"
-        description="Turn a feature off for every household, whatever their plan. A preview on sample data: the real Staff pay & HR switch is off in the database, and nothing here changes it."
+        description={
+          live
+            ? SWITCHES_LIVE
+            : "Turn a feature off for every household, whatever their plan. A preview on sample data: the real Staff pay & HR switch is off in the database, and nothing here changes it."
+        }
         actions={<SampleActions />}
       />
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">

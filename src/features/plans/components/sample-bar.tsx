@@ -1,24 +1,17 @@
-import { useEffect } from "react";
-
 import { StatusChip } from "@/components/shared/status-chip";
 import { Button } from "@/components/ui/button";
 
-import { loadLiveBilling, resetCatalog, useBillingMode } from "../plans.store";
-
-let requested = false;
+import { resetCatalog, useBillingMode } from "../plans.store";
 
 /**
- * The header actions every billing screen carries. Loads the real data once
- * (D48); until then, and where billing isn't set up in the database, the
- * screens run on the D47 sample and say so.
+ * The header actions every billing screen carries. Nothing until the first
+ * read answers (the screen shows its skeleton); then Refresh on real data
+ * (D48), or, where billing isn't set up in the database, the D47 sample
+ * and a note saying so.
  */
 export function SampleActions() {
-  const { live, testTools, loading } = useBillingMode();
-  useEffect(() => {
-    if (requested) return;
-    requested = true;
-    void loadLiveBilling();
-  }, []);
+  const { live, testTools, loading, ready } = useBillingMode();
+  if (!ready) return null;
   if (live) {
     return (
       <>

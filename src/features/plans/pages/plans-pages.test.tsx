@@ -3,7 +3,7 @@ import "@testing-library/jest-dom/vitest";
 
 import type { ReactNode } from "react";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const navigate = vi.hoisted(() => vi.fn());
 vi.mock("@tanstack/react-router", () => ({
@@ -25,6 +25,10 @@ import { PlanPage } from "./plan-page";
 import { PlansPage } from "./plans-page";
 import { SwitchesPage } from "./switches-page";
 
+// The sample, settled: before the first read answers the screens show a skeleton instead.
+beforeEach(() => {
+  act(() => resetCatalog());
+});
 afterEach(() => {
   cleanup();
   act(() => resetCatalog());

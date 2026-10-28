@@ -4,7 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { Field, FormDialog } from "@/components/shared/form";
 import { BackLink, RecordLink } from "@/components/shared/links";
 import { PageHeader, Surface } from "@/components/shared/page";
-import { EmptyState } from "@/components/shared/states";
+import { DetailSkeleton, EmptyState } from "@/components/shared/states";
 import { StatusChip } from "@/components/shared/status-chip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,7 +32,7 @@ import {
   type ContentErrors,
 } from "../plans.logic";
 import { FEATURES, LIMIT_LABEL } from "../plans.sample";
-import { dispatchCatalog, useCatalog } from "../plans.store";
+import { dispatchCatalog, useBillingMode, useCatalog } from "../plans.store";
 import {
   CYCLES,
   LIMIT_KEYS,
@@ -569,8 +569,18 @@ function PlanEditor({ plan }: { plan: Plan }) {
 
 /** One plan's editor, on sample data (D47). */
 export function PlanPage({ planId }: { planId: string }) {
+  // Asking starts the first read, so a plan opened by its link loads too.
+  const { ready } = useBillingMode();
   const { plans } = useCatalog();
   const plan = plans.find((p) => p.id === planId);
+  if (!ready) {
+    return (
+      <>
+        <PageHeader back={<BackLink to="/plans">Plans</BackLink>} title="Plan" />
+        <DetailSkeleton label="Loading the plan" />
+      </>
+    );
+  }
   if (!plan) {
     return (
       <>

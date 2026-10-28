@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 
 import {
@@ -32,11 +32,14 @@ let state: CatalogState = SAMPLE_CATALOG;
 let live = false;
 let testTools = false;
 let loading = false;
+// Until the first read answers, the screens show their shape, not the sample.
+let ready = false;
+let requested = false;
 const listeners = new Set<() => void>();
-let snapshot = { state, live, testTools, loading };
+let snapshot = { state, live, testTools, loading, ready };
 
 function emit() {
-  snapshot = { state, live, testTools, loading };
+  snapshot = { state, live, testTools, loading, ready };
   for (const l of listeners) l();
 }
 
@@ -73,6 +76,7 @@ export async function loadLiveBilling(): Promise<boolean> {
     return false;
   } finally {
     loading = false;
+    ready = true;
     emit();
   }
 }
@@ -169,6 +173,7 @@ export function resetCatalog() {
     return;
   }
   state = SAMPLE_CATALOG;
+  ready = true;
   emit();
 }
 
@@ -180,12 +185,25 @@ export function useCatalog(): CatalogState {
   );
 }
 
-/** Whether the screens show real data, and the test tools. */
-export function useBillingMode(): { live: boolean; testTools: boolean; loading: boolean } {
+/**
+ * Whether the screens show real data, the test tools, and whether the first
+ * read has answered yet (ready). The first screen to ask starts that read.
+ */
+export function useBillingMode(): {
+  live: boolean;
+  testTools: boolean;
+  loading: boolean;
+  ready: boolean;
+} {
   const s = useSyncExternalStore(
     subscribe,
     () => snapshot,
     () => snapshot,
   );
-  return { live: s.live, testTools: s.testTools, loading: s.loading };
+  useEffect(() => {
+    if (requested || ready) return;
+    requested = true;
+    void loadLiveBilling();
+  }, []);
+  return { live: s.live, testTools: s.testTools, loading: s.loading, ready: s.ready };
 }

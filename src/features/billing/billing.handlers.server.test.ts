@@ -86,6 +86,13 @@ describe("reading", () => {
             failureReason: null,
             amount: 19900,
           },
+          {
+            id: "p3",
+            status: "cancelled",
+            channel: null,
+            failureReason: "Replaced by a newer payment.",
+            amount: 19900,
+          },
         ],
       }) as never,
     );
@@ -96,6 +103,7 @@ describe("reading", () => {
     expect(state.payments.map((p) => [p.status, p.method.channel])).toEqual([
       ["failed", "GCASH"],
       ["pending", "CARD"],
+      ["failed", "OTHER"],
     ]);
     expect(state.payments[1].failureReason).toMatch(/needs checking/);
     // Switches the console can't describe (the test tools) aren't listed as global switches.

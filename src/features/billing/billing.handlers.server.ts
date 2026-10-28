@@ -50,7 +50,7 @@ type DbState = {
     subscriptionId: string;
     reference: string;
     amount: number;
-    status: "pending" | "paid" | "failed" | "expired" | "review";
+    status: "pending" | "paid" | "failed" | "expired" | "review" | "cancelled";
     channel: string | null;
     createdAt: string;
     failureReason: string | null;
@@ -96,7 +96,14 @@ export function toState(db: DbState): LiveBilling {
     subscriptionId: p.subscriptionId,
     reference: p.reference,
     amount: p.amount,
-    status: p.status === "expired" ? "failed" : p.status === "review" ? "pending" : p.status,
+    // Expired and replaced pages were never paid; a page paid after it was
+    // replaced is "review" and needs a refund in Xendit.
+    status:
+      p.status === "expired" || p.status === "cancelled"
+        ? "failed"
+        : p.status === "review"
+          ? "pending"
+          : p.status,
     method: { channel: channel(p.channel) ?? "OTHER", ending: "" },
     createdAt: p.createdAt,
     failureReason:

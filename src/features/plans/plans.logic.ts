@@ -20,6 +20,26 @@ export const MAX_CENTAVOS = 99_999_999;
 export const MAX_TRIAL_DAYS = 90;
 export const MAX_NAME = 40;
 export const MAX_DESCRIPTION = 160;
+/** Matches billing_plans.id CHECK (id ~ '^[a-z][a-z0-9_]{1,30}$') in add-billing.sql. */
+export const PLAN_ID_RE = /^[a-z][a-z0-9_]{1,30}$/;
+
+/**
+ * A short id from a name, unique in the catalog and valid in billing_plans:
+ * "Family plus" -> "family_plus", "2 Homes" -> "plan_2_homes", "A" -> "plan_a".
+ */
+export function idFor(name: string, taken: Set<string>): string {
+  const raw = name
+    .normalize("NFKD")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  const prefixed = !raw ? "plan" : /^[a-z]/.test(raw) ? raw : `plan_${raw}`;
+  const trimmed = prefixed.slice(0, 27).replace(/_+$/, "");
+  const base = trimmed.length < 2 ? `plan_${trimmed || "x"}` : trimmed;
+  let id = base;
+  for (let n = 2; taken.has(id); n++) id = `${base}_${n}`;
+  return id;
+}
 const LIMIT_RANGE: Record<LimitKey, [number, number]> = {
   households: [1, 99],
   kasambahay: [1, 99],
@@ -281,6 +301,9 @@ export function applyAction(
       const content = blankContent(action.name.trim());
       const err = firstError(validateContent(content, state.plans));
       if (err) return fail(err);
+      if (!PLAN_ID_RE.test(action.id)) {
+        return fail("Plan id must be 2 to 31 lowercase letters, numbers or underscores.");
+      }
       const order = Math.max(0, ...state.plans.map((p) => p.displayOrder)) + 1;
       const plan: Plan = {
         id: action.id,

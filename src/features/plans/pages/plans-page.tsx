@@ -18,6 +18,7 @@ import {
   currentVersion,
   formatCentavos,
   householdsOn,
+  idFor,
   limitText,
   limitsSummary,
   parsePeso,
@@ -26,22 +27,13 @@ import {
   STATUS_LABEL,
 } from "../plans.logic";
 import { LIMIT_LABEL } from "../plans.sample";
-import { dispatchCatalog, useBillingMode, useCatalog } from "../plans.store";
+import {
+  dispatchCatalog,
+  dispatchCatalogAndWait,
+  useBillingMode,
+  useCatalog,
+} from "../plans.store";
 import type { Addon, Plan } from "../plans.types";
-
-/** A short id from a name, unique in the catalog: "Family plus" -> "family-plus". */
-function idFor(name: string, taken: Set<string>): string {
-  const base =
-    name
-      .normalize("NFKD")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 32) || "plan";
-  let id = base;
-  for (let n = 2; taken.has(id); n++) id = `${base}-${n}`;
-  return id;
-}
 
 function NewPlanDialog() {
   const { plans } = useCatalog();
@@ -57,7 +49,7 @@ function NewPlanDialog() {
       canSubmit={name.trim().length > 0}
       onSubmit={async () => {
         const id = idFor(name, new Set(plans.map((p) => p.id)));
-        const res = dispatchCatalog({ type: "create_plan", id, name });
+        const res = await dispatchCatalogAndWait({ type: "create_plan", id, name });
         if (!res.ok) return res;
         setName("");
         void navigate({ to: "/plans/$planId", params: { planId: id } });

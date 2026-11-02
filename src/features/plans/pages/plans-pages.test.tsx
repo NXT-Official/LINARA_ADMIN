@@ -96,7 +96,7 @@ describe("PlansPage (D47)", () => {
     });
     expect(navigate).toHaveBeenCalledWith({
       to: "/plans/$planId",
-      params: { planId: "family-plus" },
+      params: { planId: "family_plus" },
     });
     expect(table("Plans").getByText("Family plus")).toBeInTheDocument();
   });

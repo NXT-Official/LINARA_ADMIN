@@ -6,7 +6,9 @@ import {
   describeChanges,
   featureOffForEveryone,
   householdsOn,
+  idFor,
   parsePeso,
+  PLAN_ID_RE,
   priceSummary,
   validateContent,
   type ActionResult,
@@ -328,15 +330,36 @@ describe("creating, deleting and ordering", () => {
   });
 
   it("refuses a duplicate name or id when creating, case and spaces aside", () => {
-    expect(refused(run(SAMPLE_CATALOG, { type: "create_plan", id: "x", name: "FREE" }))).toMatch(
+    expect(refused(run(SAMPLE_CATALOG, { type: "create_plan", id: "xx", name: "FREE" }))).toMatch(
       /already/,
     );
     expect(
       refused(run(SAMPLE_CATALOG, { type: "create_plan", id: "free", name: "Other" })),
     ).toMatch(/id/);
-    expect(refused(run(SAMPLE_CATALOG, { type: "create_plan", id: "y", name: "   " }))).toMatch(
+    expect(refused(run(SAMPLE_CATALOG, { type: "create_plan", id: "yy", name: "   " }))).toMatch(
       /name/,
     );
+    expect(
+      refused(run(SAMPLE_CATALOG, { type: "create_plan", id: "family-plus", name: "Family plus" })),
+    ).toMatch(/lowercase letters, numbers or underscores/);
+  });
+
+  it("idFor always produces a database-valid plan id matching PLAN_ID_RE", () => {
+    const taken = new Set(["free", "normal", "premium", "family_plus"]);
+    const cases: [string, string][] = [
+      ["Family", "family"],
+      ["Family plus", "family_plus_2"],
+      ["Starter Plan", "starter_plan"],
+      ["2 Homes", "plan_2_homes"],
+      ["A", "plan_a"],
+      ["🏠", "plan"],
+      ["x".repeat(40), "x".repeat(27)],
+    ];
+    for (const [name, expected] of cases) {
+      const generated = idFor(name, taken);
+      expect(generated, name).toBe(expected);
+      expect(PLAN_ID_RE.test(generated), `${name} -> ${generated}`).toBe(true);
+    }
   });
 
   it("deletes only a never-published draft", () => {

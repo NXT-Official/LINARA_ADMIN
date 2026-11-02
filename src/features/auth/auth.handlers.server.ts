@@ -1,4 +1,4 @@
-import { getRequestIP } from "@tanstack/react-start/server";
+import { clientIp } from "@/lib/client-ip.server";
 
 import { writeAudit } from "@/features/audit/audit.server";
 import { ConsoleError, toPublicError, type PublicError } from "@/lib/console-error";
@@ -24,6 +24,19 @@ export const WRONG_PASSWORD: PublicError = {
   code: "invalid_input",
   message: "Email or password is incorrect.",
 };
+/**
+ * Every refused sign-in takes at least this long. Without it a household
+ * account with its correct password was refused in about twice the time of a
+ * wrong one, which told an attacker the password was right (2026-11-02 test).
+ */
+export const REFUSAL_FLOOR_MS = 1200;
+
+async function refuse(startedAt: number): Promise<PublicError> {
+  const wait = REFUSAL_FLOOR_MS - (Date.now() - startedAt);
+  if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+  return WRONG_PASSWORD;
+}
+
 const WRONG_CODE = "That code didn't work. Check your authenticator app and try again.";
 
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/;
@@ -45,6 +58,7 @@ export type SignInInput = { email: string; password: string; captchaToken: strin
 export type SignInResult = { ok: true; next: "two-step" | "set-up" } | PublicError;
 
 export function signInHandler(input: SignInInput): Promise<SignInResult> {
+  const startedAt = Date.now();
   return run(async () => {
     memoryGuardIp();
     const email = String(input.email ?? "").trim();
@@ -53,10 +67,10 @@ export function signInHandler(input: SignInInput): Promise<SignInResult> {
       throw new ConsoleError("invalid_input", "Enter your work email and password.");
     }
     await verifyCaptcha(input.captchaToken ?? undefined);
-    await checkRateLimit("sign_in", { email, ip: getRequestIP() });
+    await checkRateLimit("sign_in", { email, ip: clientIp() });
 
     const { data, error } = await getAnonClient().auth.signInWithPassword({ email, password });
-    if (error || !data.session || !data.user) return WRONG_PASSWORD;
+    if (error || !data.session || !data.user) return refuse(startedAt);
 
     const admin = getAdminClient();
     const { data: roleRow } = await admin
@@ -68,7 +82,7 @@ export function signInHandler(input: SignInInput): Promise<SignInResult> {
       // A Linara household account with a correct password: end that session now
       // and answer exactly as for a wrong password.
       await admin.auth.admin.signOut(data.session.access_token);
-      return WRONG_PASSWORD;
+      return refuse(startedAt);
     }
 
     writeSessionCookies({

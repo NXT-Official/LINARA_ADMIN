@@ -1,4 +1,4 @@
-import { getRequestIP } from "@tanstack/react-start/server";
+import { clientIp } from "@/lib/client-ip.server";
 
 import { ConsoleError } from "@/lib/console-error";
 import { logError } from "@/lib/log.server";
@@ -14,7 +14,7 @@ export async function verifyCaptcha(token: string | undefined): Promise<void> {
   if (!token) throw new ConsoleError("invalid_input", CAPTCHA_FAILED);
 
   const body = new URLSearchParams({ secret: serverEnv().hcaptchaSecret, response: token });
-  const ip = getRequestIP();
+  const ip = clientIp();
   if (ip) body.set("remoteip", ip);
 
   try {

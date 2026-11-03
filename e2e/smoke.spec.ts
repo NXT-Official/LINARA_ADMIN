@@ -29,10 +29,12 @@ test.describe("signed in", () => {
       await page.goto(path);
       await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible();
       await expect(page.getByText(/^(Development|Staging|Production)$/)).toBeVisible();
-      const overflow = await page.evaluate(
-        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-      );
-      expect(overflow).toBeLessThanOrEqual(0);
+      // Against the configured width, not clientWidth: on an emulated phone the
+      // browser widens the layout viewport to fit wide content, so clientWidth
+      // grows with the page and the overflow reads 0 (billing at 360px, 2026-11-03).
+      const width = page.viewportSize()!.width;
+      const pageWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+      expect(pageWidth).toBeLessThanOrEqual(width);
       expect(errors).toEqual([]);
     });
   }

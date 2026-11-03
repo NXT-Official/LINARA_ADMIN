@@ -656,7 +656,7 @@ export function BillingPage() {
     return (
       <>
         <PageHeader title="Subscriptions" description={SUBS_LIVE} actions={<SampleActions />} />
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
           <Surface flush className="order-2 lg:order-1">
             <div className="pt-5">
               <TableSkeleton label="Loading subscriptions" />
@@ -701,7 +701,7 @@ function BillingScreen() {
           </>
         }
       />
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
         <Surface flush className="order-2 lg:order-1">
           <div className="space-y-3 pt-5">
             <div className="px-5 sm:px-6">

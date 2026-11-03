@@ -147,12 +147,21 @@ describe("changing the catalog", () => {
     expect(wrong).toMatchObject({ ok: false });
     expect(calls()).not.toContain("staff_set_switch");
 
-    await catalogActionHandler({
+    // A good code still can't turn on Staff pay & HR: Linara staff payroll isn't built (D50).
+    const locked = await catalogActionHandler({
       action: { type: "set_switch", key: "staff_pay_hr", enabled: true, note: "Cleared" },
       code: "123456",
     });
     expect(m.requireFreshCode).toHaveBeenLastCalledWith(STAFF, "123456");
-    expect(calls()).toContain("staff_set_switch");
+    expect(locked).toMatchObject({ ok: false, message: expect.stringMatching(/isn't built yet/) });
+    expect(calls()).not.toContain("staff_set_switch");
+  });
+
+  it("describes the switch as the Linara team's, whatever the database row says (D50)", async () => {
+    const { state } = toState(dbState() as never);
+    const sw = state.switches.find((s) => s.key === "staff_pay_hr")!;
+    expect(sw.name).toBe("Staff pay & HR (Linara team)");
+    expect(sw.lockedOn).toMatch(/isn't built yet/);
   });
 
   it("a database refusal comes back as its own message; anything else says nothing about itself", async () => {

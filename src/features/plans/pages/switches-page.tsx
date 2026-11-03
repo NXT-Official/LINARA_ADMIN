@@ -35,7 +35,7 @@ function FlipDialog({ sw, plansWithIt }: { sw: GlobalSwitch; plansWithIt: string
       description={
         turningOn
           ? `${who} Turn it on only once it's cleared to go live. ${SAMPLE_NOTE}`
-          : `It goes off for every household, whatever their plan. Their records are kept. ${SAMPLE_NOTE}`
+          : `${plansWithIt.length ? "It goes off for every household, whatever their plan." : "It goes off for everyone."} Records are kept. ${SAMPLE_NOTE}`
       }
       submitLabel={turningOn ? "Turn on" : "Turn off"}
       done={`${sw.name} is ${turningOn ? "on" : "off"}. ${SAMPLE_NOTE}`}
@@ -89,8 +89,8 @@ function FlipDialog({ sw, plansWithIt }: { sw: GlobalSwitch; plansWithIt: string
   );
 }
 
-/** Features turned off for everyone, whatever their plan (D47, plan R16). */
-const SWITCHES_LIVE = "Turn a feature off for every household, whatever their plan.";
+/** Features turned on or off for everyone (D47, plan R16). Not all are households' (D50). */
+const SWITCHES_LIVE = "Turn a feature on or off for everyone.";
 
 /** Global switches: its shape until the first read answers, never the sample in the meantime. */
 export function SwitchesPage() {
@@ -122,7 +122,7 @@ function SwitchesScreen() {
         description={
           live
             ? SWITCHES_LIVE
-            : "Turn a feature off for every household, whatever their plan. A preview on sample data: the real Staff pay & HR switch is off in the database, and nothing here changes it."
+            : `${SWITCHES_LIVE} A preview on sample data: nothing here changes the real switches.`
         }
         actions={<SampleActions />}
       />
@@ -144,12 +144,12 @@ function SwitchesScreen() {
                   sw.enabled ? (
                     <StatusChip tone="done">On</StatusChip>
                   ) : (
-                    <StatusChip tone="late">Off for everyone</StatusChip>
+                    <StatusChip tone="late">Off</StatusChip>
                   )
                 }
               >
                 <div className="space-y-5">
-                  <div className="grid gap-5 md:grid-cols-2">
+                  <div className={featureKeys.length ? "grid gap-5 md:grid-cols-2" : undefined}>
                     <div>
                       <h3 className="text-sm font-semibold text-foreground">Covers</h3>
                       <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-sm text-foreground">
@@ -158,37 +158,43 @@ function SwitchesScreen() {
                         ))}
                       </ul>
                     </div>
-                    <div>
-                      <h3 className="text-sm font-semibold text-foreground">
-                        Plans that include it
-                      </h3>
-                      {plansWithIt.length ? (
-                        <ul className="mt-1.5 space-y-0.5 text-sm">
-                          {plansWithIt.map((p) => (
-                            <li key={p.id}>
-                              <RecordLink to={`/plans/${p.id}`}>{p.content.name}</RecordLink>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="mt-1.5 text-sm text-muted-foreground">None yet.</p>
-                      )}
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        {sw.enabled
-                          ? "They have it now."
-                          : "They don't get it while the switch is off."}
-                      </p>
-                    </div>
+                    {featureKeys.length ? (
+                      <div>
+                        <h3 className="text-sm font-semibold text-foreground">
+                          Plans that include it
+                        </h3>
+                        {plansWithIt.length ? (
+                          <ul className="mt-1.5 space-y-0.5 text-sm">
+                            {plansWithIt.map((p) => (
+                              <li key={p.id}>
+                                <RecordLink to={`/plans/${p.id}`}>{p.content.name}</RecordLink>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="mt-1.5 text-sm text-muted-foreground">None yet.</p>
+                        )}
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          {sw.enabled
+                            ? "They have it now."
+                            : "They don't get it while the switch is off."}
+                        </p>
+                      </div>
+                    ) : null}
                   </div>
                   <div className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-xs text-muted-foreground">
                       Last changed {formatDateTime(sw.updatedAt)}, by {sw.updatedBy}.
                     </p>
-                    <FlipDialog
-                      key={`${sw.key}:${sw.enabled}`}
-                      sw={sw}
-                      plansWithIt={plansWithIt.map((p) => p.content.name)}
-                    />
+                    {sw.lockedOn && !sw.enabled ? (
+                      <p className="max-w-md text-sm text-muted-foreground">{sw.lockedOn}</p>
+                    ) : (
+                      <FlipDialog
+                        key={`${sw.key}:${sw.enabled}`}
+                        sw={sw}
+                        plansWithIt={plansWithIt.map((p) => p.content.name)}
+                      />
+                    )}
                   </div>
                 </div>
               </Surface>

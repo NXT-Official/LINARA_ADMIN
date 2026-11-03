@@ -26,7 +26,7 @@ import {
   priceSummary,
   STATUS_LABEL,
 } from "../plans.logic";
-import { LIMIT_LABEL } from "../plans.sample";
+import { FEATURES, LIMIT_LABEL } from "../plans.sample";
 import {
   dispatchCatalog,
   dispatchCatalogAndWait,
@@ -299,7 +299,10 @@ function PlansScreen() {
     },
   ];
 
-  const offForEveryone = state.switches.filter((s) => !s.enabled);
+  // Only switches that hold back a plan feature; Staff pay & HR is the Linara team's (D50).
+  const offForEveryone = state.switches.filter(
+    (s) => !s.enabled && FEATURES.some((f) => f.switchKey === s.key),
+  );
 
   return (
     <>

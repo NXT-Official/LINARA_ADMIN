@@ -14,7 +14,7 @@ import {
   type ActionResult,
   type CatalogAction,
 } from "./plans.logic";
-import { SAMPLE_CATALOG } from "./plans.sample";
+import { FEATURES, SAMPLE_CATALOG } from "./plans.sample";
 import type { CatalogState, PlanContent } from "./plans.types";
 
 const now = new Date("2026-10-26T05:00:00.000Z");
@@ -420,21 +420,78 @@ describe("add-ons", () => {
   });
 });
 
-describe("global switches", () => {
-  it("Staff pay & HR starts off, and that marks its feature off for everyone", () => {
-    expect(SAMPLE_CATALOG.switches.find((s) => s.key === "staff_pay_hr")?.enabled).toBe(false);
-    expect(featureOffForEveryone(SAMPLE_CATALOG, "staff_pay_hr")).toBe(true);
+describe("Staff pay & HR is the Linara team's own (D50)", () => {
+  // A version saved before LINARA's staff-pay-hr-linara-team.sql still carries the key.
+  const legacy = (features: object) => ({ ...features, staff_pay_hr: true }) as never;
+  const premiumWithIt = (): CatalogState => ({
+    ...SAMPLE_CATALOG,
+    plans: SAMPLE_CATALOG.plans.map((p) =>
+      p.id === "premium"
+        ? { ...p, content: { ...p.content, features: legacy(p.content.features) } }
+        : p,
+    ),
+  });
+
+  it("isn't a feature a plan can include", () => {
+    expect(FEATURES.map((f) => f.key)).not.toContain("staff_pay_hr");
+    for (const p of SAMPLE_CATALOG.plans)
+      expect(p.content.features).not.toHaveProperty("staff_pay_hr");
     expect(featureOffForEveryone(SAMPLE_CATALOG, "tasks")).toBe(false);
   });
 
-  it("turning it on needs a reason, records who and when, and keeps the history", () => {
+  it("a new plan never has the key, and saving an old one drops it (the database refuses it)", () => {
+    const created = ok(run(SAMPLE_CATALOG, { type: "create_plan", id: "family", name: "Family" }));
+    expect(plan(created, "family").content.features).not.toHaveProperty("staff_pay_hr");
+
+    const before = premiumWithIt();
+    const saved = ok(
+      run(before, {
+        type: "save_plan",
+        planId: "premium",
+        content: withContent(before, "premium", { description: "Everything, and more." }),
+      }),
+    );
+    const features = plan(saved, "premium").content.features;
+    expect(features).not.toHaveProperty("staff_pay_hr");
+    expect(Object.keys(features).sort()).toEqual(FEATURES.map((f) => f.key).sort());
+    expect(features.remote_admin).toBe(true);
+    // Dropping it is not a change of its own: it isn't named in the version history.
+    expect(plan(saved, "premium").versions[0].summary).not.toMatch(/features/);
+  });
+
+  it("starts off and can't be turned on yet, whatever the reason given", () => {
+    const sw = SAMPLE_CATALOG.switches.find((s) => s.key === "staff_pay_hr")!;
+    expect(sw.enabled).toBe(false);
+    expect(sw.name).toMatch(/Linara team/);
+    expect(`${sw.description} ${sw.covers.join(" ")}`).not.toMatch(/household|helper|vale/i);
     expect(
       refused(
-        run(SAMPLE_CATALOG, { type: "set_switch", key: "staff_pay_hr", enabled: true, note: "  " }),
+        run(SAMPLE_CATALOG, {
+          type: "set_switch",
+          key: "staff_pay_hr",
+          enabled: true,
+          note: "Cleared by legal",
+        }),
+      ),
+    ).toMatch(/isn't built yet/);
+  });
+});
+
+describe("global switches", () => {
+  // The mechanics, on a copy of the switch without its D50 lock.
+  const UNLOCKED: CatalogState = {
+    ...SAMPLE_CATALOG,
+    switches: SAMPLE_CATALOG.switches.map((s) => ({ ...s, lockedOn: undefined })),
+  };
+
+  it("turning one on needs a reason, records who and when, and keeps the history", () => {
+    expect(
+      refused(
+        run(UNLOCKED, { type: "set_switch", key: "staff_pay_hr", enabled: true, note: "  " }),
       ),
     ).toMatch(/why/);
     const s = ok(
-      run(SAMPLE_CATALOG, {
+      run(UNLOCKED, {
         type: "set_switch",
         key: "staff_pay_hr",
         enabled: true,
@@ -443,7 +500,6 @@ describe("global switches", () => {
     );
     expect(s.switches[0]).toMatchObject({ enabled: true, updatedBy: "Tester" });
     expect(s.switchHistory.map((h) => h.enabled)).toEqual([true, false]);
-    expect(featureOffForEveryone(s, "staff_pay_hr")).toBe(false);
   });
 
   it("refuses a repeat flip (a double click) instead of logging it twice", () => {

@@ -64,12 +64,10 @@ describe("PlansPage (D47)", () => {
     expect(names).toEqual(["Free", "Premium", "Normal"]);
   });
 
-  it("points at the switch that turns Staff pay & HR off for everyone", () => {
+  it("doesn't present the Linara team's Staff pay & HR as something plans include (D50)", () => {
     render(<PlansPage />);
-    expect(screen.getByRole("link", { name: "Staff pay & HR" })).toHaveAttribute(
-      "href",
-      "/switches",
-    );
+    expect(screen.queryByText(/Staff pay & HR/)).toBeNull();
+    expect(screen.queryByText(/Off for everyone, whatever the plan/)).toBeNull();
   });
 
   it("won't offer an add-on without a price, and refuses a malformed one", async () => {
@@ -216,27 +214,29 @@ describe("PlanPage (D47)", () => {
   });
 });
 
-describe("SwitchesPage (D47)", () => {
-  it("shows Staff pay & HR off, and turning it on needs a reason", async () => {
+describe("SwitchesPage (D47, D50)", () => {
+  it("shows Staff pay & HR as the Linara team's, off, with no way to turn it on yet", () => {
     render(<SwitchesPage />);
-    expect(screen.getAllByText("Off for everyone").length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: "Turn on Staff pay & HR" }));
-    expect(dialog().getByText("This turns on:")).toBeInTheDocument();
-    expect(dialog().getByRole("button", { name: "Turn on" })).toBeDisabled();
-    type(dialog().getByLabelText("Why"), "   ");
-    expect(dialog().getByRole("button", { name: "Turn on" })).toBeDisabled();
-    type(dialog().getByLabelText("Why"), "Cleared by legal");
-    await act(async () => {
-      fireEvent.click(dialog().getByRole("button", { name: "Turn on" }));
-    });
-    expect(screen.getByText("On")).toBeInTheDocument();
-    expect(screen.getByText("Turned on")).toBeInTheDocument();
-    expect(screen.getByText("Cleared by legal")).toBeInTheDocument();
+    const card = screen
+      .getByRole("heading", { name: "Staff pay & HR (Linara team)" })
+      .closest("section")!;
+    expect(within(card).getByText("Off")).toBeInTheDocument();
+    expect(within(card).getByText(/isn't built yet/)).toBeInTheDocument();
+    expect(within(card).queryByRole("button", { name: /Turn on/ })).toBeNull();
+    expect(within(card).queryByText("Plans that include it")).toBeNull();
+    expect(card.textContent).not.toMatch(/household|helper|vale|whatever their plan/i);
   });
 
-  it("lists the plans that include it", () => {
+  it("the page doesn't say switches are about households", () => {
     render(<SwitchesPage />);
-    expect(screen.getByRole("link", { name: "Premium" })).toHaveAttribute("href", "/plans/premium");
-    expect(screen.queryByRole("link", { name: "Free" })).toBeNull();
+    expect(screen.queryByText(/every household/)).toBeNull();
+  });
+});
+
+describe("PlanPage features (D50)", () => {
+  it("doesn't list Staff pay & HR among a plan's features", () => {
+    render(<PlanPage planId="premium" />);
+    expect(screen.getByText("Remote admin")).toBeInTheDocument();
+    expect(screen.queryByText("Staff pay & HR")).toBeNull();
   });
 });

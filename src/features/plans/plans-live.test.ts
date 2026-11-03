@@ -105,19 +105,14 @@ describe("console billing, live", () => {
     expect(server.catalogActionFn).not.toHaveBeenCalled();
   });
 
-  it("turning a switch on waits for the server, with the code, and a wrong code isn't shown as saved", async () => {
+  it("turning Staff pay & HR on is refused before it reaches the server, code or not (D50)", async () => {
     const before = useCurrent();
-    server.catalogActionFn.mockResolvedValue({
-      ok: false,
-      code: "invalid_input",
-      message: "That code didn't work.",
-    });
     const res = await dispatchCatalogAndWait(
       { type: "set_switch", key: "staff_pay_hr", enabled: true, note: "Cleared" },
       { code: "123456" },
     );
-    expect(res).toEqual({ ok: false, message: "That code didn't work." });
-    expect(server.catalogActionFn.mock.calls[0][0].data.code).toBe("123456");
+    expect(res).toMatchObject({ ok: false, message: expect.stringMatching(/isn't built yet/) });
+    expect(server.catalogActionFn).not.toHaveBeenCalled();
     expect(useCurrent()).toBe(before);
     expect(useCurrent().switches[0].enabled).toBe(false);
   });

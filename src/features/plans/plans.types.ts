@@ -25,8 +25,7 @@ export type FeatureKey =
   | "after_hours"
   | "teams_labels"
   | "remote_admin"
-  | "work_record"
-  | "staff_pay_hr";
+  | "work_record";
 
 /** A feature the apps can lock. The list is fixed in code: a new one needs code to gate it. */
 export type Feature = {
@@ -93,6 +92,8 @@ export type GlobalSwitch = {
   enabled: boolean;
   updatedAt: string;
   updatedBy: string;
+  /** Why it can't be turned on yet, if it can't (D50). Turning it off is still allowed. */
+  lockedOn?: string;
 };
 
 export type SwitchChange = {

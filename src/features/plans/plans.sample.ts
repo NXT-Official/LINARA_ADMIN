@@ -32,12 +32,6 @@ export const FEATURES: Feature[] = [
     description: "A helper's record as a PDF.",
     everyPlan: "Her record is hers to keep, so it stays on every plan.",
   },
-  {
-    key: "staff_pay_hr",
-    name: "Staff pay & HR",
-    description: "Payslips, paying staff, vale, wage changes, SSS, PhilHealth and Pag-IBIG.",
-    switchKey: "staff_pay_hr",
-  },
 ];
 
 export const LIMIT_LABEL: Record<LimitKey, { one: string; many: string; field: string }> = {
@@ -145,19 +139,17 @@ export const SAMPLE_CATALOG: CatalogState = {
   switches: [
     {
       key: "staff_pay_hr",
-      name: "Staff pay & HR",
-      description:
-        "Temporarily off while pay and HR are brought in line with the law. Records are kept.",
+      name: "Staff pay & HR (Linara team)",
+      description: "Payroll and HR for Linara's own staff. Off for now.",
       covers: [
-        "Payslips and paying staff",
-        "Vale requests and approvals",
-        "Where a helper is paid",
-        "Wage changes",
-        "SSS, PhilHealth and Pag-IBIG figures",
+        "Payslips for the Linara team",
+        "Paying Linara staff",
+        "SSS, PhilHealth and Pag-IBIG for the Linara team",
       ],
       enabled: false,
       updatedAt: "2026-10-26T04:00:00.000Z",
       updatedBy: "SQL editor",
+      lockedOn: "Linara team payroll isn't built yet, so this stays off.",
     },
   ],
   switchHistory: [
@@ -167,7 +159,7 @@ export const SAMPLE_CATALOG: CatalogState = {
       enabled: false,
       at: "2026-10-26T04:00:00.000Z",
       by: "SQL editor",
-      note: "Turned off while pay and HR are reviewed against the law.",
+      note: "Off until Linara team payroll is ready.",
     },
   ],
   subscriptions: SAMPLE_SUBSCRIPTIONS,

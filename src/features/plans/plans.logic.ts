@@ -277,6 +277,18 @@ function blankContent(name: string): PlanContent {
   };
 }
 
+/**
+ * What a plan saves: only the features on the list. A key that's left it, like
+ * staff_pay_hr (D50), is dropped, since LINARA's billing_valid_version() refuses
+ * a version with any key that isn't in billing_feature_keys().
+ */
+const offerable = (content: PlanContent): PlanContent => ({
+  ...content,
+  features: Object.fromEntries(
+    FEATURES.map((f) => [f.key, content.features[f.key] ?? !!f.everyPlan]),
+  ) as Record<FeatureKey, boolean>,
+});
+
 function withPlan(state: CatalogState, plan: Plan): CatalogState {
   return { ...state, plans: state.plans.map((p) => (p.id === plan.id ? plan : p)) };
 }
@@ -324,7 +336,7 @@ export function applyAction(
       const err = firstError(validateContent(action.content, others, { forPublish: live }));
       if (err) return fail(err);
       if (sameContent(plan.content, action.content)) return fail("Nothing has changed.");
-      const content = { ...action.content, name: action.content.name.trim() };
+      const content = offerable({ ...action.content, name: action.content.name.trim() });
       // A price someone saved is a real one, not the sample's placeholder.
       const pricePlaceholder =
         plan.pricePlaceholder && CYCLES.every((c) => plan.content.prices[c] === content.prices[c]);
@@ -444,6 +456,7 @@ export function applyAction(
       if (sw.enabled === action.enabled) {
         return fail(`It's already ${action.enabled ? "on" : "off"}.`);
       }
+      if (action.enabled && sw.lockedOn) return fail(sw.lockedOn);
       const note = action.note.trim();
       if (!note) return fail("Say why, for the record.");
       if ([...note].length > 200) return fail("Keep the reason to 200 characters.");

@@ -26,6 +26,28 @@ export type RevealedPay =
 const NOT_FOUND = "That helper doesn't exist.";
 const AUDIT_FIELD: Record<PayField, string> = { wage: "monthly_rate", account: "payout_account" };
 
+/**
+ * The wage in force today, as LINARA's helper_rate_on reads it: the latest
+ * rate that has started, else her first one, else the profile's newest rate.
+ * A raise set for the next cutoff isn't in force yet, so it isn't shown.
+ */
+async function rateInForce(
+  admin: ReturnType<typeof getAdminClient>,
+  helperId: string,
+  profileRate: number | string | null | undefined,
+): Promise<number | string | null | undefined> {
+  const { data, error } = await admin
+    .from("helper_wage_rates")
+    .select("monthly_rate, effective_from")
+    .eq("helper_id", helperId)
+    .order("effective_from", { ascending: false });
+  if (error) throw new Error(error.message);
+  const rates = (data ?? []) as { monthly_rate: number | string; effective_from: string }[];
+  if (rates.length === 0) return profileRate;
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
+  return (rates.find((r) => r.effective_from <= today) ?? rates[rates.length - 1]).monthly_rate;
+}
+
 export async function revealPayHandler(input: {
   helperId: string;
   field: PayField;
@@ -48,7 +70,7 @@ export async function revealPayHandler(input: {
 
     let pay: RevealedPay;
     if (input.field === "wage") {
-      const rate = profile.monthly_rate;
+      const rate = await rateInForce(admin, input.helperId, profile.monthly_rate);
       pay = {
         field: "wage",
         monthlyRate: rate === null || rate === undefined ? null : Number(rate),
@@ -101,22 +123,40 @@ export async function revealPayoutAmountHandler(input: {
     if (!isUuid(input.attemptId)) throw new ConsoleError("not_found", NO_ATTEMPT);
     const staff = await requireStaff("pay.view");
 
-    const { data, error } = await getAdminClient()
+    const admin = getAdminClient();
+    const { data, error } = await admin
       .from("payout_attempts")
       .select("amount_sent, payslips(helper_id)")
       .eq("id", input.attemptId)
       .maybeSingle<{ amount_sent: number | string; payslips: { helper_id: string } | null }>();
     if (error) throw new Error(error.message);
-    if (!data?.payslips) throw new ConsoleError("not_found", NO_ATTEMPT);
+
+    let amount: number | string;
+    let helperId: string;
+    if (data?.payslips) {
+      amount = data.amount_sent;
+      helperId = data.payslips.helper_id;
+    } else {
+      // A disputed direct payment has no attempt: its row id is the payslip's.
+      const { data: slip, error: slipError } = await admin
+        .from("payslips")
+        .select("net_pay, helper_id")
+        .eq("id", input.attemptId)
+        .maybeSingle<{ net_pay: number | string; helper_id: string }>();
+      if (slipError) throw new Error(slipError.message);
+      if (!slip) throw new ConsoleError("not_found", NO_ATTEMPT);
+      amount = slip.net_pay;
+      helperId = slip.helper_id;
+    }
 
     await writeAudit({
       actorId: staff.userId,
       action: "pay.revealed",
       targetType: "helper",
-      targetId: data.payslips.helper_id,
+      targetId: helperId,
       metadata: { fields: "payout_amount", attempt_id: input.attemptId },
     });
-    return { ok: true, amount: Number(data.amount_sent) };
+    return { ok: true, amount: Number(amount) };
   } catch (e) {
     if (!(e instanceof ConsoleError)) logError("payout amount reveal", e);
     return toPublicError(e);

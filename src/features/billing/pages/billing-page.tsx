@@ -1,10 +1,11 @@
-import { useMemo, useReducer, useState } from "react";
+import { useId, useMemo, useState } from "react";
+import { Link } from "@tanstack/react-router";
 
 import { DataTable, rowLinkClass, type Column } from "@/components/shared/data-table";
 import { Field, FormDialog, SelectField } from "@/components/shared/form";
 import { ListToolbar, SearchField, SegmentedFilter } from "@/components/shared/list-toolbar";
 import { DetailList, PageHeader, Surface } from "@/components/shared/page";
-import { EmptyState } from "@/components/shared/states";
+import { EmptyState, FiguresSkeleton, TableSkeleton } from "@/components/shared/states";
 import { StatusChip, type ChipTone } from "@/components/shared/status-chip";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,23 +15,41 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { formatCount, formatDate, formatPeso } from "@/lib/format";
+import { Input } from "@/components/ui/input";
+import { SampleActions } from "@/features/plans/components/sample-bar";
+import { CYCLE_LABEL, formatCentavos } from "@/features/plans/plans.logic";
+import {
+  dispatchBilling,
+  shiftRenewal,
+  useBillingMode,
+  useCatalog,
+} from "@/features/plans/plans.store";
+import type { CatalogState, Cycle } from "@/features/plans/plans.types";
+import { formatCount, formatDate } from "@/lib/format";
 
-import { billingReducer, summarize, type BillingAction } from "../billing.logic";
-import { PLANS, SAMPLE_BILLING, planById } from "../billing.sample";
+import {
+  addonsLabel,
+  MAX_ADDON_QUANTITY,
+  offeredPlans,
+  planLabel,
+  pricedCycles,
+  quote,
+  summarize,
+  type BillingAction,
+  type BillingResult,
+} from "../billing.logic";
 import {
   PAYMENT_STATUSES,
   SUBSCRIPTION_STATUSES,
-  type BillingState,
   type Payment,
   type PaymentMethod,
   type PaymentStatus,
-  type PlanId,
   type Subscription,
+  type SubscriptionAddon,
   type SubscriptionStatus,
 } from "../billing.types";
 
-type Tab = "subscriptions" | "payments" | "plans";
+type Tab = "subscriptions" | "payments";
 type SubFilter = "all" | SubscriptionStatus | "ending";
 
 const SUB_LABEL: Record<SubscriptionStatus, string> = {
@@ -61,16 +80,18 @@ const CHANNEL: Record<PaymentMethod["channel"], string> = {
   GCASH: "GCash",
   MAYA: "Maya",
   CARD: "Card",
+  QRPH: "QR Ph",
+  OTHER: "Other",
 };
 
 function methodLabel(m: PaymentMethod | null) {
-  return m ? `${CHANNEL[m.channel]} ending ${m.ending}` : "None";
+  if (!m) return "None";
+  // Xendit's payment page doesn't say which card, so live payments have no ending.
+  return m.ending ? `${CHANNEL[m.channel]} ending ${m.ending}` : CHANNEL[m.channel];
 }
 
-function priceLabel(planId: PlanId) {
-  const plan = planById(planId);
-  if (!plan.interval) return "Free";
-  return `${formatPeso(plan.price)} a ${plan.interval}`;
+function amountLabel(amount: number, cycle: Cycle) {
+  return amount === 0 ? "Free" : `${formatCentavos(amount)} ${CYCLE_LABEL[cycle].per}`;
 }
 
 /** The status chip, plus "Ends" when the payer cancelled for the period's end. */
@@ -97,36 +118,108 @@ function periodLabel(sub: Subscription) {
 /** Every action changes only the on-screen sample, and says so (D40). */
 const SAMPLE_NOTE = "Sample data: nothing was charged or saved.";
 
-function ChangePlanDialog({
-  sub,
-  dispatch,
-}: {
-  sub: Subscription;
-  dispatch: (a: BillingAction) => void;
-}) {
-  const [planId, setPlanId] = useState<PlanId>(sub.planId);
+function ChangePlanDialog({ sub, state }: { sub: Subscription; state: CatalogState }) {
+  const base = useId();
+  const plans = offeredPlans(state);
+  const offeredAddons = state.addons.filter(
+    (a) => a.status === "active" && a.monthlyPrice !== null,
+  );
+  const [planId, setPlanId] = useState(
+    plans.some((p) => p.id === sub.planId) ? sub.planId : (plans[0]?.id ?? ""),
+  );
+  const plan = plans.find((p) => p.id === planId);
+  const cycles = plan ? pricedCycles(plan) : [];
+  const [cycleState, setCycle] = useState<Cycle>(sub.cycle);
+  const cycle = cycles.includes(cycleState) ? cycleState : (cycles[0] ?? "monthly");
+  const [qty, setQty] = useState<Record<string, string>>(() =>
+    Object.fromEntries(sub.addons.map((a) => [a.addonId, String(a.quantity)])),
+  );
+  const paid = !!plan && (plan.content.prices[cycle] ?? 0) > 0 && cycle !== "one_time";
+  const addons: SubscriptionAddon[] = paid
+    ? offeredAddons.map((a) => ({
+        addonId: a.id,
+        quantity: /^\d{1,2}$/.test((qty[a.id] ?? "0").trim()) ? Number(qty[a.id] ?? "0") : -1,
+      }))
+    : [];
+  const q = plan ? quote(state, plan.id, cycle, addons) : null;
+
   return (
     <FormDialog
       trigger={<Button variant="outline">Change plan</Button>}
       title="Change plan"
-      description={`${sub.householdName}. The new plan starts today. ${SAMPLE_NOTE}`}
+      description={`${sub.householdName}. The new plan starts today, at the plan's current version. ${SAMPLE_NOTE}`}
       submitLabel="Change plan"
       done={`Plan changed. ${SAMPLE_NOTE}`}
-      canSubmit={planId !== sub.planId}
-      onSubmit={async () => {
-        dispatch({ type: "change_plan", subscriptionId: sub.id, planId });
-        return { ok: true };
-      }}
+      canSubmit={!!q?.ok}
+      onSubmit={async () =>
+        dispatchBilling({
+          type: "change_plan",
+          subscriptionId: sub.id,
+          planId,
+          cycle,
+          addons,
+        })
+      }
     >
       {(id) => (
-        <Field label="Plan" htmlFor={id("plan")}>
-          <SelectField
-            id={id("plan")}
-            value={planId}
-            onChange={setPlanId}
-            options={PLANS.map((p) => ({ value: p.id, label: `${p.name}, ${priceLabel(p.id)}` }))}
-          />
-        </Field>
+        <>
+          <Field label="Plan" htmlFor={id("plan")} hint="Only published plans are offered.">
+            <SelectField
+              id={id("plan")}
+              value={planId}
+              onChange={setPlanId}
+              options={plans.map((p) => ({ value: p.id, label: p.content.name }))}
+            />
+          </Field>
+          {cycles.length > 1 ? (
+            <Field label="Billed" htmlFor={id("cycle")}>
+              <SelectField
+                id={id("cycle")}
+                value={cycle}
+                onChange={setCycle}
+                options={cycles.map((c) => ({
+                  value: c,
+                  label: `${CYCLE_LABEL[c].field}, ${formatCentavos(plan?.content.prices[c] ?? 0)}`,
+                }))}
+              />
+            </Field>
+          ) : null}
+          {paid && offeredAddons.length ? (
+            <fieldset className="space-y-2">
+              <legend className="text-xs font-semibold text-muted-foreground">Add-ons</legend>
+              {offeredAddons.map((a) => (
+                <div key={a.id} className="flex items-center justify-between gap-3">
+                  <label htmlFor={`${base}-${a.id}`} className="min-w-0 text-sm text-foreground">
+                    {a.name}{" "}
+                    <span className="text-muted-foreground">
+                      {formatCentavos(a.monthlyPrice ?? 0)} a month each
+                    </span>
+                  </label>
+                  <Input
+                    id={`${base}-${a.id}`}
+                    inputMode="numeric"
+                    className="w-20 shrink-0"
+                    value={qty[a.id] ?? "0"}
+                    onChange={(e) => setQty({ ...qty, [a.id]: e.target.value })}
+                  />
+                </div>
+              ))}
+              <p className="text-xs text-muted-foreground">
+                0 to {MAX_ADDON_QUANTITY} of each. A yearly plan pays twelve months of add-ons.
+              </p>
+            </fieldset>
+          ) : null}
+          <p
+            className={`text-sm ${q && !q.ok ? "font-semibold text-destructive" : "text-foreground"}`}
+            aria-live="polite"
+          >
+            {!q
+              ? "No plan is published."
+              : q.ok
+                ? `New price: ${amountLabel(q.amount, cycle)}`
+                : q.message}
+          </p>
+        </>
       )}
     </FormDialog>
   );
@@ -145,7 +238,7 @@ function ConfirmAction({
   description: string;
   done: string;
   destructive?: boolean;
-  onConfirm: () => void;
+  onConfirm: () => BillingResult;
 }) {
   return (
     <FormDialog
@@ -159,31 +252,24 @@ function ConfirmAction({
       submitLabel={label}
       done={`${done} ${SAMPLE_NOTE}`}
       destructive={destructive}
-      onSubmit={async () => {
-        onConfirm();
-        return { ok: true };
-      }}
+      onSubmit={async () => onConfirm()}
     >
       {null}
     </FormDialog>
   );
 }
 
-function PaymentActions({
-  payment,
-  dispatch,
-}: {
-  payment: Payment;
-  dispatch: (a: BillingAction) => void;
-}) {
+const act = (a: BillingAction) => () => dispatchBilling(a);
+
+function PaymentActions({ payment }: { payment: Payment }) {
   if (payment.status === "failed") {
     return (
       <ConfirmAction
         label="Retry payment"
         title="Retry this payment"
-        description={`Charge ${formatPeso(payment.amount)} to ${methodLabel(payment.method)} again.`}
+        description={`Charge ${formatCentavos(payment.amount)} to ${methodLabel(payment.method)} again.`}
         done="Payment retried and paid."
-        onConfirm={() => dispatch({ type: "retry_payment", paymentId: payment.id })}
+        onConfirm={act({ type: "retry_payment", paymentId: payment.id })}
       />
     );
   }
@@ -192,10 +278,10 @@ function PaymentActions({
       <ConfirmAction
         label="Refund"
         title="Refund this payment"
-        description={`Return ${formatPeso(payment.amount)} to ${methodLabel(payment.method)}.`}
+        description={`Return ${formatCentavos(payment.amount)} to ${methodLabel(payment.method)}.`}
         done="Payment refunded."
         destructive
-        onConfirm={() => dispatch({ type: "refund_payment", paymentId: payment.id })}
+        onConfirm={act({ type: "refund_payment", paymentId: payment.id })}
       />
     );
   }
@@ -204,16 +290,18 @@ function PaymentActions({
 
 function SubscriptionDialog({
   sub,
-  payments,
-  dispatch,
+  state,
   onClose,
 }: {
   sub: Subscription;
-  payments: Payment[];
-  dispatch: (a: BillingAction) => void;
+  state: CatalogState;
   onClose: () => void;
 }) {
-  const paying = sub.planId !== "free" && sub.status !== "cancelled";
+  const payments = state.payments.filter((p) => p.subscriptionId === sub.id);
+  const renews = sub.amount > 0 && sub.periodEnd !== null && sub.status !== "cancelled";
+  const plan = state.plans.find((p) => p.id === sub.planId);
+  const latest = plan?.versions[0]?.version ?? sub.planVersion;
+  const { live, testTools } = useBillingMode();
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
@@ -221,11 +309,28 @@ function SubscriptionDialog({
           <DialogTitle className="font-display text-xl font-normal">
             {sub.householdName}
           </DialogTitle>
-          <DialogDescription>Paid by {sub.payerName}. Sample data.</DialogDescription>
+          <DialogDescription>
+            Paid by {sub.payerName}.{live ? "" : " Sample data."}
+          </DialogDescription>
         </DialogHeader>
         <DetailList
           items={[
-            { label: "Plan", value: `${planById(sub.planId).name}, ${priceLabel(sub.planId)}` },
+            {
+              label: "Plan",
+              value: (
+                <>
+                  {planLabel(state, sub)}, version {sub.planVersion}
+                  {latest > sub.planVersion ? (
+                    <span className="block text-xs text-muted-foreground">
+                      The plan is on version {latest} now; this household keeps version{" "}
+                      {sub.planVersion}.
+                    </span>
+                  ) : null}
+                </>
+              ),
+            },
+            { label: "Add-ons", value: addonsLabel(state.addons, sub.addons) || "None" },
+            { label: "Price", value: amountLabel(sub.amount, sub.cycle) },
             { label: "Status", value: <SubStatus sub={sub} /> },
             { label: "Period", value: periodLabel(sub) },
             { label: "Subscribed since", value: formatDate(sub.startedAt) },
@@ -233,27 +338,45 @@ function SubscriptionDialog({
           ]}
         />
         <div className="flex flex-wrap gap-2 pt-2">
-          <ChangePlanDialog sub={sub} dispatch={dispatch} />
-          {paying && !sub.cancelAtPeriodEnd ? (
+          <ChangePlanDialog key={JSON.stringify(sub)} sub={sub} state={state} />
+          {renews && !sub.cancelAtPeriodEnd ? (
             <ConfirmAction
               label="Cancel at period end"
               title="Cancel at the period's end"
-              description={`Premium stays on until ${sub.periodEnd ? formatDate(sub.periodEnd) : "the period ends"}, then the household moves to Free.`}
+              description={`The plan stays on until ${formatDate(sub.periodEnd as string)}, then the household moves to Free.`}
               done="Set to end at the period's end."
               destructive
-              onConfirm={() => dispatch({ type: "cancel_at_period_end", subscriptionId: sub.id })}
+              onConfirm={act({ type: "cancel_at_period_end", subscriptionId: sub.id })}
             />
           ) : null}
-          {paying && sub.cancelAtPeriodEnd ? (
+          {renews && sub.cancelAtPeriodEnd ? (
             <ConfirmAction
               label="Keep subscription"
               title="Keep this subscription"
               description="It renews as usual at the period's end."
               done="Subscription kept."
-              onConfirm={() => dispatch({ type: "resume", subscriptionId: sub.id })}
+              onConfirm={act({ type: "resume", subscriptionId: sub.id })}
             />
           ) : null}
         </div>
+        {live && testTools && sub.periodEnd ? (
+          <div className="space-y-2 rounded-lg border border-dashed border-border p-3">
+            <p className="text-xs text-muted-foreground">
+              Test tools (dev and staging): move the renewal date to try what the household sees.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={() => void shiftRenewal(sub.id, -2)}>
+                Renewal 2 days ago (past due)
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => void shiftRenewal(sub.id, -9)}>
+                Renewal 9 days ago (restricted)
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => void shiftRenewal(sub.id, 30)}>
+                Renewal in 30 days
+              </Button>
+            </div>
+          </div>
+        ) : null}
         <div className="pt-2">
           <h3 className="text-sm font-semibold text-foreground">Payments</h3>
           {payments.length === 0 ? (
@@ -263,7 +386,9 @@ function SubscriptionDialog({
               {payments.map((p) => (
                 <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
                   <div className="min-w-0 text-sm">
-                    <span className="font-semibold text-foreground">{formatPeso(p.amount)}</span>{" "}
+                    <span className="font-semibold text-foreground tabular-nums">
+                      {formatCentavos(p.amount)}
+                    </span>{" "}
                     <span className="text-muted-foreground">
                       {formatDate(p.createdAt)}, {p.reference}
                     </span>
@@ -273,7 +398,7 @@ function SubscriptionDialog({
                   </div>
                   <div className="flex items-center gap-2">
                     <StatusChip tone={PAYMENT_TONE[p.status]}>{PAYMENT_LABEL[p.status]}</StatusChip>
-                    <PaymentActions payment={p} dispatch={dispatch} />
+                    <PaymentActions payment={p} />
                   </div>
                 </li>
               ))}
@@ -287,12 +412,10 @@ function SubscriptionDialog({
 
 function SubscriptionsTab({
   state,
-  dispatch,
   filter,
   onFilter,
 }: {
-  state: BillingState;
-  dispatch: (a: BillingAction) => void;
+  state: CatalogState;
   filter: SubFilter;
   onFilter: (f: SubFilter) => void;
 }) {
@@ -316,14 +439,30 @@ function SubscriptionsTab({
       mobile: "primary",
       cell: (s) => (
         <div className="min-w-0">
-          <button type="button" className={rowLinkClass} onClick={() => setOpenId(s.id)}>
+          <button
+            type="button"
+            className={`${rowLinkClass} text-left`}
+            onClick={() => setOpenId(s.id)}
+          >
             {s.householdName}
           </button>
           <div className="text-xs text-muted-foreground">Paid by {s.payerName}</div>
         </div>
       ),
     },
-    { key: "plan", header: "Plan", cell: (s) => planById(s.planId).name },
+    {
+      key: "plan",
+      header: "Plan",
+      cell: (s) => {
+        const extras = addonsLabel(state.addons, s.addons);
+        return (
+          <div>
+            <span className="whitespace-nowrap">{planLabel(state, s)}</span>
+            {extras ? <div className="text-xs text-muted-foreground">{extras}</div> : null}
+          </div>
+        );
+      },
+    },
     { key: "status", header: "Status", mobile: "primary", cell: (s) => <SubStatus sub={s} /> },
     {
       key: "period",
@@ -331,7 +470,14 @@ function SubscriptionsTab({
       cell: (s) => <span className="whitespace-nowrap">{periodLabel(s)}</span>,
     },
     { key: "method", header: "Pays with", mobile: "hidden", cell: (s) => methodLabel(s.method) },
-    { key: "price", header: "Price", align: "right", cell: (s) => priceLabel(s.planId) },
+    {
+      key: "price",
+      header: "Price",
+      align: "right",
+      cell: (s) => (
+        <span className="whitespace-nowrap tabular-nums">{amountLabel(s.amount, s.cycle)}</span>
+      ),
+    },
   ];
 
   return (
@@ -369,24 +515,13 @@ function SubscriptionsTab({
         }
       />
       {open ? (
-        <SubscriptionDialog
-          sub={open}
-          payments={state.payments.filter((p) => p.subscriptionId === open.id)}
-          dispatch={dispatch}
-          onClose={() => setOpenId(null)}
-        />
+        <SubscriptionDialog sub={open} state={state} onClose={() => setOpenId(null)} />
       ) : null}
     </>
   );
 }
 
-function PaymentsTab({
-  state,
-  dispatch,
-}: {
-  state: BillingState;
-  dispatch: (a: BillingAction) => void;
-}) {
+function PaymentsTab({ state }: { state: CatalogState }) {
   const [status, setStatus] = useState<"all" | PaymentStatus>("all");
   const subById = useMemo(
     () => new Map(state.subscriptions.map((s) => [s.id, s])),
@@ -420,7 +555,12 @@ function PaymentsTab({
         </div>
       ),
     },
-    { key: "amount", header: "Amount", align: "right", cell: (p) => formatPeso(p.amount) },
+    {
+      key: "amount",
+      header: "Amount",
+      align: "right",
+      cell: (p) => <span className="tabular-nums">{formatCentavos(p.amount)}</span>,
+    },
     { key: "method", header: "Paid with", mobile: "hidden", cell: (p) => methodLabel(p.method) },
     {
       key: "ref",
@@ -433,7 +573,7 @@ function PaymentsTab({
       header: "Date",
       cell: (p) => <span className="whitespace-nowrap">{formatDate(p.createdAt)}</span>,
     },
-    { key: "actions", header: "", cell: (p) => <PaymentActions payment={p} dispatch={dispatch} /> },
+    { key: "actions", header: "", cell: (p) => <PaymentActions payment={p} /> },
   ];
 
   return (
@@ -464,41 +604,6 @@ function PaymentsTab({
   );
 }
 
-function PlansTab({ state }: { state: BillingState }) {
-  const columns: Column<(typeof PLANS)[number]>[] = [
-    {
-      key: "name",
-      header: "Plan",
-      mobile: "primary",
-      cell: (p) => <span className="font-semibold text-foreground">{p.name}</span>,
-    },
-    { key: "price", header: "Price", mobile: "primary", cell: (p) => priceLabel(p.id) },
-    {
-      key: "includes",
-      header: "Includes",
-      className: "max-w-96",
-      cell: (p) => p.includes.join(", "),
-    },
-    {
-      key: "households",
-      header: "Households",
-      align: "right",
-      cell: (p) =>
-        formatCount(
-          state.subscriptions.filter((s) => s.planId === p.id && s.status !== "cancelled").length,
-        ),
-    },
-  ];
-  return (
-    <>
-      <DataTable label="Plans" rows={PLANS} columns={columns} rowKey={(p) => p.id} empty={null} />
-      <p className="px-5 pb-5 text-xs text-muted-foreground sm:px-6">
-        Placeholder prices. Helpers never pay; the household's manager does.
-      </p>
-    </>
-  );
-}
-
 function SummaryRow({
   label,
   value,
@@ -516,7 +621,7 @@ function SummaryRow({
         <span className="block text-sm text-foreground">{label}</span>
         {note ? <span className="block text-xs text-muted-foreground">{note}</span> : null}
       </span>
-      <span className="text-xl font-semibold text-foreground">{value}</span>
+      <span className="text-xl font-semibold text-foreground tabular-nums">{value}</span>
     </>
   );
   const cls = "flex w-full items-baseline justify-between gap-4 py-3 text-left";
@@ -537,14 +642,39 @@ function SummaryRow({
   );
 }
 
-/** Subscriptions screen, a preview on sample data held in the browser (D40). */
+/**
+ * Subscriptions screen, a preview on sample data held in the tab (D40). It
+ * shares the plan catalog with the Plans screen (D47), so a price or plan
+ * changed there is what "Change plan" offers here.
+ */
+const SUBS_LIVE = "Households' subscriptions and payments.";
+
+/** Subscriptions: its shape until the first read answers, never the sample in the meantime. */
 export function BillingPage() {
-  const [state, rawDispatch] = useReducer(
-    (s: BillingState, a: BillingAction | "reset") =>
-      a === "reset" ? SAMPLE_BILLING : billingReducer(s, a),
-    SAMPLE_BILLING,
-  );
-  const dispatch = (a: BillingAction) => rawDispatch(a);
+  const { ready } = useBillingMode();
+  if (!ready) {
+    return (
+      <>
+        <PageHeader title="Subscriptions" description={SUBS_LIVE} actions={<SampleActions />} />
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
+          <Surface flush className="order-2 lg:order-1">
+            <div className="pt-5">
+              <TableSkeleton label="Loading subscriptions" />
+            </div>
+          </Surface>
+          <Surface title="This month" className="order-1 lg:order-2">
+            <FiguresSkeleton label="Loading this month's figures" rows={4} />
+          </Surface>
+        </div>
+      </>
+    );
+  }
+  return <BillingScreen />;
+}
+
+function BillingScreen() {
+  const { live } = useBillingMode();
+  const state = useCatalog();
   const [tab, setTab] = useState<Tab>("subscriptions");
   const [subFilter, setSubFilter] = useState<SubFilter>("all");
   const summary = summarize(state);
@@ -557,19 +687,21 @@ export function BillingPage() {
     <>
       <PageHeader
         title="Subscriptions"
-        description="Plans, subscriptions and payments for households. This is a preview on sample data: Linara has no billing yet, so nothing here charges, refunds or saves."
+        description={
+          live
+            ? SUBS_LIVE
+            : "Households' subscriptions and payments. This is a preview on sample data: Linara has no billing yet, so nothing here charges, refunds or saves."
+        }
         actions={
           <>
-            <StatusChip tone="attention" className="self-center">
-              Sample data
-            </StatusChip>
-            <Button variant="outline" onClick={() => rawDispatch("reset")}>
-              Reset sample
+            <SampleActions />
+            <Button variant="outline" asChild>
+              <Link to="/plans">Plans</Link>
             </Button>
           </>
         }
       />
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
         <Surface flush className="order-2 lg:order-1">
           <div className="space-y-3 pt-5">
             <div className="px-5 sm:px-6">
@@ -580,21 +712,13 @@ export function BillingPage() {
                 options={[
                   { value: "subscriptions", label: "Subscriptions" },
                   { value: "payments", label: "Payments" },
-                  { value: "plans", label: "Plans" },
                 ]}
               />
             </div>
             {tab === "subscriptions" ? (
-              <SubscriptionsTab
-                state={state}
-                dispatch={dispatch}
-                filter={subFilter}
-                onFilter={setSubFilter}
-              />
-            ) : tab === "payments" ? (
-              <PaymentsTab state={state} dispatch={dispatch} />
+              <SubscriptionsTab state={state} filter={subFilter} onFilter={setSubFilter} />
             ) : (
-              <PlansTab state={state} />
+              <PaymentsTab state={state} />
             )}
           </div>
         </Surface>
@@ -602,7 +726,7 @@ export function BillingPage() {
           <ul className="-my-3 divide-y divide-border">
             <SummaryRow
               label="Monthly recurring"
-              value={formatPeso(summary.monthlyRecurring)}
+              value={formatCentavos(summary.monthlyRecurring)}
               note="Active and past due, yearly as a twelfth"
             />
             <SummaryRow

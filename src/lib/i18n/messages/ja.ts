@@ -32,8 +32,11 @@ export const ja = {
   "nav.payouts": "支払い",
   "nav.ai": "AI 使用状況",
   "nav.billing": "サブスクリプション",
+  "nav.plans": "プラン",
+  "nav.revenue": "収益",
   "nav.admin": "管理",
   "nav.team": "チーム",
+  "nav.switches": "全体スイッチ",
   "nav.audit": "監査ログ",
 
   "root.notFoundTitle": "ページが見つかりません",

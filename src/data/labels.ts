@@ -95,6 +95,7 @@ export const PAYOUT_PROBLEM_LABEL: Record<PayoutKind, string> = {
   unclear: "Unclear",
   stuck: "Stuck sending",
   no_answer: "No answer from Xendit",
+  disputed: "Disputed by helper",
 };
 
 /** LINARA's AI edge functions (add-ai-call-limits.sql). Unknown ones show as stored. */

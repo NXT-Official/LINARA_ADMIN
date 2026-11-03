@@ -46,3 +46,5 @@ Thumbs.db
 supabase/.temp/
 # Personal deployment notes (which keys to make per stage); never pushed.
 /DEPLOYMENT-KEYS.md
+# Personal numbered SQL migrations (001 onward): applied by hand, never committed.
+supabase/0*.sql

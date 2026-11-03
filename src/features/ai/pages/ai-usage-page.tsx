@@ -170,7 +170,7 @@ function Usage({ usage }: { usage: AiUsage }) {
         <div className="space-y-6">
           <Surface
             title="Hit a limit"
-            description="Last 48 hours"
+            description="Last 48 hours. These people used every call allowed; the next one is refused."
             actions={
               <ExportCsvButton
                 slug="ai-limit-hits"

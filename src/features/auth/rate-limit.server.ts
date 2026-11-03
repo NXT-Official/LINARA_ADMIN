@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { getRequestIP } from "@tanstack/react-start/server";
+import { clientIp } from "@/lib/client-ip.server";
 
 import { ConsoleError } from "@/lib/console-error";
 import { logError } from "@/lib/log.server";
@@ -82,7 +82,7 @@ export async function checkRateLimit(
 
 /** Free burst limit for actions before sign-in (D30, memory tier). */
 export function memoryGuardIp(): void {
-  if (!memoryLimit(`ip:${getRequestIP() ?? "?"}`, 30, 60_000)) {
+  if (!memoryLimit(`ip:${clientIp() ?? "?"}`, 30, 60_000)) {
     throw new ConsoleError("conflict", "Too many requests. Wait a minute, then try again.");
   }
 }

@@ -23,7 +23,13 @@ import { PAYOUT_KINDS, type PayoutKind, type PayoutProblem } from "../payouts.ty
 /** Filters the list can start with, from a dashboard figure (FR-DB-8). */
 export type PayoutFilters = { kind?: PayoutKind };
 
-const CHANNEL: Record<string, string> = { PH_GCASH: "GCash", PH_PAYMAYA: "Maya" };
+const CHANNEL: Record<string, string> = {
+  PH_GCASH: "GCash",
+  PH_PAYMAYA: "Maya",
+  CASH: "Cash",
+  BANK_TRANSFER: "Bank transfer",
+  OTHER: "Other",
+};
 
 async function revealAmount(attemptId: string): Promise<string> {
   const res = await revealPayoutAmountFn({ data: { attemptId } });
@@ -101,14 +107,22 @@ export function PayoutsPage({ initial = {} }: { initial?: PayoutFilters }) {
       key: "ref",
       header: "Xendit reference",
       mobile: "hidden",
-      cell: (p) => (
-        <div>
-          <span className="tabular-nums break-all">{p.referenceId}</span>
-          <div className="text-xs text-muted-foreground">
-            {CHANNEL[p.channelCode] ?? p.channelCode}, attempt {p.attemptNumber}
+      cell: (p) =>
+        p.kind === "disputed" ? (
+          <div>
+            <span className="text-muted-foreground">Paid outside Xendit</span>
+            <div className="text-xs text-muted-foreground">
+              {CHANNEL[p.channelCode] ?? p.channelCode}
+            </div>
           </div>
-        </div>
-      ),
+        ) : (
+          <div>
+            <span className="tabular-nums break-all">{p.referenceId}</span>
+            <div className="text-xs text-muted-foreground">
+              {CHANNEL[p.channelCode] ?? p.channelCode}, attempt {p.attemptNumber}
+            </div>
+          </div>
+        ),
     },
     {
       key: "at",
@@ -121,7 +135,7 @@ export function PayoutsPage({ initial = {} }: { initial?: PayoutFilters }) {
     <>
       <PageHeader
         title="Payouts"
-        description="Wage payouts that failed, came back unclear, have been sending for over an hour, or got no answer from Xendit in a day. This screen only reads Linara's records and can't change a payout."
+        description="Wage payouts that failed, came back unclear, have been sending for over an hour, got no answer from Xendit in a day, or that a helper says she never received when paid directly. This screen only reads Linara's records and can't change a payout."
         actions={
           <>
             <RefreshButton queryKeys={[["payouts"]]} updatedAt={dataUpdatedAt} />

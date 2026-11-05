@@ -81,7 +81,7 @@ function renderHtml(n: Notice, env: { label: string; auditUrl: string }): string
   <tr><td style="padding:0 4px 20px 4px">
     <span style="font-family:Georgia,'Times New Roman',serif;font-size:28px;font-weight:bold;letter-spacing:-0.5px;color:${C.pine}">linara</span>
     <span style="font-family:${SANS};font-size:13px;font-weight:bold;color:${C.muted};padding-left:8px">Business Console</span>
-    <span style="font-family:${SANS};font-size:12px;font-weight:bold;color:${C.attentionInk};background-color:${C.attention};border-radius:999px;padding:3px 10px;margin-left:8px">${e(env.label)}</span>
+    ${env.label ? `<span style="font-family:${SANS};font-size:12px;font-weight:bold;color:${C.attentionInk};background-color:${C.attention};border-radius:999px;padding:3px 10px;margin-left:8px">${e(env.label)}</span>` : ""}
   </td></tr>
   <tr><td style="background-color:${C.card};border-radius:20px;padding:32px 28px;font-family:${SANS};color:${C.ink}">
     <h1 style="margin:0 0 14px 0;font-family:${SERIF};font-size:24px;line-height:1.3;font-weight:normal;color:${C.ink}">${e(n.heading)}</h1>
@@ -110,7 +110,7 @@ function renderHtml(n: Notice, env: { label: string; auditUrl: string }): string
 function renderText(n: Notice, env: { label: string; auditUrl: string }): string {
   const width = Math.max(...n.details.map(([label]) => label.length));
   return [
-    `Linara Business Console (${env.label})`,
+    env.label ? `Linara Business Console (${env.label})` : "Linara Business Console",
     "",
     n.heading,
     "",
@@ -129,8 +129,9 @@ function renderText(n: Notice, env: { label: string; auditUrl: string }): string
 async function notifyManagers(n: Notice): Promise<void> {
   try {
     const env = serverEnv();
-    const label = APP_ENV_LABEL[env.appEnv];
-    const subject = env.appEnv === "production" ? n.subject : `[${label}] ${n.subject}`;
+    // Production carries no environment label anywhere (NFR-8).
+    const label = env.appEnv === "production" ? "" : APP_ENV_LABEL[env.appEnv];
+    const subject = label ? `[${label}] ${n.subject}` : n.subject;
     const ctx = { label, auditUrl: `${env.siteUrl}/audit` };
     const text = renderText(n, ctx);
     const html = renderHtml(n, ctx);

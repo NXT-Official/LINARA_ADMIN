@@ -226,7 +226,8 @@ export function addAdminHandler(
             (p) => PERMISSION_LABEL[p],
           ),
           invited_by: staff.email,
-          invite_environment: APP_ENV_LABEL[env.appEnv],
+          // Empty in production: the invite email hides its "Console" row (NFR-8).
+          invite_environment: env.appEnv === "production" ? "" : APP_ENV_LABEL[env.appEnv],
         },
       });
       if (error || !data.user) throw new Error(error?.message ?? "invite returned no user");

@@ -1,7 +1,7 @@
 /**
  * Named permissions (spec §4.3). Screens, server functions and in-screen
  * controls ask for a permission, never a role name. Each member's role carries
- * a list of these (D39); 013-roles.sql keeps the same names in
+ * a list of these (D39); 018-billing.sql keeps the same names in
  * staff_known_permissions(), and a test fails if the two differ.
  */
 export const PERMISSIONS = [
@@ -21,12 +21,20 @@ export const PERMISSIONS = [
   "ai.view",
   "audit.view",
   "team.manage",
+  "billing.view",
+  "billing.manage",
+  "switches.manage",
+  "revenue.view",
+  "revenue.manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
 
-/** The four locked presets (§4.2). Custom roles have none. */
-export type RolePreset = "admin" | "mods" | "sales" | "support";
+/**
+ * The locked presets (§4.2). Custom roles have none. Super admin is held by one
+ * account and is given, moved or removed only from the SQL editor (D43).
+ */
+export type RolePreset = "super_admin" | "admin" | "mods" | "sales" | "support";
 
 export function can(
   permissions: readonly string[] | null | undefined,
@@ -53,6 +61,11 @@ export const PERMISSION_LABEL: Record<Permission, string> = {
   "ai.view": "AI usage screen",
   "audit.view": "Audit log",
   "team.manage": "Team: add, remove, change roles; edit custom roles",
+  "billing.view": "Plans and Subscriptions screens",
+  "billing.manage": "Edit plans and add-ons, change a subscription",
+  "switches.manage": "Global switches: turn a feature on or off for everyone",
+  "revenue.view": "Revenue screen: cash, recurring revenue and profit",
+  "revenue.manage": "Set Xendit fee rates, AI call costs and fixed costs",
 };
 
 /** The role editor's checkboxes, grouped as in the sidebar. Never team.manage (D39). */
@@ -82,6 +95,11 @@ export const PERMISSION_GROUPS: {
       "pay.view",
       "payouts.view",
       "ai.view",
+      "billing.view",
+      "billing.manage",
+      "switches.manage",
+      "revenue.view",
+      "revenue.manage",
     ],
   },
   { label: "Admin", permissions: ["audit.view"] },

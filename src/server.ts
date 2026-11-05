@@ -5,6 +5,7 @@ import { randomBytes } from "node:crypto";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 import { withSecurityHeaders } from "./lib/security-headers";
+import { SERVER_FN_PREFIX, badRequest, isMalformedServerFnBody } from "./lib/server-fn-body";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -78,21 +79,39 @@ export default {
     // Built from parts: Nitro's incoming request isn't a native Request, so
     // `new Request(request, ...)` can't copy it.
     const hasBody = request.method !== "GET" && request.method !== "HEAD";
+    const securityOptions = {
+      nonce,
+      // Vite's dev server needs inline scripts: report violations there, enforce in builds.
+      reportOnly: import.meta.env.DEV,
+      noStore: !isStaticAsset(new URL(request.url).pathname),
+    };
+
+    // A hand-made server-function call the framework can't parse gets a plain
+    // 400 here, instead of a 500 carrying the framework's own error text.
+    let body: BodyInit | null | undefined = hasBody ? request.body : undefined;
+    const contentType = request.headers.get("content-type");
+    if (
+      hasBody &&
+      new URL(request.url).pathname.startsWith(SERVER_FN_PREFIX) &&
+      contentType?.toLowerCase().includes("application/json")
+    ) {
+      const text = await request.text();
+      if (isMalformedServerFnBody(contentType, text)) {
+        return withSecurityHeaders(badRequest(), securityOptions);
+      }
+      body = text;
+    }
+
     const withNonce = new Request(request.url, {
       method: request.method,
       headers,
-      body: hasBody ? request.body : undefined,
+      body,
       signal: request.signal,
       // Required by Node when the body is a stream.
       ...(hasBody ? { duplex: "half" } : {}),
     } as RequestInit);
 
     // Every response, error pages and redirects too.
-    return withSecurityHeaders(await respond(withNonce, env, ctx), {
-      nonce,
-      // Vite's dev server needs inline scripts: report violations there, enforce in builds.
-      reportOnly: import.meta.env.DEV,
-      noStore: !isStaticAsset(new URL(request.url).pathname),
-    });
+    return withSecurityHeaders(await respond(withNonce, env, ctx), securityOptions);
   },
 };

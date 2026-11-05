@@ -4,6 +4,7 @@ import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/lib/i18n/i18n";
 
 import { requestPasswordResetFn } from "../auth.actions";
 import { AuthLayout } from "../components/auth-layout";
@@ -11,6 +12,7 @@ import { CaptchaField, type CaptchaFieldHandle } from "../components/captcha-fie
 import { FormError } from "../components/form-error";
 
 export function ForgotPasswordPage() {
+  const t = useT();
   const captcha = useRef<CaptchaFieldHandle>(null);
   const [email, setEmail] = useState("");
   const [token, setToken] = useState<string | null>(null);
@@ -30,7 +32,7 @@ export function ForgotPasswordPage() {
       }
       setError(res.message);
     } catch {
-      setError("Something went wrong on our side. Try again.");
+      setError(t("common.unexpectedError"));
     }
     captcha.current?.reset();
     setPending(false);
@@ -38,24 +40,23 @@ export function ForgotPasswordPage() {
 
   return (
     <AuthLayout
-      title="Reset your password"
-      description="Enter your console work email and we'll send a reset link."
+      title={t("forgot.title")}
+      description={t("forgot.description")}
       footer={
         <Link to="/sign-in" className="font-semibold text-pine hover:underline">
-          Back to sign in
+          {t("auth.backToSignIn")}
         </Link>
       }
     >
       {sent ? (
         // The same answer whether or not the email has an account (S-4).
         <p role="status" className="text-sm text-foreground">
-          If {email} has a console account, a reset link is on its way. It works once and only on
-          this console.
+          {t("forgot.sent", { email })}
         </p>
       ) : (
         <form onSubmit={submit} className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="email">Work email</Label>
+            <Label htmlFor="email">{t("auth.workEmail")}</Label>
             <Input
               id="email"
               type="email"
@@ -68,7 +69,7 @@ export function ForgotPasswordPage() {
           <CaptchaField ref={captcha} onToken={setToken} />
           <FormError message={error} />
           <Button type="submit" className="w-full" disabled={!token || pending}>
-            {pending ? "Sending" : "Send reset link"}
+            {pending ? t("forgot.sending") : t("forgot.send")}
           </Button>
         </form>
       )}

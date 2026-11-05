@@ -3,8 +3,9 @@ import { Link } from "@tanstack/react-router";
 
 import { ChartSurface, ColumnChart, TrendChart, type ChartPoint } from "@/components/shared/charts";
 import { ExportCsvButton } from "@/components/shared/export-button";
+import { RefreshButton } from "@/components/shared/refresh-button";
 import { PageHeader, Surface } from "@/components/shared/page";
-import { EmptyState } from "@/components/shared/states";
+import { EmptyState, FiguresSkeleton } from "@/components/shared/states";
 import { CUSTOMER_STAGE_LABEL, LEAD_STAGE_LABEL, PAYOUT_PROBLEM_LABEL } from "@/data/labels";
 import type { CustomerStage, LeadStage } from "@/data/types";
 import { aiUsageFn } from "@/features/ai/ai.actions";
@@ -94,9 +95,13 @@ function Support() {
   if (!data?.ok) {
     return (
       <Surface title="Support">
-        <EmptyState title={isPending ? "Loading" : "The support figures didn't load"}>
-          {data && !data.ok ? data.message : null}
-        </EmptyState>
+        {isPending ? (
+          <FiguresSkeleton label="Loading the support figures" />
+        ) : (
+          <EmptyState title="The support figures didn't load">
+            {data && !data.ok ? data.message : null}
+          </EmptyState>
+        )}
       </Surface>
     );
   }
@@ -132,9 +137,13 @@ function Deletions() {
   if (!data?.ok) {
     return (
       <Surface title="Deletion requests">
-        <EmptyState title={isPending ? "Loading" : "The deletion figures didn't load"}>
-          {data && !data.ok ? data.message : null}
-        </EmptyState>
+        {isPending ? (
+          <FiguresSkeleton label="Loading the deletion figures" />
+        ) : (
+          <EmptyState title="The deletion figures didn't load">
+            {data && !data.ok ? data.message : null}
+          </EmptyState>
+        )}
       </Surface>
     );
   }
@@ -159,9 +168,13 @@ function Payouts() {
   if (!data?.ok) {
     return (
       <Surface title="Payouts">
-        <EmptyState title={isPending ? "Loading" : "The payout figures didn't load"}>
-          {data && !data.ok ? data.message : null}
-        </EmptyState>
+        {isPending ? (
+          <FiguresSkeleton label="Loading the payout figures" />
+        ) : (
+          <EmptyState title="The payout figures didn't load">
+            {data && !data.ok ? data.message : null}
+          </EmptyState>
+        )}
       </Surface>
     );
   }
@@ -188,9 +201,13 @@ function Ai() {
   if (!data?.ok) {
     return (
       <Surface title="AI usage">
-        <EmptyState title={isPending ? "Loading" : "The AI figures didn't load"}>
-          {data && !data.ok ? data.message : null}
-        </EmptyState>
+        {isPending ? (
+          <FiguresSkeleton label="Loading the AI figures" />
+        ) : (
+          <EmptyState title="The AI figures didn't load">
+            {data && !data.ok ? data.message : null}
+          </EmptyState>
+        )}
       </Surface>
     );
   }
@@ -258,9 +275,13 @@ function CrmPipeline() {
   if (!data?.ok) {
     return (
       <Surface title="CRM">
-        <EmptyState title={isPending ? "Loading the CRM figures" : "The CRM figures didn't load"}>
-          {data && !data.ok ? data.message : null}
-        </EmptyState>
+        {isPending ? (
+          <FiguresSkeleton label="Loading the CRM figures" />
+        ) : (
+          <EmptyState title="The CRM figures didn't load">
+            {data && !data.ok ? data.message : null}
+          </EmptyState>
+        )}
       </Surface>
     );
   }
@@ -381,9 +402,19 @@ function Activity({ d }: { d: DashboardData }) {
   );
 }
 
+/** Every query on the dashboard, so its Refresh reloads all of its sections. */
+const DASHBOARD_KEYS = [
+  ["dashboard"],
+  ["crm", "dashboard"],
+  ["support", "counts"],
+  ["deletions", "counts"],
+  ["payouts", "counts"],
+  ["ai", "usage"],
+];
+
 export function DashboardPage() {
   const now = new Date();
-  const { data, isPending } = useQuery({
+  const { data, isPending, dataUpdatedAt } = useQuery({
     queryKey: ["dashboard"],
     queryFn: () => getDashboardFn(),
   });
@@ -395,9 +426,16 @@ export function DashboardPage() {
         title="Dashboard"
         description={today.format(now)}
         actions={
-          d ? (
-            <ExportCsvButton slug="dashboard" columns={METRIC_COLUMNS} rows={metricRows(d, now)} />
-          ) : null
+          <>
+            <RefreshButton queryKeys={DASHBOARD_KEYS} updatedAt={dataUpdatedAt} />
+            {d ? (
+              <ExportCsvButton
+                slug="dashboard"
+                columns={METRIC_COLUMNS}
+                rows={metricRows(d, now)}
+              />
+            ) : null}
+          </>
         }
       />
       {d ? (
@@ -416,9 +454,13 @@ export function DashboardPage() {
         </div>
       ) : (
         <Surface>
-          <EmptyState title={isPending ? "Loading the dashboard" : "The dashboard didn't load"}>
-            {data && !data.ok ? data.message : null}
-          </EmptyState>
+          {isPending ? (
+            <FiguresSkeleton label="Loading the dashboard" />
+          ) : (
+            <EmptyState title="The dashboard didn't load">
+              {data && !data.ok ? data.message : null}
+            </EmptyState>
+          )}
         </Surface>
       )}
     </>

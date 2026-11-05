@@ -20,7 +20,8 @@ export const Route = createFileRoute("/_authed")({
       staleTime: 60_000,
     });
     if (!session.ok) {
-      context.queryClient.removeQueries({ queryKey: ["console-session"] });
+      // Ended or signed out elsewhere: drop everything cached for that session (D41).
+      context.queryClient.clear();
       throw redirect({ to: "/sign-in", search: { reason: session.reason } });
     }
     return { staff: session.staff };
@@ -37,11 +38,7 @@ function AuthedLayout() {
     <StaffProvider staff={staff}>
       <AppShell staff={staff}>
         {/* Spec §7.3, step 2: a screen the role doesn't cover shows Restricted (FR-RL-7). */}
-        {permission && !can(staff.permissions, permission) ? (
-          <RestrictedPanel what="this screen" />
-        ) : (
-          <Outlet />
-        )}
+        {permission && !can(staff.permissions, permission) ? <RestrictedPanel /> : <Outlet />}
       </AppShell>
     </StaffProvider>
   );

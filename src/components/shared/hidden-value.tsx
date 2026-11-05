@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useCan } from "@/features/auth/use-can";
+import { useT } from "@/lib/i18n/i18n";
 
 type State =
   | { kind: "hidden"; error: string | null }
@@ -23,6 +24,7 @@ export function HiddenValue({
   /** Resolves to the text to show, or null when there's nothing set. Rejects with a plain message. */
   reveal: () => Promise<string | null>;
 }) {
+  const t = useT();
   const [state, setState] = useState<State>({ kind: "hidden", error: null });
   const canReveal = useCan()("pay.view");
 
@@ -30,14 +32,14 @@ export function HiddenValue({
     return (
       <span className="inline-flex items-center gap-2">
         <span aria-hidden="true" className="h-4 w-16 rounded-md bg-sand-deep" />
-        <span className="sr-only">Hidden</span>
+        <span className="sr-only">{t("hidden.hidden")}</span>
       </span>
     );
   }
 
   if (state.kind === "shown") {
     return state.value === null ? (
-      <span className="text-muted-foreground">Not set</span>
+      <span className="text-muted-foreground">{t("hidden.notSet")}</span>
     ) : (
       <span className="tabular-nums text-foreground">{state.value}</span>
     );
@@ -47,7 +49,7 @@ export function HiddenValue({
   return (
     <span className="inline-flex flex-wrap items-center gap-2">
       <span aria-hidden="true" className="h-4 w-16 rounded-md bg-sand-deep" />
-      <span className="sr-only">Hidden</span>
+      <span className="sr-only">{t("hidden.hidden")}</span>
       <Button
         size="sm"
         variant="outline"
@@ -62,15 +64,12 @@ export function HiddenValue({
             (e: unknown) =>
               setState({
                 kind: "hidden",
-                error:
-                  e instanceof Error && e.message
-                    ? e.message
-                    : "Something went wrong on our side. Try again.",
+                error: e instanceof Error && e.message ? e.message : t("common.unexpectedError"),
               }),
           );
         }}
       >
-        {loading ? "Showing" : "Show"}
+        {loading ? t("hidden.showing") : t("hidden.show")}
       </Button>
       {state.kind === "hidden" && state.error ? (
         <span role="alert" className="text-xs text-status-late-ink">

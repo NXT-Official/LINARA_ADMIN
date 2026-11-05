@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/i18n/i18n";
 
 import { verifyTwoStepFn } from "../auth.actions";
 import { AuthLayout } from "../components/auth-layout";
@@ -10,6 +11,7 @@ import { CodeField } from "../components/code-field";
 import { FormError } from "../components/form-error";
 
 export function TwoStepPage() {
+  const t = useT();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [code, setCode] = useState("");
@@ -29,7 +31,7 @@ export function TwoStepPage() {
       }
       setError(res.message);
     } catch {
-      setError("Something went wrong on our side. Try again.");
+      setError(t("common.unexpectedError"));
     }
     setCode("");
     setPending(false);
@@ -37,11 +39,11 @@ export function TwoStepPage() {
 
   return (
     <AuthLayout
-      title="Enter your code"
-      description="Open your authenticator app and enter the code it shows for Linara Business Console."
+      title={t("twoStep.title")}
+      description={t("twoStep.description")}
       footer={
         <Link to="/sign-in" className="font-semibold text-pine hover:underline">
-          Use a different account
+          {t("twoStep.otherAccount")}
         </Link>
       }
     >
@@ -49,11 +51,9 @@ export function TwoStepPage() {
         <CodeField value={code} onChange={setCode} />
         <FormError message={error} />
         <Button type="submit" className="w-full" disabled={code.length < 6 || pending}>
-          {pending ? "Checking" : "Sign in"}
+          {pending ? t("auth.checking") : t("twoStep.signIn")}
         </Button>
-        <p className="text-xs text-muted-foreground">
-          Lost your phone? Ask another admin to reset your two-step sign-in.
-        </p>
+        <p className="text-xs text-muted-foreground">{t("twoStep.lostPhone")}</p>
       </form>
     </AuthLayout>
   );

@@ -1,4 +1,4 @@
-import { getRequestIP } from "@tanstack/react-start/server";
+import { clientIp } from "@/lib/client-ip.server";
 
 import { ConsoleError, toPublicError, type PublicError } from "@/lib/console-error";
 import { logError } from "@/lib/log.server";
@@ -50,7 +50,7 @@ export async function requestPasswordResetHandler(
 
   const email = String(input.email).trim();
   try {
-    await checkRateLimit("reset", { email, ip: getRequestIP() });
+    await checkRateLimit("reset", { email, ip: clientIp() });
     const { data } = await getAdminClient().rpc("staff_lookup_user", { p_email: email });
     const user = (data as { user_id: string }[] | null)?.[0];
     if (!user || !(await isConsoleAdmin(user.user_id))) return { ok: true };
@@ -84,7 +84,7 @@ export async function setPasswordFromLinkHandler(input: LinkInput): Promise<Link
     if (String(input.password).length > 200) {
       throw new ConsoleError("invalid_input", "Use at most 200 characters.");
     }
-    await checkRateLimit("link", { ip: getRequestIP() });
+    await checkRateLimit("link", { ip: clientIp() });
 
     const { data: claimData, error: claimError } = await getAdminClient().auth.getClaims(
       input.accessToken,

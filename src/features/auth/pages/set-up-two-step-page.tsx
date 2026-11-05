@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/i18n/i18n";
 
 import { startTwoStepSetupFn, verifyTwoStepFn } from "../auth.actions";
 import { AuthLayout } from "../components/auth-layout";
@@ -13,6 +14,7 @@ type Setup = { factorId: string; qrCode: string; secret: string };
 
 /** First sign-in: no access until two-step sign-in is set up (S-1, FR-TM-2). */
 export function SetUpTwoStepPage() {
+  const t = useT();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [setup, setSetup] = useState<Setup | null>(null);
@@ -34,7 +36,7 @@ export function SetUpTwoStepPage() {
         if (res.ok) setSetup(res);
         else setLoadError(res.message);
       })
-      .catch(() => !cancelled && setLoadError("Something went wrong on our side. Try again."));
+      .catch(() => !cancelled && setLoadError(""));
     return () => {
       cancelled = true;
     };
@@ -54,69 +56,62 @@ export function SetUpTwoStepPage() {
       }
       setError(res.message);
     } catch {
-      setError("Something went wrong on our side. Try again.");
+      setError(t("common.unexpectedError"));
     }
     setCode("");
     setPending(false);
   }
 
-  if (loadError) {
+  // "" is our own failure, worded in the admin's language when shown.
+  if (loadError !== null) {
     return (
       <AuthLayout
-        title="Set up two-step sign-in"
+        title={t("setUp.title")}
         footer={
           <Link to="/sign-in" className="font-semibold text-pine hover:underline">
-            Back to sign in
+            {t("auth.backToSignIn")}
           </Link>
         }
       >
-        <FormError message={loadError} />
+        <FormError message={loadError || t("common.unexpectedError")} />
       </AuthLayout>
     );
   }
 
   return (
-    <AuthLayout
-      title="Set up two-step sign-in"
-      description="Every admin signs in with a password and a code from their phone. This takes about a minute."
-    >
+    <AuthLayout title={t("setUp.title")} description={t("setUp.description")}>
       <form onSubmit={submit}>
         <ol className="list-decimal space-y-5 pl-5 text-sm text-foreground marker:font-semibold marker:text-muted-foreground">
+          <li>{t("setUp.install")}</li>
           <li>
-            Install an authenticator app on your phone, such as Google Authenticator or Microsoft
-            Authenticator.
-          </li>
-          <li>
-            Scan this code with the app.
+            {t("setUp.scan")}
             {setup ? (
               <img
                 src={setup.qrCode}
-                alt="QR code for your authenticator app"
+                alt={t("setUp.qrAlt")}
                 className="mt-3 aspect-square w-40 rounded-xl bg-white p-2"
               />
             ) : (
               <div
                 className="mt-3 aspect-square w-40 rounded-xl bg-sand-deep"
-                aria-label="Loading the QR code"
+                aria-label={t("setUp.qrLoading")}
                 role="img"
               />
             )}
-            <p className="mt-3 text-xs text-muted-foreground">
-              Can't scan it? Enter this key instead:
-            </p>
+            <p className="mt-3 text-xs text-muted-foreground">{t("setUp.cantScan")}</p>
             <p className="mt-1 break-all font-semibold tracking-wider text-foreground">
               {setup ? setup.secret.replace(/(.{4})/g, "$1 ").trim() : ""}
             </p>
           </li>
           <li className="space-y-3">
-            <span>Enter the code the app shows.</span>
+            <span>{t("setUp.enterCode")}</span>
             <CodeField value={code} onChange={setCode} id="setup-code" />
           </li>
         </ol>
         <div className="mt-6 space-y-3">
           <FormError message={error} />
           <Button type="submit" className="w-full" disabled={!setup || code.length < 6 || pending}>
-            {pending ? "Checking" : "Turn on two-step sign-in"}
+            {pending ? t("auth.checking") : t("setUp.turnOn")}
           </Button>
         </div>
       </form>

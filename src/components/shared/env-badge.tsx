@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
-import { APP_ENV, APP_ENV_LABEL, type AppEnv } from "@/lib/env";
+import { APP_ENV, type AppEnv } from "@/lib/env";
+import { useT } from "@/lib/i18n/i18n";
 
 // Non-production environments wear the attention wash, so nobody mistakes
 // test data for the real thing. Production stays quiet.
@@ -11,6 +12,7 @@ const TONE: Record<AppEnv, string> = {
 
 /** The current environment, shown on every screen (spec NFR-8). A status, so a pill. */
 export function EnvBadge({ env = APP_ENV, className }: { env?: AppEnv; className?: string }) {
+  const t = useT();
   return (
     <span
       className={cn(
@@ -19,7 +21,7 @@ export function EnvBadge({ env = APP_ENV, className }: { env?: AppEnv; className
         className,
       )}
     >
-      {APP_ENV_LABEL[env]}
+      {t(`env.${env}`)}
     </span>
   );
 }

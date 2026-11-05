@@ -3,10 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 
 import { DataTable, type Column } from "@/components/shared/data-table";
 import { ExportCsvButton } from "@/components/shared/export-button";
+import { RefreshButton } from "@/components/shared/refresh-button";
 import { SelectField } from "@/components/shared/form";
 import { RecordLink } from "@/components/shared/links";
 import { PageHeader, Surface } from "@/components/shared/page";
-import { EmptyState } from "@/components/shared/states";
+import { EmptyState, TableSkeleton } from "@/components/shared/states";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -60,7 +61,7 @@ export function AuditPage() {
     from: from || undefined,
     to: to || undefined,
   };
-  const { data, isPending, isFetching } = useQuery({
+  const { data, isPending, isFetching, dataUpdatedAt } = useQuery({
     queryKey: ["audit", filters],
     queryFn: () => listAuditFn({ data: filters }),
     // Refetching keeps the current rows on screen, dimmed, instead of flashing empty.
@@ -122,7 +123,12 @@ export function AuditPage() {
       <PageHeader
         title="Audit log"
         description="Every change, reveal and export made in the console. Entries can't be edited or deleted."
-        actions={<ExportCsvButton slug="audit-log" columns={AUDIT_CSV} rows={entries} />}
+        actions={
+          <>
+            <RefreshButton queryKeys={[["audit"]]} updatedAt={dataUpdatedAt} />
+            <ExportCsvButton slug="audit-log" columns={AUDIT_CSV} rows={entries} />
+          </>
+        }
       />
       <Surface flush>
         {/* Filters in one row, scoping everything below (FR-AU-1). */}
@@ -195,9 +201,11 @@ export function AuditPage() {
               columns={columns}
               rowKey={(e) => e.id}
               empty={
-                <EmptyState title={isPending ? "Loading entries" : "No entries match"}>
-                  {isPending ? null : "Change or clear the filters."}
-                </EmptyState>
+                isPending ? (
+                  <TableSkeleton label="Loading entries" />
+                ) : (
+                  <EmptyState title="No entries match">Change or clear the filters.</EmptyState>
+                )
               }
               footer={
                 <div className="flex items-center justify-between gap-2">

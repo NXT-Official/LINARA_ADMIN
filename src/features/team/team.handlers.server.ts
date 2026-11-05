@@ -1,3 +1,4 @@
+import { writeAudit } from "@/features/audit/audit.server";
 import { checkRateLimit } from "@/features/auth/rate-limit.server";
 import { requireFreshCode } from "@/features/auth/reauth.server";
 import { requireStaff } from "@/features/auth/session.server";
@@ -15,6 +16,7 @@ import { serverEnv } from "@/lib/server-env.server";
 import { getAdminClient } from "@/lib/supabase-admin.server";
 
 import { assignableRoles, needsCode, type RoleRow } from "./roles.types";
+import { notifyMemberAdded, notifyMemberRemoved, notifyTwoStepReset } from "./team-notify.server";
 
 /** The Team screen's members (FR-TM-1 to FR-TM-3, D28, D31, D39). */
 
@@ -187,8 +189,16 @@ export function addAdminHandler(
       memberCount: 0,
       updatedAt: "",
     };
+    if (role.preset === "super_admin") {
+      throw new ConsoleError("conflict", "The super admin role can't be given from the console.");
+    }
     if (assignableRoles(staff.preset, [row]).length === 0) {
-      throw new ConsoleError("conflict", "Mods can't give the admin or mods role.");
+      throw new ConsoleError(
+        "conflict",
+        staff.preset === "admin"
+          ? "Only the super admin can give the admin role."
+          : "Mods can't give the admin or mods role.",
+      );
     }
     if (needsCode(row) && !input.code) {
       throw new ConsoleError("conflict", "Enter your two-step code to make this change.");
@@ -224,13 +234,14 @@ export function addAdminHandler(
       outcome = existing ? "reinvited" : "invited";
     }
 
-    // Records itself in the audit log (D39). FR-TM-4's email waits for OQ-13.
+    // Records itself in the audit log (D39), then tells the team's managers (FR-TM-4, D45).
     await call("staff_add_member", {
       p_actor: staff.userId,
       p_user_id: userId,
       p_role_id: input.roleId,
       p_code_checked: !!input.code,
     });
+    await notifyMemberAdded({ actorEmail: staff.email, memberEmail: email, roleName: role.name });
     return { ok: true as const, outcome };
   });
 }
@@ -246,9 +257,75 @@ export function removeAdminHandler(input: RemoveAdminInput): Promise<{ ok: true 
       throw new ConsoleError("not_found", "That person isn't on the team.");
     await requireFreshCode(staff, input.code);
 
+    // Read before removing, for the email; the removal goes ahead without it.
+    const { data: removed } = await getAdminClient().auth.admin.getUserById(input.userId);
     await call("staff_remove_member", { p_actor: staff.userId, p_user_id: input.userId });
     // Their next request fails anyway (the role is gone); this ends their sessions now (FR-TM-3).
     await getAdminClient().rpc("staff_end_sessions", { p_user_id: input.userId });
+    await notifyMemberRemoved({
+      actorEmail: staff.email,
+      memberEmail: removed?.user?.email ?? "A team member",
+    });
+    return { ok: true as const };
+  });
+}
+
+export type ResetTwoStepInput = { userId: string; code: string };
+
+/**
+ * The super admin clears a member's two-step sign-in, for a lost or new phone
+ * (D46). Their authenticator is removed and every session ends; on their next
+ * sign-in they set two-step up again. Needs the super admin's own code.
+ */
+export function resetTwoStepHandler(input: ResetTwoStepInput): Promise<{ ok: true } | PublicError> {
+  return run(async () => {
+    const staff = await requireStaff("team.manage");
+    if (staff.preset !== "super_admin") {
+      throw new ConsoleError("not_allowed", "Only the super admin can reset two-step sign-in.");
+    }
+    if (input.userId === staff.userId) {
+      throw new ConsoleError("conflict", "You can't reset your own two-step sign-in.");
+    }
+    if (!isUuid(input.userId))
+      throw new ConsoleError("not_found", "That person isn't on the team.");
+    await checkRateLimit("team_change", { adminId: staff.userId });
+    await requireFreshCode(staff, input.code);
+
+    const admin = getAdminClient();
+    const { data: member, error: memberError } = await admin
+      .from("staff_roles")
+      .select("user_id")
+      .eq("user_id", input.userId)
+      .maybeSingle();
+    if (memberError) throw new Error(memberError.message);
+    if (!member) throw new ConsoleError("not_found", "That person isn't on the team.");
+
+    const { data: factors, error: listError } = await admin.auth.admin.mfa.listFactors({
+      userId: input.userId,
+    });
+    if (listError) throw new Error(listError.message);
+    for (const factor of factors?.factors ?? []) {
+      const { error } = await admin.auth.admin.mfa.deleteFactor({
+        id: factor.id,
+        userId: input.userId,
+      });
+      if (error) throw new Error(error.message);
+    }
+    // Signed out everywhere, so nobody keeps a session from the old phone.
+    await admin.rpc("staff_end_sessions", { p_user_id: input.userId });
+
+    await writeAudit({
+      actorId: staff.userId,
+      action: "staff.two_step_reset",
+      targetType: "staff",
+      targetId: input.userId,
+      metadata: { factors_removed: factors?.factors?.length ?? 0 },
+    });
+    const { data: target } = await admin.auth.admin.getUserById(input.userId);
+    await notifyTwoStepReset({
+      actorEmail: staff.email,
+      memberEmail: target?.user?.email ?? "A team member",
+    });
     return { ok: true as const };
   });
 }

@@ -1,10 +1,12 @@
+import type { ReactNode } from "react";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { HiddenValue } from "@/components/shared/hidden-value";
 import { BackLink, RecordLink } from "@/components/shared/links";
 import { DetailList, PageHeader, Surface } from "@/components/shared/page";
-import { EmptyState } from "@/components/shared/states";
+import { RefreshButton } from "@/components/shared/refresh-button";
+import { DetailSkeleton, EmptyState } from "@/components/shared/states";
 import { StatusChip } from "@/components/shared/status-chip";
 import { HELPER_STATUS_TONE } from "@/components/shared/tones";
 import { HELPER_STATUS_LABEL, USER_KIND_LABEL } from "@/data/labels";
@@ -18,13 +20,13 @@ import type { HouseholdDetail, HouseholdHelper } from "../households.types";
 
 /** One household, read-only (FR-HH-2, FR-HH-3). */
 export function HouseholdPage({ householdId }: { householdId: string }) {
-  const { data, isPending } = useQuery({
+  const { data, isPending, dataUpdatedAt } = useQuery({
     queryKey: ["household", householdId],
     queryFn: () => getHouseholdFn({ data: { householdId } }),
   });
 
   const back = <BackLink to="/households">Households</BackLink>;
-  if (isPending) return <PageHeader title="Loading household" back={back} />;
+  if (isPending) return <DetailSkeleton label="Loading household" />;
   if (!data?.ok) {
     const missing = data?.code === "not_found";
     return (
@@ -41,16 +43,33 @@ export function HouseholdPage({ householdId }: { householdId: string }) {
       </>
     );
   }
-  return <HouseholdDetailView household={data.household} />;
+  return (
+    <HouseholdDetailView
+      household={data.household}
+      refresh={
+        <RefreshButton
+          queryKeys={[["household", householdId], ["audit"], ["support"]]}
+          updatedAt={dataUpdatedAt}
+        />
+      }
+    />
+  );
 }
 
-function HouseholdDetailView({ household }: { household: HouseholdDetail }) {
+function HouseholdDetailView({
+  household,
+  refresh,
+}: {
+  household: HouseholdDetail;
+  refresh: ReactNode;
+}) {
   return (
     <>
       <PageHeader
         back={<BackLink to="/households">Households</BackLink>}
         title={household.name}
         description={`Created ${formatDate(household.createdAt)}`}
+        actions={refresh}
       />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] [&>*]:min-w-0">

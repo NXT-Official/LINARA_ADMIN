@@ -2,6 +2,7 @@ import { writeAudit } from "@/features/audit/audit.server";
 import { checkRateLimit } from "@/features/auth/rate-limit.server";
 import { requireFreshCode } from "@/features/auth/reauth.server";
 import { requireStaff } from "@/features/auth/session.server";
+import { notifyContactsExported } from "@/features/team/team-notify.server";
 import { ConsoleError, type PublicError } from "@/lib/console-error";
 import { getAdminClient } from "@/lib/supabase-admin.server";
 
@@ -160,6 +161,8 @@ export function exportContactsHandler(input: {
         ...(filters.search || filters.tag ? { has_search: true } : {}),
       },
     });
+    // Every team manager hears about it (FR-CRM-11, S-18, D45).
+    await notifyContactsExported({ actorEmail: staff.email, rows: rows.length });
 
     return {
       ok: true as const,

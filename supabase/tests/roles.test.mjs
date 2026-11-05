@@ -78,13 +78,23 @@ const tsList = [
   ...TS.slice(TS.indexOf("PERMISSIONS = ["), TS.indexOf("] as const")).matchAll(/"([a-z.]+)"/g),
 ].map((m) => m[1]);
 const known = (await q(`SELECT public.staff_known_permissions() AS p`))[0].p;
+// 018-billing.sql adds these three and 019-revenue.sql revenue.*; billing.test.mjs and
+// revenue.test.mjs check the full list.
+const BILLING = [
+  "billing.view",
+  "billing.manage",
+  "switches.manage",
+  "revenue.view",
+  "revenue.manage",
+];
+const before018 = tsList.filter((p) => !BILLING.includes(p));
 check(
-  "the permission list matches permissions.ts",
-  tsList.length === 16 && [...tsList].sort().join() === [...known].sort().join(),
-  { tsList, known },
+  "the permission list matches permissions.ts (before 018)",
+  before018.length === 16 && [...before018].sort().join() === [...known].sort().join(),
+  { before018, known },
 );
 
-const ALL = tsList;
+const ALL = before018;
 const without = (...xs) => ALL.filter((p) => !xs.includes(p)).sort();
 const EXPECTED = {
   admin: [...ALL].sort(),

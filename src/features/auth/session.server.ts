@@ -1,4 +1,4 @@
-import { getRequestIP } from "@tanstack/react-start/server";
+import { clientIp } from "@/lib/client-ip.server";
 
 import { ConsoleError } from "@/lib/console-error";
 import { logError } from "@/lib/log.server";
@@ -113,7 +113,7 @@ export async function requireStaff(
 ): Promise<StaffContext> {
   // Per address first: a token's user id can't be trusted until it's verified,
   // and a refresh below costs an Auth call.
-  if (!memoryLimit(`fn-ip:${getRequestIP() ?? "?"}`, IP_CALLS_PER_MINUTE, 60_000)) {
+  if (!memoryLimit(`fn-ip:${clientIp() ?? "?"}`, IP_CALLS_PER_MINUTE, 60_000)) {
     throw new ConsoleError("conflict", TOO_MANY);
   }
   const cookies = readSessionCookies();

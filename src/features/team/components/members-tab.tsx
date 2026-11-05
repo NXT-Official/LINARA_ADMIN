@@ -4,7 +4,8 @@ import { Plus } from "lucide-react";
 
 import { DataTable, type Column } from "@/components/shared/data-table";
 import { Field, FormDialog } from "@/components/shared/form";
-import { EmptyState } from "@/components/shared/states";
+import { SegmentedFilter } from "@/components/shared/list-toolbar";
+import { EmptyState, TableSkeleton } from "@/components/shared/states";
 import { StatusChip } from "@/components/shared/status-chip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,9 +13,16 @@ import { CodeField } from "@/features/auth/components/code-field";
 import type { RolePreset } from "@/features/auth/permissions";
 import { formatDate, formatRelativeDay } from "@/lib/format";
 
+import { sortMembers, type MemberSort } from "../members-sort";
 import { setMemberRoleFn } from "../roles.actions";
-import { assignableRoles, canChangeMember, needsCode, type RoleRow } from "../roles.types";
-import { addAdminFn, removeAdminFn } from "../team.actions";
+import {
+  assignableRoles,
+  canChangeMember,
+  canResetTwoStep,
+  needsCode,
+  type RoleRow,
+} from "../roles.types";
+import { addAdminFn, removeAdminFn, resetTwoStepFn } from "../team.actions";
 import type { AddOutcome, AdminRow } from "../team.handlers.server";
 import { TEAM_KEYS } from "../team-keys";
 import { RolePicker } from "./role-picker";
@@ -149,6 +157,42 @@ function ChangeRoleDialog({ member, roles }: { member: AdminRow; roles: RoleRow[
   );
 }
 
+/** D46: the super admin clears a member's authenticator, for a lost or new phone. */
+function ResetTwoStepDialog({ member }: { member: AdminRow }) {
+  const refresh = useRefreshTeam();
+  const [code, setCode] = useState("");
+  return (
+    <FormDialog
+      trigger={
+        <Button size="sm" variant="outline" className="relative z-10">
+          Reset two-step
+        </Button>
+      }
+      title={`Reset ${member.email}'s two-step sign-in`}
+      description="Their authenticator is removed and they're signed out everywhere. On their next sign-in they scan a new QR code. The team's managers are emailed and the reset is recorded in the audit log."
+      submitLabel="Reset two-step sign-in"
+      done="Two-step sign-in reset"
+      destructive
+      canSubmit={code.length === 6}
+      onSubmit={async () => {
+        const res = await resetTwoStepFn({ data: { userId: member.userId, code } });
+        setCode("");
+        if (res.ok) await refresh();
+        return res;
+      }}
+    >
+      {(id) => (
+        <CodeField
+          id={id("code")}
+          value={code}
+          onChange={setCode}
+          hint="The 6-digit code in your authenticator app. It confirms it's you resetting theirs."
+        />
+      )}
+    </FormDialog>
+  );
+}
+
 /** FR-TM-3: ends their sessions at once; needs the code. */
 function RemoveMemberDialog({ member }: { member: AdminRow }) {
   const refresh = useRefreshTeam();
@@ -196,6 +240,7 @@ export function MembersTab({
   actor: { userId: string; preset: RolePreset | null };
   loading: boolean;
 }) {
+  const [sort, setSort] = useState<MemberSort>("role");
   const giveable = assignableRoles(actor.preset, roles);
   const columns: Column<AdminRow>[] = [
     {
@@ -237,6 +282,7 @@ export function MembersTab({
           return <span className="text-xs text-muted-foreground">{verdict.why}</span>;
         return (
           <span className="inline-flex flex-wrap justify-end gap-2">
+            {canResetTwoStep(actor, a) ? <ResetTwoStepDialog member={a} /> : null}
             <ChangeRoleDialog member={a} roles={giveable} />
             <RemoveMemberDialog member={a} />
           </span>
@@ -247,15 +293,32 @@ export function MembersTab({
 
   return (
     <>
-      <div className="flex justify-end px-5 pb-3 sm:px-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-5 pb-3 sm:px-6">
+        <SegmentedFilter
+          label="Sort members by"
+          value={sort}
+          onChange={setSort}
+          options={[
+            { value: "role", label: "Role" },
+            { value: "email", label: "Email" },
+            { value: "signIn", label: "Last sign-in" },
+            { value: "added", label: "Newest" },
+          ]}
+        />
         <AddMemberDialog roles={giveable} />
       </div>
       <DataTable
         label="Team members"
-        rows={members}
+        rows={sortMembers(members, sort)}
         columns={columns}
         rowKey={(a) => a.userId}
-        empty={<EmptyState title={loading ? "Loading the team" : "No members found"} />}
+        empty={
+          loading ? (
+            <TableSkeleton label="Loading the team" rows={4} />
+          ) : (
+            <EmptyState title="No members found" />
+          )
+        }
       />
     </>
   );

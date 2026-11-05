@@ -15,6 +15,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import type { CsvColumn } from "@/lib/csv";
+import { useT } from "@/lib/i18n/i18n";
 import { formatCount } from "@/lib/format";
 
 import { ExportCsvButton } from "./export-button";
@@ -213,6 +214,7 @@ export function ChartSurface({
   /** Includes the axis band, so the axis labels never scroll inside the card. */
   height?: string;
 }) {
+  const t = useT();
   const [asTable, setAsTable] = useState(false);
   const columns: CsvColumn<ChartPoint>[] = [
     { header: labelHeader, value: (p) => p.key },
@@ -231,7 +233,7 @@ export function ChartSurface({
             aria-pressed={asTable}
             onClick={() => setAsTable((v) => !v)}
           >
-            {asTable ? "Chart" : "Table"}
+            {asTable ? t("charts.chart") : t("charts.table")}
           </Button>
           <ExportCsvButton slug={slug} columns={columns} rows={data} label="CSV" size="sm" />
         </>

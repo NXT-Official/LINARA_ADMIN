@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { Surface } from "@/components/shared/page";
+import { TableSkeleton } from "@/components/shared/states";
 import { useCan } from "@/features/auth/use-can";
 import { listTeamNamesFn } from "@/features/team/team.actions";
 import { TEAM_KEYS } from "@/features/team/team-keys";
@@ -31,7 +32,7 @@ export function AuditTrail({ targetId }: { targetId: string }) {
   return (
     <Surface title="History in the console" flush>
       {isPending ? (
-        <p className="px-5 pb-5 text-sm text-muted-foreground sm:px-6">Loading history.</p>
+        <TableSkeleton label="Loading history" rows={3} />
       ) : data && !data.ok ? (
         <p className="px-5 pb-5 text-sm text-muted-foreground sm:px-6">{data.message}</p>
       ) : entries.length === 0 ? (

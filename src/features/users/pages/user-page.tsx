@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -5,7 +6,8 @@ import { HiddenValue } from "@/components/shared/hidden-value";
 import { Button } from "@/components/ui/button";
 import { BackLink, RecordLink } from "@/components/shared/links";
 import { DetailList, PageHeader, Surface } from "@/components/shared/page";
-import { EmptyState } from "@/components/shared/states";
+import { RefreshButton } from "@/components/shared/refresh-button";
+import { DetailSkeleton, EmptyState } from "@/components/shared/states";
 import { StatusChip } from "@/components/shared/status-chip";
 import { HELPER_STATUS_TONE } from "@/components/shared/tones";
 import { HELPER_STATUS_LABEL, USER_KIND_LABEL } from "@/data/labels";
@@ -23,13 +25,13 @@ import type { UserDetail, UserJob } from "../users.types";
 const DELETION_DAYS = 30;
 
 export function UserPage({ userId }: { userId: string }) {
-  const { data, isPending } = useQuery({
+  const { data, isPending, dataUpdatedAt } = useQuery({
     queryKey: ["user", userId],
     queryFn: () => getUserFn({ data: { userId } }),
   });
 
   if (isPending) {
-    return <PageHeader title="Loading user" back={<BackLink to="/users">Users</BackLink>} />;
+    return <DetailSkeleton label="Loading user" />;
   }
   if (!data?.ok) {
     const missing = data?.code === "not_found";
@@ -47,10 +49,20 @@ export function UserPage({ userId }: { userId: string }) {
       </>
     );
   }
-  return <UserDetailView user={data.user} />;
+  return (
+    <UserDetailView
+      user={data.user}
+      refresh={
+        <RefreshButton
+          queryKeys={[["user", userId], ["audit"], ["support"]]}
+          updatedAt={dataUpdatedAt}
+        />
+      }
+    />
+  );
 }
 
-function UserDetailView({ user }: { user: UserDetail }) {
+function UserDetailView({ user, refresh }: { user: UserDetail; refresh: ReactNode }) {
   const queryClient = useQueryClient();
   const canSuspend = useCan()("users.suspend");
   const deletion = user.deletion;
@@ -68,22 +80,25 @@ function UserDetailView({ user }: { user: UserDetail }) {
           </span>
         }
         actions={
-          canSuspend ? (
-            <SuspendDialog
-              name={user.fullName}
-              userId={user.userId}
-              suspended={user.suspended}
-              onDone={() => {
-                void queryClient.invalidateQueries({ queryKey: ["user", user.userId] });
-                void queryClient.invalidateQueries({ queryKey: ["users"] });
-              }}
-              trigger={
-                <Button variant={user.suspended ? "default" : "outline"}>
-                  {user.suspended ? "Unsuspend" : "Suspend"}
-                </Button>
-              }
-            />
-          ) : undefined
+          <>
+            {refresh}
+            {canSuspend ? (
+              <SuspendDialog
+                name={user.fullName}
+                userId={user.userId}
+                suspended={user.suspended}
+                onDone={() => {
+                  void queryClient.invalidateQueries({ queryKey: ["user", user.userId] });
+                  void queryClient.invalidateQueries({ queryKey: ["users"] });
+                }}
+                trigger={
+                  <Button variant={user.suspended ? "default" : "outline"}>
+                    {user.suspended ? "Unsuspend" : "Suspend"}
+                  </Button>
+                }
+              />
+            ) : undefined}
+          </>
         }
       />
 

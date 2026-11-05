@@ -1,7 +1,6 @@
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Label } from "@/components/ui/label";
-
-const DEFAULT_HINT = "The 6-digit code in your authenticator app.";
+import { useT } from "@/lib/i18n/i18n";
 
 /**
  * The 6-digit authenticator code (S-1). Says whose code it is and where it
@@ -12,19 +11,20 @@ export function CodeField({
   value,
   onChange,
   id = "code",
-  hint = DEFAULT_HINT,
+  hint,
 }: {
   value: string;
   onChange: (value: string) => void;
   id?: string;
   hint?: string;
 }) {
+  const t = useT();
   const hintId = `${id}-hint`;
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={id}>Your two-step code</Label>
+      <Label htmlFor={id}>{t("auth.codeLabel")}</Label>
       <p id={hintId} className="text-xs text-muted-foreground">
-        {hint}
+        {hint ?? t("auth.codeHint")}
       </p>
       <InputOTP
         id={id}

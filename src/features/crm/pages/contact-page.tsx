@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
@@ -7,7 +8,8 @@ import { toast } from "sonner";
 import { SegmentedFilter } from "@/components/shared/list-toolbar";
 import { BackLink, RecordLink } from "@/components/shared/links";
 import { DetailList, PageHeader, Surface } from "@/components/shared/page";
-import { EmptyState } from "@/components/shared/states";
+import { RefreshButton } from "@/components/shared/refresh-button";
+import { DetailSkeleton, EmptyState } from "@/components/shared/states";
 import { StatusChip } from "@/components/shared/status-chip";
 import { STAGE_TONE } from "@/components/shared/tones";
 import { Button } from "@/components/ui/button";
@@ -49,12 +51,12 @@ const back = <BackLink to="/crm">CRM</BackLink>;
 
 /** One contact (FR-CRM-12): a saved one by id, or a manager not saved yet. */
 export function ContactPage({ contactRef }: { contactRef: ContactRef }) {
-  const { data, isPending } = useQuery({
+  const { data, isPending, dataUpdatedAt } = useQuery({
     queryKey: ["contact", contactRef],
     queryFn: () => getContactFn({ data: contactRef }),
   });
 
-  if (isPending) return <PageHeader title="Loading contact" back={back} />;
+  if (isPending) return <DetailSkeleton label="Loading contact" />;
   if (!data?.ok) {
     const missing = data?.code === "not_found";
     return (
@@ -70,10 +72,26 @@ export function ContactPage({ contactRef }: { contactRef: ContactRef }) {
       </>
     );
   }
-  return <ContactView contact={data.contact} />;
+  return (
+    <ContactView
+      contact={data.contact}
+      refreshButton={
+        <RefreshButton
+          queryKeys={[["contact", contactRef], ["crm", "suggestions"], ["audit"], ["support"]]}
+          updatedAt={dataUpdatedAt}
+        />
+      }
+    />
+  );
 }
 
-function ContactView({ contact }: { contact: ContactDetail }) {
+function ContactView({
+  contact,
+  refreshButton,
+}: {
+  contact: ContactDetail;
+  refreshButton: ReactNode;
+}) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const admins = useAdmins();
@@ -123,32 +141,35 @@ function ContactView({ contact }: { contact: ContactDetail }) {
           </span>
         }
         actions={
-          canWrite ? (
-            <>
-              <FollowUpDialog
-                name={contact.fullName}
-                contactRef={ref}
-                onSaved={refresh}
-                trigger={
-                  <Button variant="outline">
-                    <CalendarPlus />
-                    Add follow-up
-                  </Button>
-                }
-              />
-              <LogActivityDialog
-                name={contact.fullName}
-                contactRef={ref}
-                onSaved={refresh}
-                trigger={
-                  <Button>
-                    <MessageSquarePlus />
-                    Log activity
-                  </Button>
-                }
-              />
-            </>
-          ) : undefined
+          <>
+            {refreshButton}
+            {canWrite ? (
+              <>
+                <FollowUpDialog
+                  name={contact.fullName}
+                  contactRef={ref}
+                  onSaved={refresh}
+                  trigger={
+                    <Button variant="outline">
+                      <CalendarPlus />
+                      Add follow-up
+                    </Button>
+                  }
+                />
+                <LogActivityDialog
+                  name={contact.fullName}
+                  contactRef={ref}
+                  onSaved={refresh}
+                  trigger={
+                    <Button>
+                      <MessageSquarePlus />
+                      Log activity
+                    </Button>
+                  }
+                />
+              </>
+            ) : undefined}
+          </>
         }
       />
 

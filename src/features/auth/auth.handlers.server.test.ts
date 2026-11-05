@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // --- mocks -------------------------------------------------------------------
 const m = vi.hoisted(() => ({
@@ -81,6 +81,7 @@ vi.mock("@/lib/supabase-admin.server", () => ({
 }));
 
 import {
+  REFUSAL_FLOOR_MS,
   WRONG_PASSWORD,
   signInHandler,
   signOutHandler,
@@ -161,6 +162,54 @@ describe("signInHandler", () => {
     m.signIn.mockResolvedValue({ data: {}, error: { message: "bad" } });
     await signInHandler(goodInput);
     expect(m.calls).toEqual(["captcha", "rate:sign_in", "signIn"]);
+  });
+});
+
+describe("signInHandler refusal timing", () => {
+  afterEach(() => vi.useRealTimers());
+
+  /** Whether the answer has arrived after `ms` of (fake) time. */
+  async function settledAfter(p: Promise<unknown>, ms: number): Promise<boolean> {
+    let done = false;
+    void p.then(() => (done = true));
+    await vi.advanceTimersByTimeAsync(ms);
+    return done;
+  }
+
+  it("a wrong password isn't answered before the floor", async () => {
+    vi.useFakeTimers();
+    m.signIn.mockResolvedValue({ data: {}, error: { message: "Invalid login credentials" } });
+    const p = signInHandler(goodInput);
+    expect(await settledAfter(p, REFUSAL_FLOOR_MS - 50)).toBe(false);
+    expect(await settledAfter(p, 100)).toBe(true);
+    await expect(p).resolves.toEqual(WRONG_PASSWORD);
+  });
+
+  it("a household account's right password waits for the same floor", async () => {
+    vi.useFakeTimers();
+    m.signIn.mockResolvedValue({ data: { session, user: { id: "u9", factors: [] } }, error: null });
+    m.roleRow = null;
+    const p = signInHandler(goodInput);
+    expect(await settledAfter(p, REFUSAL_FLOOR_MS - 50)).toBe(false);
+    expect(await settledAfter(p, 100)).toBe(true);
+    await expect(p).resolves.toEqual(WRONG_PASSWORD);
+  });
+
+  it("a slow refusal isn't made slower: the floor is a minimum, not an added delay", async () => {
+    vi.useFakeTimers();
+    m.signIn.mockImplementation(async () => {
+      vi.setSystemTime(Date.now() + REFUSAL_FLOOR_MS + 500);
+      return { data: {}, error: { message: "bad" } };
+    });
+    const p = signInHandler(goodInput);
+    expect(await settledAfter(p, 1)).toBe(true);
+  });
+
+  it("an admin's right password isn't delayed", async () => {
+    vi.useFakeTimers();
+    m.signIn.mockResolvedValue({ data: { session, user: { id: "u1", factors: [] } }, error: null });
+    const p = signInHandler(goodInput);
+    expect(await settledAfter(p, 1)).toBe(true);
   });
 });
 

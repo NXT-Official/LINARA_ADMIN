@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -5,7 +6,8 @@ import { toast } from "sonner";
 import { SegmentedFilter } from "@/components/shared/list-toolbar";
 import { BackLink, RecordLink } from "@/components/shared/links";
 import { DetailList, PageHeader, Surface } from "@/components/shared/page";
-import { EmptyState } from "@/components/shared/states";
+import { RefreshButton } from "@/components/shared/refresh-button";
+import { DetailSkeleton, EmptyState } from "@/components/shared/states";
 import { StatusChip } from "@/components/shared/status-chip";
 import { TICKET_STATUS_TONE } from "@/components/shared/tones";
 import { Button } from "@/components/ui/button";
@@ -34,11 +36,11 @@ const selectClass =
 
 /** One ticket (FR-SP-3 to FR-SP-7). */
 export function TicketPage({ ticketId }: { ticketId: string }) {
-  const { data, isPending } = useQuery({
+  const { data, isPending, dataUpdatedAt } = useQuery({
     queryKey: ["ticket", ticketId],
     queryFn: () => getTicketFn({ data: { ticketId } }),
   });
-  if (isPending) return <PageHeader title="Loading ticket" back={back} />;
+  if (isPending) return <DetailSkeleton label="Loading ticket" />;
   if (!data?.ok) {
     const missing = data?.code === "not_found";
     return (
@@ -52,10 +54,17 @@ export function TicketPage({ ticketId }: { ticketId: string }) {
       </>
     );
   }
-  return <TicketView ticket={data.ticket} />;
+  return (
+    <TicketView
+      ticket={data.ticket}
+      refreshButton={
+        <RefreshButton queryKeys={[["ticket", ticketId], ["audit"]]} updatedAt={dataUpdatedAt} />
+      }
+    />
+  );
 }
 
-function TicketView({ ticket }: { ticket: TicketDetail }) {
+function TicketView({ ticket, refreshButton }: { ticket: TicketDetail; refreshButton: ReactNode }) {
   const queryClient = useQueryClient();
   const admins = useAdmins();
   const canWrite = useCan()("support.write");
@@ -105,6 +114,7 @@ function TicketView({ ticket }: { ticket: TicketDetail }) {
             </span>
           </span>
         }
+        actions={refreshButton}
       />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] [&>*]:min-w-0">

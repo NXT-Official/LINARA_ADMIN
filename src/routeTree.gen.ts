@@ -16,8 +16,11 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
 import { Route as AuthedAiRouteImport } from './routes/_authed/ai'
 import { Route as AuthedAuditRouteImport } from './routes/_authed/audit'
+import { Route as AuthedBillingRouteImport } from './routes/_authed/billing'
 import { Route as AuthedDeletionsRouteImport } from './routes/_authed/deletions'
 import { Route as AuthedPayoutsRouteImport } from './routes/_authed/payouts'
+import { Route as AuthedRevenueRouteImport } from './routes/_authed/revenue'
+import { Route as AuthedSwitchesRouteImport } from './routes/_authed/switches'
 import { Route as AuthedTeamRouteImport } from './routes/_authed/team'
 import { Route as SignInIndexRouteImport } from './routes/sign-in/index'
 import { Route as SignInSetUpRouteImport } from './routes/sign-in/set-up'
@@ -27,6 +30,8 @@ import { Route as AuthedCrmContactIdRouteImport } from './routes/_authed/crm/$co
 import { Route as AuthedCrmImportRouteImport } from './routes/_authed/crm/import'
 import { Route as AuthedHouseholdsIndexRouteImport } from './routes/_authed/households/index'
 import { Route as AuthedHouseholdsHouseholdIdRouteImport } from './routes/_authed/households/$householdId'
+import { Route as AuthedPlansIndexRouteImport } from './routes/_authed/plans/index'
+import { Route as AuthedPlansPlanIdRouteImport } from './routes/_authed/plans/$planId'
 import { Route as AuthedSupportIndexRouteImport } from './routes/_authed/support/index'
 import { Route as AuthedSupportTicketIdRouteImport } from './routes/_authed/support/$ticketId'
 import { Route as AuthedUsersIndexRouteImport } from './routes/_authed/users/index'
@@ -67,6 +72,11 @@ const AuthedAuditRoute = AuthedAuditRouteImport.update({
   path: '/audit',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedBillingRoute = AuthedBillingRouteImport.update({
+  id: '/billing',
+  path: '/billing',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedDeletionsRoute = AuthedDeletionsRouteImport.update({
   id: '/deletions',
   path: '/deletions',
@@ -75,6 +85,16 @@ const AuthedDeletionsRoute = AuthedDeletionsRouteImport.update({
 const AuthedPayoutsRoute = AuthedPayoutsRouteImport.update({
   id: '/payouts',
   path: '/payouts',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedRevenueRoute = AuthedRevenueRouteImport.update({
+  id: '/revenue',
+  path: '/revenue',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedSwitchesRoute = AuthedSwitchesRouteImport.update({
+  id: '/switches',
+  path: '/switches',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedTeamRoute = AuthedTeamRouteImport.update({
@@ -123,6 +143,16 @@ const AuthedHouseholdsHouseholdIdRoute =
     path: '/households/$householdId',
     getParentRoute: () => AuthedRoute,
   } as any)
+const AuthedPlansIndexRoute = AuthedPlansIndexRouteImport.update({
+  id: '/plans/',
+  path: '/plans/',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedPlansPlanIdRoute = AuthedPlansPlanIdRouteImport.update({
+  id: '/plans/$planId',
+  path: '/plans/$planId',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedSupportIndexRoute = AuthedSupportIndexRouteImport.update({
   id: '/support/',
   path: '/support/',
@@ -156,8 +186,11 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/ai': typeof AuthedAiRoute
   '/audit': typeof AuthedAuditRoute
+  '/billing': typeof AuthedBillingRoute
   '/deletions': typeof AuthedDeletionsRoute
   '/payouts': typeof AuthedPayoutsRoute
+  '/revenue': typeof AuthedRevenueRoute
+  '/switches': typeof AuthedSwitchesRoute
   '/team': typeof AuthedTeamRoute
   '/sign-in/set-up': typeof SignInSetUpRoute
   '/sign-in/two-step': typeof SignInTwoStepRoute
@@ -165,10 +198,12 @@ export interface FileRoutesByFullPath {
   '/crm/$contactId': typeof AuthedCrmContactIdRoute
   '/crm/import': typeof AuthedCrmImportRoute
   '/households/$householdId': typeof AuthedHouseholdsHouseholdIdRoute
+  '/plans/$planId': typeof AuthedPlansPlanIdRoute
   '/support/$ticketId': typeof AuthedSupportTicketIdRoute
   '/users/$userId': typeof AuthedUsersUserIdRoute
   '/crm/': typeof AuthedCrmIndexRoute
   '/households/': typeof AuthedHouseholdsIndexRoute
+  '/plans/': typeof AuthedPlansIndexRoute
   '/support/': typeof AuthedSupportIndexRoute
   '/users/': typeof AuthedUsersIndexRoute
   '/crm/account/$userId': typeof AuthedCrmAccountUserIdRoute
@@ -179,8 +214,11 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/ai': typeof AuthedAiRoute
   '/audit': typeof AuthedAuditRoute
+  '/billing': typeof AuthedBillingRoute
   '/deletions': typeof AuthedDeletionsRoute
   '/payouts': typeof AuthedPayoutsRoute
+  '/revenue': typeof AuthedRevenueRoute
+  '/switches': typeof AuthedSwitchesRoute
   '/team': typeof AuthedTeamRoute
   '/sign-in/set-up': typeof SignInSetUpRoute
   '/sign-in/two-step': typeof SignInTwoStepRoute
@@ -189,10 +227,12 @@ export interface FileRoutesByTo {
   '/crm/$contactId': typeof AuthedCrmContactIdRoute
   '/crm/import': typeof AuthedCrmImportRoute
   '/households/$householdId': typeof AuthedHouseholdsHouseholdIdRoute
+  '/plans/$planId': typeof AuthedPlansPlanIdRoute
   '/support/$ticketId': typeof AuthedSupportTicketIdRoute
   '/users/$userId': typeof AuthedUsersUserIdRoute
   '/crm': typeof AuthedCrmIndexRoute
   '/households': typeof AuthedHouseholdsIndexRoute
+  '/plans': typeof AuthedPlansIndexRoute
   '/support': typeof AuthedSupportIndexRoute
   '/users': typeof AuthedUsersIndexRoute
   '/crm/account/$userId': typeof AuthedCrmAccountUserIdRoute
@@ -205,8 +245,11 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/_authed/ai': typeof AuthedAiRoute
   '/_authed/audit': typeof AuthedAuditRoute
+  '/_authed/billing': typeof AuthedBillingRoute
   '/_authed/deletions': typeof AuthedDeletionsRoute
   '/_authed/payouts': typeof AuthedPayoutsRoute
+  '/_authed/revenue': typeof AuthedRevenueRoute
+  '/_authed/switches': typeof AuthedSwitchesRoute
   '/_authed/team': typeof AuthedTeamRoute
   '/sign-in/set-up': typeof SignInSetUpRoute
   '/sign-in/two-step': typeof SignInTwoStepRoute
@@ -215,10 +258,12 @@ export interface FileRoutesById {
   '/_authed/crm/$contactId': typeof AuthedCrmContactIdRoute
   '/_authed/crm/import': typeof AuthedCrmImportRoute
   '/_authed/households/$householdId': typeof AuthedHouseholdsHouseholdIdRoute
+  '/_authed/plans/$planId': typeof AuthedPlansPlanIdRoute
   '/_authed/support/$ticketId': typeof AuthedSupportTicketIdRoute
   '/_authed/users/$userId': typeof AuthedUsersUserIdRoute
   '/_authed/crm/': typeof AuthedCrmIndexRoute
   '/_authed/households/': typeof AuthedHouseholdsIndexRoute
+  '/_authed/plans/': typeof AuthedPlansIndexRoute
   '/_authed/support/': typeof AuthedSupportIndexRoute
   '/_authed/users/': typeof AuthedUsersIndexRoute
   '/_authed/crm/account/$userId': typeof AuthedCrmAccountUserIdRoute
@@ -232,8 +277,11 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/ai'
     | '/audit'
+    | '/billing'
     | '/deletions'
     | '/payouts'
+    | '/revenue'
+    | '/switches'
     | '/team'
     | '/sign-in/set-up'
     | '/sign-in/two-step'
@@ -241,10 +289,12 @@ export interface FileRouteTypes {
     | '/crm/$contactId'
     | '/crm/import'
     | '/households/$householdId'
+    | '/plans/$planId'
     | '/support/$ticketId'
     | '/users/$userId'
     | '/crm/'
     | '/households/'
+    | '/plans/'
     | '/support/'
     | '/users/'
     | '/crm/account/$userId'
@@ -255,8 +305,11 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/ai'
     | '/audit'
+    | '/billing'
     | '/deletions'
     | '/payouts'
+    | '/revenue'
+    | '/switches'
     | '/team'
     | '/sign-in/set-up'
     | '/sign-in/two-step'
@@ -265,10 +318,12 @@ export interface FileRouteTypes {
     | '/crm/$contactId'
     | '/crm/import'
     | '/households/$householdId'
+    | '/plans/$planId'
     | '/support/$ticketId'
     | '/users/$userId'
     | '/crm'
     | '/households'
+    | '/plans'
     | '/support'
     | '/users'
     | '/crm/account/$userId'
@@ -280,8 +335,11 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/_authed/ai'
     | '/_authed/audit'
+    | '/_authed/billing'
     | '/_authed/deletions'
     | '/_authed/payouts'
+    | '/_authed/revenue'
+    | '/_authed/switches'
     | '/_authed/team'
     | '/sign-in/set-up'
     | '/sign-in/two-step'
@@ -290,10 +348,12 @@ export interface FileRouteTypes {
     | '/_authed/crm/$contactId'
     | '/_authed/crm/import'
     | '/_authed/households/$householdId'
+    | '/_authed/plans/$planId'
     | '/_authed/support/$ticketId'
     | '/_authed/users/$userId'
     | '/_authed/crm/'
     | '/_authed/households/'
+    | '/_authed/plans/'
     | '/_authed/support/'
     | '/_authed/users/'
     | '/_authed/crm/account/$userId'
@@ -360,6 +420,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedAuditRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/billing': {
+      id: '/_authed/billing'
+      path: '/billing'
+      fullPath: '/billing'
+      preLoaderRoute: typeof AuthedBillingRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/deletions': {
       id: '/_authed/deletions'
       path: '/deletions'
@@ -372,6 +439,20 @@ declare module '@tanstack/react-router' {
       path: '/payouts'
       fullPath: '/payouts'
       preLoaderRoute: typeof AuthedPayoutsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/revenue': {
+      id: '/_authed/revenue'
+      path: '/revenue'
+      fullPath: '/revenue'
+      preLoaderRoute: typeof AuthedRevenueRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/switches': {
+      id: '/_authed/switches'
+      path: '/switches'
+      fullPath: '/switches'
+      preLoaderRoute: typeof AuthedSwitchesRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/team': {
@@ -437,6 +518,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedHouseholdsHouseholdIdRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/plans/': {
+      id: '/_authed/plans/'
+      path: '/plans'
+      fullPath: '/plans/'
+      preLoaderRoute: typeof AuthedPlansIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/plans/$planId': {
+      id: '/_authed/plans/$planId'
+      path: '/plans/$planId'
+      fullPath: '/plans/$planId'
+      preLoaderRoute: typeof AuthedPlansPlanIdRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/support/': {
       id: '/_authed/support/'
       path: '/support'
@@ -478,17 +573,22 @@ declare module '@tanstack/react-router' {
 interface AuthedRouteChildren {
   AuthedAiRoute: typeof AuthedAiRoute
   AuthedAuditRoute: typeof AuthedAuditRoute
+  AuthedBillingRoute: typeof AuthedBillingRoute
   AuthedDeletionsRoute: typeof AuthedDeletionsRoute
   AuthedPayoutsRoute: typeof AuthedPayoutsRoute
+  AuthedRevenueRoute: typeof AuthedRevenueRoute
+  AuthedSwitchesRoute: typeof AuthedSwitchesRoute
   AuthedTeamRoute: typeof AuthedTeamRoute
   AuthedIndexRoute: typeof AuthedIndexRoute
   AuthedCrmContactIdRoute: typeof AuthedCrmContactIdRoute
   AuthedCrmImportRoute: typeof AuthedCrmImportRoute
   AuthedHouseholdsHouseholdIdRoute: typeof AuthedHouseholdsHouseholdIdRoute
+  AuthedPlansPlanIdRoute: typeof AuthedPlansPlanIdRoute
   AuthedSupportTicketIdRoute: typeof AuthedSupportTicketIdRoute
   AuthedUsersUserIdRoute: typeof AuthedUsersUserIdRoute
   AuthedCrmIndexRoute: typeof AuthedCrmIndexRoute
   AuthedHouseholdsIndexRoute: typeof AuthedHouseholdsIndexRoute
+  AuthedPlansIndexRoute: typeof AuthedPlansIndexRoute
   AuthedSupportIndexRoute: typeof AuthedSupportIndexRoute
   AuthedUsersIndexRoute: typeof AuthedUsersIndexRoute
   AuthedCrmAccountUserIdRoute: typeof AuthedCrmAccountUserIdRoute
@@ -497,17 +597,22 @@ interface AuthedRouteChildren {
 const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedAiRoute: AuthedAiRoute,
   AuthedAuditRoute: AuthedAuditRoute,
+  AuthedBillingRoute: AuthedBillingRoute,
   AuthedDeletionsRoute: AuthedDeletionsRoute,
   AuthedPayoutsRoute: AuthedPayoutsRoute,
+  AuthedRevenueRoute: AuthedRevenueRoute,
+  AuthedSwitchesRoute: AuthedSwitchesRoute,
   AuthedTeamRoute: AuthedTeamRoute,
   AuthedIndexRoute: AuthedIndexRoute,
   AuthedCrmContactIdRoute: AuthedCrmContactIdRoute,
   AuthedCrmImportRoute: AuthedCrmImportRoute,
   AuthedHouseholdsHouseholdIdRoute: AuthedHouseholdsHouseholdIdRoute,
+  AuthedPlansPlanIdRoute: AuthedPlansPlanIdRoute,
   AuthedSupportTicketIdRoute: AuthedSupportTicketIdRoute,
   AuthedUsersUserIdRoute: AuthedUsersUserIdRoute,
   AuthedCrmIndexRoute: AuthedCrmIndexRoute,
   AuthedHouseholdsIndexRoute: AuthedHouseholdsIndexRoute,
+  AuthedPlansIndexRoute: AuthedPlansIndexRoute,
   AuthedSupportIndexRoute: AuthedSupportIndexRoute,
   AuthedUsersIndexRoute: AuthedUsersIndexRoute,
   AuthedCrmAccountUserIdRoute: AuthedCrmAccountUserIdRoute,

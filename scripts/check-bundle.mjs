@@ -11,7 +11,13 @@ if (!existsSync(ROOT)) {
 
 // Names that must never appear in browser code, plus the real key values from
 // .env when there is one (read here, never printed).
-const needles = ["SUPABASE_SERVICE_ROLE_KEY", "sb_secret_", "service_role", "HCAPTCHA_SECRET"];
+const needles = [
+  "SUPABASE_SERVICE_ROLE_KEY",
+  "sb_secret_",
+  "service_role",
+  "HCAPTCHA_SECRET",
+  "RESEND_API_KEY",
+];
 if (existsSync(".env")) {
   for (const line of readFileSync(".env", "utf8").split(/\r?\n/)) {
     const m = line.match(/^\s*(SUPABASE_SERVICE_ROLE_KEY|HCAPTCHA_SECRET)\s*=\s*(.+?)\s*$/);

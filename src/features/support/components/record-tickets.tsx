@@ -4,6 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useCan } from "@/features/auth/use-can";
 import { RecordLink } from "@/components/shared/links";
 import { Surface } from "@/components/shared/page";
+import { TableSkeleton } from "@/components/shared/states";
 import { StatusChip } from "@/components/shared/status-chip";
 import { TICKET_STATUS_TONE } from "@/components/shared/tones";
 import { Button } from "@/components/ui/button";
@@ -55,7 +56,7 @@ export function RecordTickets({ filter }: { filter: TicketLinks }) {
       }
     >
       {isPending ? (
-        <p className="px-5 pb-5 text-sm text-muted-foreground sm:px-6">Loading tickets.</p>
+        <TableSkeleton label="Loading tickets" rows={3} />
       ) : data && !data.ok ? (
         <p className="px-5 pb-5 text-sm text-muted-foreground sm:px-6">{data.message}</p>
       ) : tickets.length === 0 ? (

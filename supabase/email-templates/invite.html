@@ -112,12 +112,14 @@
                             {{ .Data.invite_role }}
                           </td>
                         </tr>
+                        {{ if .Data.invite_environment }}
                         <tr>
                           <td style="padding: 0 16px 6px 0; color: #576764; white-space: nowrap">
                             Console
                           </td>
                           <td style="padding: 0 0 6px 0">{{ .Data.invite_environment }}</td>
                         </tr>
+                        {{ end }}
                         <tr>
                           <td style="padding: 0 16px 0 0; color: #576764; white-space: nowrap">
                             Added by
